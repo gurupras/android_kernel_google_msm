@@ -1002,6 +1002,10 @@ struct net_device_ops {
 						    netdev_features_t features);
 	int			(*ndo_neigh_construct)(struct neighbour *n);
 	void			(*ndo_neigh_destroy)(struct neighbour *n);
+#ifdef CONFIG_POWER_AGILE
+	unsigned int            (*get_epb)(struct net_device *dev);
+	unsigned int            (*get_bandwidth)(struct net_device *dev);
+#endif
 };
 
 /*

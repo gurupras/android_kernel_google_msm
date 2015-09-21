@@ -290,4 +290,8 @@ static inline struct net *PDE_NET(struct proc_dir_entry *pde)
 	return pde->parent->data;
 }
 
+#ifdef CONFIG_POWER_AGILE
+int proc_get_cmdline(struct task_struct *, char *);
+#endif
+
 #endif /* _LINUX_PROC_FS_H */

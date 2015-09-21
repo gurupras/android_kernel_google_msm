@@ -1071,6 +1071,10 @@ void set_task_comm(struct task_struct *tsk, char *buf)
 	strlcpy(tsk->comm, buf, sizeof(tsk->comm));
 	task_unlock(tsk);
 	perf_event_comm(tsk);
+#ifdef CONFIG_POWER_AGILE_PERIODIC_LOGGING
+	if (current->pa.pa_print_log)
+               printk(KERN_INFO "%s,%d,%d,%s\n", PA_LOG_TAG, PA_LOG_EXEC, tsk->pid, tsk->comm);
+#endif
 }
 
 static void filename_to_taskname(char *tcomm, const char *fn, unsigned int len)
@@ -1143,7 +1147,9 @@ void setup_new_exec(struct linux_binprm * bprm)
 		set_dumpable(current->mm, 1);
 	else
 		set_dumpable(current->mm, suid_dumpable);
-
+#ifdef CONFIG_POWER_AGILE_PERIODIC_LOGGING
+	current->pa.pa_print_log = 1;
+#endif
 	set_task_comm(current, bprm->tcomm);
 
 	/* Set the new mm task size. We have to do that late because it may
@@ -1176,6 +1182,14 @@ void setup_new_exec(struct linux_binprm * bprm)
 			
 	flush_signal_handlers(current, 0);
 	flush_old_files(current->files);
+
+#ifdef CONFIG_POWER_AGILE_PROC_INFO
+	printk(KERN_INFO "%s: PID :%05d TGID :%05d (%s)\n"
+			, __func__,
+			current->pid,
+			current->tgid,
+			current->comm);
+#endif
 }
 EXPORT_SYMBOL(setup_new_exec);
 

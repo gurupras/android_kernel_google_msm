@@ -1548,6 +1548,21 @@ endmenu
 
 menu "Kernel Features"
 
+config POWER_AGILE
+	bool "Power Agility"
+	help
+	  This option enables power agility
+ 
+config QEMU
+	bool "Enable QEMU"
+	depends on POWER_AGILE
+	help
+	  This option enables power agility on QEMU
+ 
+ 
+ 
+
+
 source "kernel/time/Kconfig"
 
 config HAVE_SMP
@@ -2324,6 +2339,74 @@ endif
 source "drivers/cpuidle/Kconfig"
 
 endmenu
+
+if POWER_AGILE
+menu "Power-Agility Options"
+ 
+config POWER_AGILE_PID_INFO
+	bool "Update PID_REGISTER upon context switch"
+ 
+config POWER_AGILE_CTX_SWITCH_INFO
+	bool "Display PIDs of processes upon context switch"
+ 
+config POWER_AGILE_PROC_INFO
+	bool "Show process name for every PID that is initialized"
+ 
+config POWER_AGILE_TASK_STATS
+	bool "Record performance statistics per-task"
+ 
+config POWER_AGILE_ENERGY
+	bool "Record energy statistics per-task"
+	depends on POWER_AGILE_TASK_STATS
+ 
+config POWER_AGILE_TASK_STATS_EXIT
+	depends on POWER_AGILE_TASK_STATS && CONFIG_CPU_FREQ
+	bool "Display performance statistics per-task upon exit"
+ 
+config POWER_AGILE_SIM
+	bool
+config POWER_AGILE_INEFFICIENCY_CONTROLLER
+	bool "Enable the PowerAgile inefficiency controller"
+	select POWER_AGILE_TASK_STATS
+	select POWER_AGILE_ENERGY
+	select POWER_AGILE_SIM
+ 
+config RATE_LIMITING
+	bool "Enable rate-limiting of processes"
+	select POWER_AGILE_TASK_STATS
+	select POWER_AGILE_ENERGY
+	select POWER_AGILE_SIM
+ 
+
+if QEMU
+menu "QEMU Fixes"
+	config QEMU_ENERGY
+	bool "Enable energy statistic updates via get_random_bytes()"
+	depends on POWER_AGILE_ENERGY
+endmenu
+endif
+ 
+if POWER_AGILE_INEFFICIENCY_CONTROLLER
+menu "Inefficiency Controller Options"
+	config POWER_AGILE_INEFFICIENCY_CONTROLLER_CPU
+		bool "Enable CPU Inefficiency controller"
+		depends on POWER_AGILE_INEFFICIENCY_CONTROLLER
+ 
+	config POWER_AGILE_INEFFICIENCY_CONTROLLER_NET
+		bool "Enable NET Inefficiency controller"
+		depends on POWER_AGILE_INEFFICIENCY_CONTROLLER
+ 
+	config POWER_AGILE_PERIODIC_LOGGING
+		bool "Enable periodic statistic logging"
+		depends on POWER_AGILE_INEFFICIENCY_CONTROLLER && POWER_AGILE_TASK_STATS
+ 
+endmenu
+endif
+ 
+endmenu
+endif
+ 
+ 
 
 config CPU_FREQ_MSM
         bool

@@ -90,6 +90,20 @@
 #include <trace/events/oom.h>
 #include "internal.h"
 
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+#include <linux/power_agile_inefficiency.h>
+#include <linux/../../lib/library/kernel/frontier.h>
+#endif
+
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER_CPU
+#include <linux/cpufreq.h>
+#endif
+
+#ifdef CONFIG_RATE_LIMITING
+#include <linux/rate_limiting.h>
+#endif
+
+
 /* NOTE:
  *	Implementing inode permission operations in /proc is almost
  *	certainly an error.  Permission checks need to happen during
@@ -245,6 +259,690 @@ out_mm:
 out:
 	return res;
 }
+
+
+#ifdef CONFIG_POWER_AGILE
+int proc_get_cmdline(struct task_struct *task, char * buffer) {
+	int i;
+	int ret = proc_pid_cmdline(task, buffer);
+
+	for(i = 0; i < ret - 1; i++) {
+		if(buffer[i] == '\0')
+			buffer[i] = ' ';
+	}
+	return 0;
+}
+#endif
+
+
+#ifdef CONFIG_POWER_AGILE
+static ssize_t proc_power_agile_task_cpu_freq_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len = 0;
+	char buffer[16];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+
+	memset(buffer, 0, sizeof buffer);
+	len = sprintf(buffer, "%d\n", task->pa.cpu_freq);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_power_agile_task_cpu_freq_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+	char buffer[16];
+	u32 cpu_freq = 0;
+
+	memset(buffer, 0, sizeof buffer);
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		printk(KERN_ERR "cpu_freq_write: Failed to obtain cpu_freq from userspace\n");
+		err = -EFAULT;
+		goto out;
+	}
+
+	err = kstrtoint(strstrip(buffer), 0, &cpu_freq);
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	if(!cpu_freq) {
+		printk(KERN_ERR "cpu_freq: PID:%05d Invalid '%s'\n", task->pid, buffer);
+		err = -EINVAL;
+		goto out;
+	}
+
+	task_lock(task);
+	task->pa.cpu_freq = cpu_freq;
+	task_unlock(task);
+	pr_debug("cpu_freq: PID:%05d set cpu_freq to :%u\n", task->pid, cpu_freq);
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_power_agile_task_cpu_freq_operations = {
+	.read           = proc_power_agile_task_cpu_freq_read,
+	.write          = proc_power_agile_task_cpu_freq_write,
+	.llseek         = default_llseek,
+};
+
+#endif
+
+
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+static ssize_t proc_power_agile_task_break_after_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len = 0;
+	char buffer[16];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+
+	memset(buffer, 0, sizeof buffer);
+	len = sprintf(buffer, "%llu\n", task->pa.break_after);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_power_agile_task_break_after_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+	char buffer[16];
+	u64 break_after = 0;
+
+	memset(buffer, 0, sizeof buffer);
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		printk(KERN_ERR "break_after_write: Failed to obtain break_after from userspace\n");
+		err = -EFAULT;
+		goto out;
+	}
+
+	err = kstrtoull(strstrip(buffer), 0, &break_after);
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	if(!break_after) {
+		printk(KERN_ERR "break_after: PID:%05d Invalid '%s'\n", task->pid, buffer);
+		err = -EINVAL;
+		goto out;
+	}
+
+	task_lock(task);
+	task->pa.break_after = break_after;
+	task_unlock(task);
+	pr_debug("break_after: PID:%05d set break_after to :%llu\n", task->pid, break_after);
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_power_agile_task_break_after_operations = {
+	.read           = proc_power_agile_task_break_after_read,
+	.write          = proc_power_agile_task_break_after_write,
+	.llseek         = default_llseek,
+};
+#endif
+
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+static ssize_t proc_power_agile_task_stats_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len;
+	char buffer[896];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+	memset(buffer, 0, sizeof buffer);
+	task_lock(task);
+	len = sprintf(buffer, "%llu %llu %llu %llu %llu %llu",
+			task->pa.base_stats.instructions, task->pa.base_stats.cycles,
+			task->pa.base_stats.user_instructions, task->pa.base_stats.kernel_instructions,
+			task->pa.base_stats.user_cycles, task->pa.base_stats.kernel_cycles
+		     );
+	//             6
+	len += sprintf(buffer + len, " %llu %llu %llu %llu",
+			task->pa.stats.cpu_busy_cycles,
+			task->pa.stats.cpu_l1l2_stall_cycles,
+			task->pa.stats.cpu_dram_stall_time_ns,
+			task->pa.stats.cpu_quiesce_time_ns
+		      );
+	//             10
+	len += sprintf(buffer + len, " %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu",
+			task->pa.stats.mem_busy_time_ns,
+			task->pa.stats.mem_idle_time_ns,
+			task->pa.stats.mem_activate_count,
+			task->pa.stats.mem_precharge_count,
+			task->pa.stats.mem_read_count,
+			task->pa.stats.mem_write_count,
+			task->pa.stats.mem_precharge_time_ns,
+			task->pa.stats.mem_active_time_ns,
+			task->pa.stats.mem_refresh_count,
+			task->pa.stats.mem_active_idle_overlap_time_ns,
+			task->pa.stats.mem_precharge_idle_overlap_time_ns
+		      );
+	//             21
+	//             TODO: Add network stats here
+	task_unlock(task);
+
+	len += sprintf(buffer + len, "\n");
+
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_power_agile_task_stats_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		goto out;
+	}
+out:
+	return err;
+}
+
+static const struct file_operations proc_power_agile_task_stats_operations = {
+	.read           = proc_power_agile_task_stats_read,
+	.write          = proc_power_agile_task_stats_write,
+	.llseek         = default_llseek,
+};
+
+static ssize_t proc_power_agile_task_stats_json_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len, err;
+	char *buffer = kmalloc(sizeof(char) * 2048, GFP_KERNEL);
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+	memset(buffer, 0, sizeof buffer);
+	task_lock(task);
+	len = statistics_to_json(&task->pa.stats, buffer);
+	task_unlock(task);
+
+	err = simple_read_from_buffer(buf, count, ppos, buffer, len);
+	kfree(buffer);
+	return err;
+}
+
+static const struct file_operations proc_power_agile_task_stats_json_operations = {
+	.read           = proc_power_agile_task_stats_json_read,
+	.llseek         = default_llseek,
+};
+
+
+#endif
+
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+static ssize_t proc_power_agile_controller_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len = 0;
+	char buffer[128];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+
+	memset(buffer, 0, sizeof buffer);
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER_CPU
+	len += sprintf(buffer + len, "%u ", task->pa.cpu_freq);
+#endif
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER_MEM
+	len += sprintf(buffer + len, "%u ", task->pa.mem_freq);
+#endif
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER_NET
+	len += sprintf(buffer + len, "%u ", 0);
+#endif
+	len += sprintf(buffer + len, "\n");
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_power_agile_controller_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+	int cpu;
+	struct parameters params;
+	int size = sizeof(struct parameters);
+	int cpu_idx, mem_idx;
+	u64 core_energy;
+
+	memset(&params, 0, size);
+	if (count > size - 1)
+		count = size - 1;
+	if (copy_from_user(&params, buf, count)) {
+		printk(KERN_ERR "controller_write: Failed to copy component params from userspace\n");
+		err = -EFAULT;
+		goto out;
+	}
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (!task) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	cpu = task_thread_info(task)->cpu;
+	pr_debug("inefficiency_controller: controller_write:\n");
+	print_parameters(&params);
+
+	// TODO: compute core energy
+	cpu_idx = get_parameters_cpu_idx(&params);
+	mem_idx = get_parameters_mem_idx(&params);
+
+	if(cpu_idx == -1 || mem_idx == -1)
+		return -EINVAL;
+	task_lock(task);
+	task->pa.cpu_freq = params.cpu_frequency_MHZ * 1000;
+	task->pa.mem_freq = params.mem_frequency_MHZ * 1000;
+	//FIXME: Add whatever it is for network
+
+	// TODO: This should be wrapped into 1 function
+	core_energy = task->pa.inefficiency.surface->points[cpu_idx][mem_idx].configuration.energy;
+	task->pa.inefficiency.net_energy_budget = task->pa.inefficiency.energy_budget - core_energy;
+	task_unlock(task);
+#ifdef CONFIG_CPU_FREQ
+	pa_update_cpu_freq(cpu, params.cpu_frequency_MHZ * 1000);
+#endif
+#ifdef CONFIG_MEM_FREQ
+	pa_update_mem_freq(params.mem_frequency_MHZ);
+#endif
+
+out:
+	return err < 0 ? err : count;
+}
+//#endif
+
+static const struct file_operations proc_power_agile_controller_operations = {
+	.read           = proc_power_agile_controller_read,
+	.write          = proc_power_agile_controller_write,
+	.llseek         = default_llseek,
+};
+
+static ssize_t proc_power_agile_task_inefficiency_budget_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len;
+	char buffer[PROC_NUMBUF];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+
+	memset(buffer, 0, sizeof buffer);
+	len = sprintf(buffer, "%d\n", task->pa.inefficiency.budget);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_power_agile_task_inefficiency_budget_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+	char buffer[PROC_NUMBUF];
+	int budget;
+
+	memset(buffer, 0, sizeof buffer);
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		printk(KERN_ERR "inefficiency_buffer: Failed to obtain budget from userspace\n");
+		err = -EFAULT;
+		goto out;
+	}
+
+	err = kstrtoint(strstrip(buffer), 0, &budget);
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	pr_debug("inefficiency_budget: PID:%05d set budget to :%d\n", task->pid, budget);
+	task_lock(task);
+	task->pa.inefficiency.budget = budget;
+	task_unlock(task);
+
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_power_agile_task_inefficiency_budget_operations = {
+	.read           = proc_power_agile_task_inefficiency_budget_read,
+	.write          = proc_power_agile_task_inefficiency_budget_write,
+	.llseek         = default_llseek,
+};
+
+static ssize_t proc_power_agile_task_inefficiency_surface_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len, err;
+	char *buffer = kzalloc(64 * 1024, GFP_KERNEL);
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+	struct statistics *stats;
+	struct parameters params;
+	struct inefficiency_surface *surface;
+	int cpu;
+
+	cpu = task_thread_info(task)->cpu;
+	stats = kzalloc(sizeof(struct statistics), GFP_KERNEL);
+
+	store_power_agile_task_stats(task);
+	memcpy(stats, &task->pa.stats, sizeof(struct statistics));
+	diff_statistics(stats, &task->pa.tuning_prev_stats, stats);
+	power_agile_get_current_parameters(task, &params);
+
+	surface = init_surface();
+	populate_inefficiency_surface(stats, &params, surface);
+	len = serialize_surface(surface, buffer);
+
+	err = simple_read_from_buffer(buf, count, ppos, buffer, len);
+	kfree(buffer);
+	return err;
+}
+
+static ssize_t proc_power_agile_task_inefficiency_surface_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	// Redirect to controller write
+	return proc_power_agile_controller_write(file, buf, count, ppos);
+}
+static const struct file_operations proc_power_agile_task_inefficiency_surface_operations = {
+	.read           = proc_power_agile_task_inefficiency_surface_read,
+	.write          = proc_power_agile_task_inefficiency_surface_write,
+	.llseek         = default_llseek,
+};
+
+
+
+static ssize_t proc_power_agile_task_algorithm_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len = 0;
+	int err;
+	char buffer[32];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	memset(buffer, 0, sizeof buffer);
+	if(!task->pa.tuning.algorithm) {
+		err = -EFAULT;
+		goto out;
+	}
+	len = sprintf(buffer, "%s\n", task->pa.tuning.algorithm->name);
+	err = simple_read_from_buffer(buf, count, ppos, buffer, len);
+out:
+	return err;
+}
+
+static ssize_t proc_power_agile_task_algorithm_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+	char buffer[17];
+	struct tuning_algorithm *algorithm;
+
+	memset(buffer, 0, sizeof buffer);
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		printk(KERN_ERR "algorithm_write: Failed to obtain algorithm from userspace\n");
+		err = -EFAULT;
+		goto out;
+	}
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	strcpy(buffer, strstrip(buffer));
+	algorithm = get_algorithm(buffer);
+	if(!algorithm) {
+		printk(KERN_ERR "algorithm: PID:%05d did not find '%s'\n", task->pid, buffer);
+		err = -EINVAL;
+		goto out;
+	}
+
+	task_lock(task);
+	task->pa.tuning.algorithm = algorithm;
+	task_unlock(task);
+	pr_debug("algorithm: PID:%05d set algorithm to :%s\n", task->pid, algorithm->name);
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_power_agile_task_algorithm_operations = {
+	.read           = proc_power_agile_task_algorithm_read,
+	.write          = proc_power_agile_task_algorithm_write,
+	.llseek         = default_llseek,
+};
+
+static ssize_t proc_power_agile_task_available_algorithms_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len;
+	char buffer[128];
+
+	memset(buffer, 0, sizeof buffer);
+	get_available_algorithms(buffer, &len);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static const struct file_operations proc_power_agile_task_available_algorithms_operations = {
+	.read           = proc_power_agile_task_available_algorithms_read,
+	.llseek         = default_llseek,
+};
+#endif
+
+#ifdef CONFIG_RATE_LIMITING
+
+static ssize_t proc_power_agile_task_rate_limiting_enable_read(
+		struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len;
+	char buffer[PROC_NUMBUF];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+
+	memset(buffer, 0, sizeof buffer);
+	len = sprintf(buffer, "%d\n", task->pa.rate_lim_enabled);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_power_agile_task_rate_limiting_enable_write(
+		struct file *file, const char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+	char buffer[PROC_NUMBUF], *ptr;
+	int enabled_flag;
+	u64 energy = 0;
+
+	memset(buffer, 0, sizeof buffer);
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		printk(KERN_ERR "rate_limiting_energy: Failed to obtain budget from userspace\n");
+		err = -EFAULT;
+		goto out;
+	}
+
+	ptr = strstrip(buffer);
+	pr_debug("rate_limiting_enable: Attempting to parse '%s'\n", ptr);
+	err = kstrtoint(ptr, 0, &enabled_flag);
+
+	if(err) {
+		err = -EINVAL;
+		printk(KERN_ERR "rate_limiting_enable: failed to parse '%s'\n", buffer);
+		goto out;
+	}
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		printk(KERN_ERR "rate_limiting_enable: failed to obtain task\n");
+		goto out;
+	}
+
+	if(enabled_flag != 0 && enabled_flag != 1) {
+		err = -EINVAL;
+		printk(KERN_ERR "rate_limiting_enable: Invalid flag '%d'\n", enabled_flag);
+		goto out;
+	}
+
+	task_lock(task);
+	task->pa.rate_lim_enabled = enabled_flag;
+	pr_debug("rate_limiting_enable: PID:%05d rate_lim_enabled=%d\n", task->pid, task->pa.rate_lim_enabled);
+	if(task->pa.rate_lim_enabled) {
+		if(!task->pa.rate_lim_available_energy) {
+			energy = (rate_limiting_base_energy + (abs(100 - task->prio) *
+						rate_limiting_prio_step));
+			task->pa.rate_lim_available_energy = energy;
+		}
+		else
+			energy = task->pa.rate_lim_available_energy;
+		task->pa.rate_lim_default_energy = energy;
+
+		if(!task->pa.rate_lim_refill_rate) {
+			task->pa.rate_lim_refill_rate = rate_limiting_refill_per_ms;
+		}
+		pr_debug("rate_limiting: PID:%05d energy     :%llu\n", task->pid, energy);
+		pr_debug("rate_limiting: PID:%05d refill rate:%llu\n", task->pid, task->pa.rate_lim_refill_rate);
+	}
+	task_unlock(task);
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_power_agile_task_rate_limiting_enable_operations =
+{
+	.read           = proc_power_agile_task_rate_limiting_enable_read,
+	.write          = proc_power_agile_task_rate_limiting_enable_write,
+	.llseek         = default_llseek,
+};
+
+static ssize_t proc_power_agile_task_rate_limiting_available_energy_read(
+		struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len;
+	char buffer[20];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+
+	memset(buffer, 0, sizeof buffer);
+	len = sprintf(buffer, "%llu\n", task->pa.rate_lim_available_energy);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_power_agile_task_rate_limiting_available_energy_write(
+		struct file *file, const char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+	char buffer[20];
+	u64 energy;
+
+	memset(buffer, 0, sizeof buffer);
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		printk(KERN_ERR "rate_limiting_energy: Failed to obtain budget from userspace\n");
+		err = -EFAULT;
+		goto out;
+	}
+
+	err = kstrtoull(strstrip(buffer), 0, &energy);
+	if(err) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	task_lock(task);
+	task->pa.rate_lim_available_energy = energy;
+	task_unlock(task);
+	pr_debug("rate_limiting: PID:%05d write available_energy :%llu\n", task->pid, task->pa.rate_lim_available_energy);
+
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_power_agile_task_rate_limiting_available_energy_operations =
+{
+	.read           = proc_power_agile_task_rate_limiting_available_energy_read,
+	.write          = proc_power_agile_task_rate_limiting_available_energy_write,
+	.llseek         = default_llseek,
+};
+
+static ssize_t proc_power_agile_task_rate_limiting_refill_rate_read(
+		struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len;
+	char buffer[20];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+
+	memset(buffer, 0, sizeof buffer);
+	len = sprintf(buffer, "%llu\n", task->pa.rate_lim_refill_rate);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_power_agile_task_rate_limiting_refill_rate_write(
+		struct file *file, const char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+	char buffer[20];
+	u64 refill_rate;
+
+	memset(buffer, 0, sizeof buffer);
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		printk(KERN_ERR "rate_limiting_refill_rate: Failed to obtain budget from userspace\n");
+		err = -EFAULT;
+		goto out;
+	}
+
+	err = kstrtoull(strstrip(buffer), 0, &refill_rate);
+	if(err) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	task_lock(task);
+	task->pa.rate_lim_refill_rate = refill_rate;
+	task_unlock(task);
+	pr_debug("rate_limiting: PID:%05d write refill_rate :%llu\n", task->pid, task->pa.rate_lim_refill_rate);
+
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_power_agile_task_rate_limiting_refill_rate_operations =
+{
+	.read           = proc_power_agile_task_rate_limiting_refill_rate_read,
+	.write          = proc_power_agile_task_rate_limiting_refill_rate_write,
+	.llseek         = default_llseek,
+};
+
+#endif
+
+
+
+
+
+
 
 static int proc_pid_auxv(struct task_struct *task, char *buffer)
 {
@@ -3061,6 +3759,27 @@ static const struct pid_entry tgid_base_stuff[] = {
 #ifdef CONFIG_HARDWALL
 	INF("hardwall",   S_IRUGO, proc_pid_hardwall),
 #endif
+#ifdef CONFIG_POWER_AGILE
+	REG("power_agile_task_cpu_freq", S_IRUGO|S_IWUSR, proc_power_agile_task_cpu_freq_operations),
+#endif
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+	REG("power_agile_task_stats", S_IRUGO|S_IWUSR, proc_power_agile_task_stats_operations),
+	REG("power_agile_task_stats_json", S_IRUGO, proc_power_agile_task_stats_json_operations),
+	REG("power_agile_task_break_after", S_IRUGO|S_IWUSR, proc_power_agile_task_break_after_operations),
+#endif
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+	REG("power_agile_controller", S_IRUGO|S_IWUSR, proc_power_agile_controller_operations),
+	REG("power_agile_task_algorithm", S_IRUGO|S_IWUSR, proc_power_agile_task_algorithm_operations),
+	REG("power_agile_task_available_algorithms", S_IRUGO, proc_power_agile_task_available_algorithms_operations),
+	REG("power_agile_task_inefficiency_budget", S_IRUGO|S_IWUSR, proc_power_agile_task_inefficiency_budget_operations),
+	REG("power_agile_task_inefficiency_surface", S_IRUGO|S_IWUSR, proc_power_agile_task_inefficiency_surface_operations),
+#endif
+#ifdef CONFIG_RATE_LIMITING
+	REG("rate_limiting_enable", S_IRUGO|S_IWUSR, proc_power_agile_task_rate_limiting_enable_operations),
+	REG("rate_limiting_available_energy", S_IRUGO|S_IWUSR, proc_power_agile_task_rate_limiting_available_energy_operations),
+	REG("rate_limiting_refill_rate", S_IRUGO|S_IWUSR, proc_power_agile_task_rate_limiting_refill_rate_operations),
+#endif
+
 };
 
 static int proc_tgid_base_readdir(struct file * filp,
@@ -3416,6 +4135,27 @@ static const struct pid_entry tid_base_stuff[] = {
 #ifdef CONFIG_HARDWALL
 	INF("hardwall",   S_IRUGO, proc_pid_hardwall),
 #endif
+#ifdef CONFIG_POWER_AGILE
+	REG("power_agile_task_cpu_freq", S_IRUGO|S_IWUSR, proc_power_agile_task_cpu_freq_operations),
+#endif
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+	REG("power_agile_task_stats", S_IRUGO|S_IWUSR, proc_power_agile_task_stats_operations),
+	REG("power_agile_task_stats_json", S_IRUGO, proc_power_agile_task_stats_json_operations),
+	REG("power_agile_task_break_after", S_IRUGO|S_IWUSR, proc_power_agile_task_break_after_operations),
+#endif
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+	REG("power_agile_controller", S_IRUGO|S_IWUSR, proc_power_agile_controller_operations),
+	REG("power_agile_task_algorithm", S_IRUGO|S_IWUSR, proc_power_agile_task_algorithm_operations),
+	REG("power_agile_task_available_algorithms", S_IRUGO, proc_power_agile_task_available_algorithms_operations),
+	REG("power_agile_task_inefficiency_budget", S_IRUGO|S_IWUSR, proc_power_agile_task_inefficiency_budget_operations),
+	REG("power_agile_task_inefficiency_surface", S_IRUGO|S_IWUSR, proc_power_agile_task_inefficiency_surface_operations),
+#endif
+#ifdef CONFIG_RATE_LIMITING
+	REG("rate_limiting_enable", S_IRUGO|S_IWUSR, proc_power_agile_task_rate_limiting_enable_operations),
+	REG("rate_limiting_available_energy", S_IRUGO|S_IWUSR, proc_power_agile_task_rate_limiting_available_energy_operations),
+	REG("rate_limiting_refill_rate", S_IRUGO|S_IWUSR, proc_power_agile_task_rate_limiting_refill_rate_operations),
+#endif
+
 };
 
 static int proc_tid_base_readdir(struct file * filp,

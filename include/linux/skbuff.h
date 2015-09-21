@@ -414,6 +414,9 @@ struct sk_buff {
 				data_len;
 	__u16			mac_len,
 				hdr_len;
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+	unsigned int            recv_len;
+#endif
 	union {
 		__wsum		csum;
 		struct {

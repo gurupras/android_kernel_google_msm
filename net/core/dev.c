@@ -138,6 +138,10 @@
 
 #include "net-sysfs.h"
 
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+#include <linux/power_agile.h>
+#endif
+
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 
@@ -2527,6 +2531,19 @@ int dev_queue_xmit(struct sk_buff *skb)
 #endif
 	trace_net_dev_queue(skb);
 	if (q->enqueue) {
+
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+               /*
+                * The better place to do this is probably in the driver,
+                * since this can still get dropped if the device buffer is full.
+                * However, this is the last chance to do per-process stats without
+                * driver support, so we'll take it for now...
+                */
+               if (skb->sk && skb->sk->sk_owner_task)
+               {
+                       update_power_agile_net_stats(skb->sk, dev->ifindex, skb->len);
+               }
+#endif
 		rc = __dev_xmit_skb(skb, q, dev, txq);
 		goto out;
 	}
@@ -3158,6 +3175,18 @@ static int __netif_receive_skb(struct sk_buff *skb)
 	int ret = NET_RX_DROP;
 	__be16 type;
 
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+	/*
+        * Update the original receive packet length if the driver
+        * didn't already do so.  At this point the link layer header
+        * has probably been popped off so we'll miss some bytes.
+        *
+        * The process tasks won't get updated until we can match this to
+        * a socket.
+        */
+	if (skb->recv_len == 0)
+               skb->recv_len = skb->len;
+#endif
 	net_timestamp_check(!netdev_tstamp_prequeue, skb);
 
 	trace_netif_receive_skb(skb);

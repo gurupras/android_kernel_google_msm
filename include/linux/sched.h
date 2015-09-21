@@ -93,6 +93,10 @@ struct sched_param {
 
 #include <asm/processor.h>
 
+#ifdef CONFIG_POWER_AGILE
+#include <linux/power_agile.h>
+#endif
+
 struct exec_domain;
 struct futex_pi_state;
 struct robust_list_head;
@@ -1618,6 +1622,9 @@ struct task_struct {
 #endif
 #ifdef CONFIG_HAVE_HW_BREAKPOINT
 	atomic_t ptrace_bp_refcnt;
+#endif
+#ifdef CONFIG_POWER_AGILE
+	struct power_agile pa;
 #endif
 };
 

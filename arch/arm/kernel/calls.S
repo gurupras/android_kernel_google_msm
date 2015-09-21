@@ -387,8 +387,23 @@
 /* 375 */	CALL(sys_setns)
 		CALL(sys_process_vm_readv)
 		CALL(sys_process_vm_writev)
+#ifdef CONFIG_POWER_AGILE_SIM
+		CALL(sys_dummy)
+		CALL(sys_dummy)
+/* 380 */	CALL(sys_sim_start)
+/* 381 */	CALL(sys_sim_exit)
+#endif
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+/* 382 */	CALL(sys_tune_getinterval)
+/* 383 */	CALL(sys_tune_setinterval)
+/* 384 */	CALL(sys_tune_start)
+/* 385 */	CALL(sys_tune_stop)
+#endif
+
+
+
 #ifndef syscalls_counted
-.equ syscalls_padding, ((NR_syscalls + 3) & ~3) - NR_syscalls
+.equ syscalls_padding, ((NR_syscalls + 12) & ~3) - NR_syscalls
 #define syscalls_counted
 #endif
 .rept syscalls_padding

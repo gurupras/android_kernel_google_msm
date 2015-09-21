@@ -114,6 +114,9 @@ static int kthread(void *_create)
 	__set_current_state(TASK_UNINTERRUPTIBLE);
 	create->result = current;
 	complete(&create->done);
+#ifdef CONFIG_POWER_AGILE_PROC_INFO
+	pr_debug("Kernel thread created PID :%03d TGID :%03d (%s)\n", current->pid, current->tgid, current->comm);
+#endif
 	schedule();
 
 	ret = -EINTR;
@@ -206,6 +209,12 @@ struct task_struct *kthread_create_on_node(int (*threadfn)(void *data),
 		sched_setscheduler_nocheck(create.result, SCHED_NORMAL, &param);
 		set_cpus_allowed_ptr(create.result, cpu_all_mask);
 	}
+#ifdef CONFIG_POWER_AGILE_PROC_INFO
+	pr_debug("Kernel thread created PID :%05d TGID :%05d (%s)\n",
+			create.result->pid,
+			create.result->tgid,
+			create.result->comm);
+#endif
 	return create.result;
 }
 EXPORT_SYMBOL(kthread_create_on_node);

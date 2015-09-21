@@ -405,6 +405,17 @@
 #define __NR_process_vm_readv		(__NR_SYSCALL_BASE+376)
 #define __NR_process_vm_writev		(__NR_SYSCALL_BASE+377)
 
+#ifdef CONFIG_POWER_AGILE_SIM
+#define __NR_sim_start			(__NR_SYSCALL_BASE+380)
+#define __NR_sim_exit			(__NR_SYSCALL_BASE+381)
+#endif
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+#define __NR_tune_getinterval		(__NR_SYSCALL_BASE+382)
+#define __NR_tune_setinterval		(__NR_SYSCALL_BASE+383)
+#define __NR_tune_start			(__NR_SYSCALL_BASE+384)
+#define __NR_tune_stop			(__NR_SYSCALL_BASE+385)
+#endif
+
 /*
  * The following SWIs are ARM private.
  */

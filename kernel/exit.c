@@ -59,6 +59,10 @@
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 
+#ifdef CONFIG_POWER_AGILE
+#include <linux/power_agile.h>
+#endif
+
 static void exit_mm(struct task_struct * tsk);
 
 static void __unhash_process(struct task_struct *p, bool group_dead)
@@ -1069,6 +1073,23 @@ void do_exit(long code)
 	/* causes final put_task_struct in finish_task_switch(). */
 	tsk->state = TASK_DEAD;
 	tsk->flags |= PF_NOFREEZE;	/* tell freezer to ignore us */
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+	store_power_agile_task_stats(tsk);
+#endif
+#ifdef CONFIG_POWER_AGILE_TASK_STATS_EXIT
+	printk_power_agile_task_stats(tsk);
+#endif
+
+#ifdef CONFIG_POWER_AGILE_PERIODIC_LOGGING
+	if (tsk->pa.pa_print_log)
+               printk(KERN_INFO "%s,%d,%d,%s\n", PA_LOG_TAG, PA_LOG_EXIT, tsk->pid, "exit");
+#endif
+
+#ifdef CONFIG_POWER_AGILE_SIM
+	// Don't display if statistics are 0..
+	if(tsk->pa.stats.cpu_busy_cycles)
+		print_simulation_stats(tsk);
+#endif
 	schedule();
 	BUG();
 	/* Avoid "noreturn function does return".  */

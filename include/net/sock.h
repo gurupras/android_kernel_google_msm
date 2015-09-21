@@ -375,6 +375,18 @@ struct sock {
   	int			(*sk_backlog_rcv)(struct sock *sk,
 						  struct sk_buff *skb);  
 	void                    (*sk_destruct)(struct sock *sk);
+
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+	/*
+	 * For proper power agility book keeping, we need to allocate
+	 * as many network bytes as we can to the process responsible
+	 * for them.  This is not so straight forward because of
+	 * asynchronous tx and rx.  This field will help us label the
+	 * skb with the correct pid for book keeping.
+	 */
+	struct task_struct              *sk_owner_task;
+#endif
+
 };
 
 static inline int sk_peek_offset(struct sock *sk, int flags)

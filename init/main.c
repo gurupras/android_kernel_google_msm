@@ -79,6 +79,14 @@
 #include <asm/smp.h>
 #endif
 
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+#include <linux/power_agile.h>
+#include <linux/power_agile_inefficiency.h>
+#endif
+
+#include <linux/cpufreq.h>
+
+
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
@@ -224,6 +232,43 @@ static int __init loglevel(char *str)
 }
 
 early_param("loglevel", loglevel);
+
+
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+static int __init pa_budget(char *str)
+{
+	int newbudget;
+
+	/*
+	 * Power Agile Default Budget
+	 *	      < 0 => No validation, tune with |budget|
+	 *	      = 0 => No tuning
+	 *	      > 0 => Valudation, tune with budget
+	 *
+	 * (get_option returns 0 if the parameter isn't an integer)
+	*/
+	if (get_option(&str, &newbudget)) {
+		if (newbudget <= 0)
+		{
+			pa_validation_enabled = 0;
+			pa_default_budget = newbudget * -1;
+			pr_debug("Power Agile invalidation disabled, budget set to %d\n", pa_default_budget);
+		}
+		else
+		{
+			pa_default_budget = newbudget;
+			pr_debug("Power Agile invalidation enabled, budget set to %d\n", pa_default_budget);
+		}
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+early_param("pa_budget", pa_budget);
+#endif
+
+
 
 /* Change NUL term back to "=", to make "param" the whole string. */
 static int __init repair_env_string(char *param, char *val)
@@ -524,6 +569,23 @@ asmlinkage void __init start_kernel(void)
 	sort_main_extable();
 	trap_init();
 	mm_init();
+
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+	/*
+	 * FIXME: The following line somehow changes a field in
+	 * stats rather than the budget.
+	 */
+	init_task.pa.inefficiency.budget = pa_default_budget;
+
+	/*
+	 * XXX: Hack..Since the cpufreq/memfreq drivers are not loaded
+	 * at this point, we're hard-coding the frequencies.
+	 */
+	pa_default_cpu_freq = 2265600;
+	init_task.pa.cpu_freq = pa_default_cpu_freq;
+	pa_default_mem_freq = 800000;
+	init_task.pa.mem_freq = pa_default_mem_freq;
+#endif
 
 	/*
 	 * Set up the scheduler prior starting any interrupts (such as the

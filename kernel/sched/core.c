@@ -87,6 +87,26 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
 
+#ifdef CONFIG_POWER_AGILE
+int *pid_array;        //FIXME
+#include<linux/power_agile.h>
+#include <linux/sim.h>
+#endif
+
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+#include <linux/power_agile_inefficiency.h>
+#include <linux/sim.h>
+#endif
+
+#ifdef CONFIG_RATE_LIMITING
+#include <linux/rate_limiting.h>
+#endif
+
+#include <linux/cpufreq.h>
+
+static void __sched __schedule(void);
+
+
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
 
 void start_bandwidth_timer(struct hrtimer *period_timer, ktime_t period)
@@ -2065,6 +2085,24 @@ static inline void
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next)
 {
+#ifdef CONFIG_POWER_AGILE
+	int err;
+#ifdef DEBUG
+	int wanted, set;
+#endif
+#endif
+#ifdef CONFIG_RATE_LIMITING
+	u64 elapsed_time;
+	u64 time_now;
+	s64 replenish_energy;
+	s64 remaining_energy;
+#endif
+#if defined(CONFIG_POWER_AGILE_CTX_SWITCH_INFO) || defined(CONFIG_POWER_AGILE_PROC_INFO)
+	char buf[512];
+	char prev_cmd[32], next_cmd[32];
+	int offset = 0;
+#endif
+
 	struct mm_struct *mm, *oldmm;
 
 	prepare_task_switch(rq, prev, next);
@@ -2099,8 +2137,93 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	spin_release(&rq->lock.dep_map, 1, _THIS_IP_);
 #endif
 
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+	store_power_agile_task_stats(prev);
+#endif
+
+#ifdef CONFIG_RATE_LIMITING
+	/*
+	 * The schedule() already handles energy to be replenished during
+	 * execution. Here in the context switch function, we need to handle
+	 * the energy that is to be replenished while the process was not
+	 * scheduled.
+	 */
+	if(prev->pa.rate_lim_enabled) {
+		pr_debug("rate_limiting: PID:%05d remaining energy:%lld\n", prev->pid, prev->pa.rate_lim_available_energy);
+
+		prev->pa.rate_lim_prev_ctx_timestamp = sched_clock();
+		pr_debug("rate_limiting: PID:%05d switched out\n", prev->pid);
+	}
+
+	if(next->pa.rate_lim_enabled) {
+		pr_debug("rate_limiting: PID:%05d available energy:%lld\n", next->pid, next->pa.rate_lim_available_energy);
+		if(next->pa.rate_lim_prev_ctx_timestamp) {
+			time_now = sched_clock();
+			elapsed_time = time_now - next->pa.rate_lim_prev_ctx_timestamp;
+			pr_debug("rate_limiting: PID:%05d ctx_elapsed_time :%llu\n", next->pid, elapsed_time);
+			remaining_energy = next->pa.rate_lim_available_energy;
+			replenish_energy = rate_limiting_get_replenish_energy(next, elapsed_time);
+
+			pr_debug("rate_limiting: PID:%05d remaining energy:%lld\n", next->pid, remaining_energy);
+			pr_debug("rate_limiting: PID:%05d replenish energy:%lld\n", next->pid, replenish_energy);
+
+			next->pa.rate_lim_available_energy = remaining_energy + replenish_energy;
+
+			pr_debug("rate_limiting: PID:%05d available energy:%lld\n", next->pid, next->pa.rate_lim_available_energy);
+			pr_debug("rate_limiting: PID:%05d switched in\n", next->pid);
+		}
+	}
+#endif
+#ifdef CONFIG_POWER_AGILE_PID_INFO
+	power_agile_write_reg(PID_REGISTER, next->pid);
+#endif
+
+#if defined(CONFIG_POWER_AGILE_CTX_SWITCH_INFO) || defined(CONFIG_POWER_AGILE_PROC_INFO)
+	memset(buf, 0, sizeof(buf));
+	memset(prev_cmd, 0, sizeof(prev_cmd));
+	memset(next_cmd, 0, sizeof(next_cmd));
+	proc_get_cmdline(prev, prev_cmd);
+	if(strlen(prev_cmd) == 0)
+		sprintf(prev_cmd, "%s", prev->comm);
+	proc_get_cmdline(next, next_cmd);
+	if(strlen(next_cmd) == 0)
+		sprintf(next_cmd, "%s", next->comm);
+
+	offset += sprintf(buf + offset, "%05d(%s) -> %05d(%s)",
+			prev->pid, prev_cmd,
+			next->pid, next_cmd);
+	pr_debug("%s\n", buf);
+#endif /* defined(CONFIG_POWER_AGILE_CTX_SWITCH_INFO) || defined(CONFIG_POWER_AGILE_PROC_INFO) */
+
+
 	/* Here we just switch the register state and the stack. */
 	switch_to(prev, next, prev);
+#ifdef CONFIG_POWER_AGILE
+	// Switch frequencies to the 'next' task
+	/*
+	 * FIXME: This code for some reason breaks kernel
+	 * during execution of init.
+	 * If you wish to avoid this bug, do not enable
+	 * pa_ctx_switch_freq from kernel cmdline
+	 */
+	if(is_pa_ctx_switch_freq && likely(prev != next)) {
+#ifdef CONFIG_CPU_FREQ
+		if(unlikely(next->pa.cpu_freq == 0 && pa_default_cpu_freq != 0))
+			next->pa.cpu_freq = pa_default_cpu_freq;
+		if(unlikely(prev->pa.cpu_freq != next->pa.cpu_freq)) {
+			pr_debug("pa_ctx_switch_freq: cpu: prev(%d) != next(%d) (%d != %d)\n",
+					prev->pid,
+					next->pid,
+					prev->pa.cpu_freq,
+					next->pa.cpu_freq);
+			err = pa_update_cpu_freq(smp_processor_id(), next->pa.cpu_freq);
+			if(err) {
+				printk(KERN_WARNING "pa_ctx_switch_freq: Could not set CPU frequency\n");
+			}
+		}
+	}
+#endif /* CONFIG_CPU_FREQ */
+#endif /* CONFIG_POWER_AGILE */
 
 	barrier();
 	/*
@@ -3035,9 +3158,58 @@ void thread_group_times(struct task_struct *p, cputime_t *ut, cputime_t *st)
  */
 void scheduler_tick(void)
 {
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+	struct siginfo ineff_siginfo;
+#endif
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
 	struct task_struct *curr = rq->curr;
+
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+	store_power_agile_task_stats(curr);
+#endif
+
+#ifdef CONFIG_POWER_AGILE_PERIODIC_LOGGING
+	if (curr->pa.pa_print_log && pa_simulation_started)
+		power_agile_log_stats(curr);
+#endif
+
+#ifdef CONFIG_POWER_AGILE_TASK_STATS
+	if(curr->pa.break_after && curr->pa.break_after <= curr->pa.base_stats.user_instructions) {
+		pr_debug("break_after: PID:%05d terminating simulation ...\n", curr->pid);
+		// We've crossed break_after
+		sys_sim_exit();
+	}
+#endif
+
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+	// TODO: Should we reset cur_jiffies on invalidation?
+	// It's possible that we invalidate and then tun again right away
+	if (curr->pa.inefficiency.interval && curr->pa.inefficiency.budget)
+	{
+		curr->pa.inefficiency.cur_jiffies++;
+		if (unlikely(curr->pa.inefficiency.cur_jiffies >= curr->pa.inefficiency.interval))
+		{
+			curr->pa.inefficiency.cur_jiffies = 0;
+
+			if (unhandled_signal(curr, SIGPATUNE))
+			{
+				/* TODO: Invoke default tuning algorithm */
+				pr_debug("program does not have a handler for SIGPATUNE\n");
+				power_agile_tune(curr);
+			}
+			else
+			{
+				/* Send power agile tuning signal */
+				pr_debug("tuning_library: insts :%llu\n", curr->pa.base_stats.user_instructions);
+				memset(&ineff_siginfo, 0, sizeof(struct siginfo));
+				ineff_siginfo.si_signo = SIGPATUNE;
+				ineff_siginfo.si_code = 0;
+				send_sig_info(SIGPATUNE, &ineff_siginfo, curr);
+			}
+		}
+	}
+#endif
 
 	sched_clock_tick();
 
@@ -3053,6 +3225,13 @@ void scheduler_tick(void)
 	rq->idle_balance = idle_cpu(cpu);
 	trigger_load_balance(rq, cpu);
 #endif
+
+#ifdef CONFIG_RATE_LIMITING
+	if(curr->pa.rate_lim_enabled && curr->pa.rate_lim_available_energy < 0) {
+		resched_task(curr);
+	}
+#endif
+
 }
 
 notrace unsigned long get_parent_ip(unsigned long addr)
@@ -3195,6 +3374,42 @@ static void __sched __schedule(void)
 	unsigned long *switch_count;
 	struct rq *rq;
 	int cpu;
+
+#ifdef CONFIG_RATE_LIMITING
+	int replenish_time;
+	s64 energy_diff;
+#endif
+
+#ifdef CONFIG_RATE_LIMITING
+	preempt_disable();
+	cpu = smp_processor_id();
+	rq = cpu_rq(cpu);
+	prev = rq->curr;
+
+	if(unlikely(prev->pa.rate_lim_enabled && prev->state != TASK_UNINTERRUPTIBLE)) {
+		pr_debug("rate_limiting: PID:%05d sched: available_energy :%lld\n", prev->pid, prev->pa.rate_lim_available_energy);
+		pr_debug("rate_limiting: PID:%05d sched: consumed energy :%lld\n", prev->pid, prev->pa.cum_energy);
+		if(prev->pa.rate_lim_available_energy < 0) {
+			// We're looking for the bucket to go equal or above 0
+			energy_diff = abs(prev->pa.rate_lim_available_energy);
+			pr_debug("rate_limiting: PID:%05d sched: energy diff:%lld\n", prev->pid, energy_diff);
+			pr_debug("rate_limiting: PID:%05d sched: refill rate:%lld\n", prev->pid, prev->pa.rate_lim_refill_rate);
+
+			// In ms
+			replenish_time = rate_limiting_get_replenish_time(prev, energy_diff);
+			pr_debug("rate_limiting: timeout PID:%05d %d\n", prev->pid, replenish_time);
+			//prev->pa.rate_lim_available_energy = 0;
+
+			preempt_enable();
+			schedule_timeout_uninterruptible(msecs_to_jiffies(replenish_time));
+			return;
+		}
+		else
+			preempt_enable();
+	}
+	else
+		preempt_enable();
+#endif
 
 need_resched:
 	preempt_disable();
@@ -7113,6 +7328,12 @@ void __init sched_init(void)
 		zalloc_cpumask_var(&cpu_isolated_map, GFP_NOWAIT);
 #endif
 	init_sched_fair_class();
+
+#ifdef CONFIG_POWER_AGILE
+	pid_array = kmalloc(sizeof(int) * 32768, GFP_KERNEL);
+	for(i = 0; i < 32768; i++)
+		pid_array[i] = 0;
+#endif
 
 	scheduler_running = 1;
 }

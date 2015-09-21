@@ -359,12 +359,15 @@ AFLAGS_KERNEL	=
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
 
+POWER_AGILE_INCLUDE := -Ilib/library/kernel
+
 # Use LINUXINCLUDE when you must reference the include/ directory.
 # Needed to be compatible with the O= option
 LINUXINCLUDE    := -I$(srctree)/arch/$(hdr-arch)/include \
                    -Iarch/$(hdr-arch)/include/generated -Iinclude \
                    $(if $(KBUILD_SRC), -I$(srctree)/include) \
-                   -include $(srctree)/include/linux/kconfig.h
+                   -include $(srctree)/include/linux/kconfig.h \
+		   $(POWER_AGILE_INCLUDE)
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 

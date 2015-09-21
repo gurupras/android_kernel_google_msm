@@ -81,6 +81,13 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
 
+#ifdef CONFIG_POWER_AGILE
+#include <linux/power_agile.h>
+#endif
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+#include <linux/power_agile_inefficiency.h>
+#endif
+
 /*
  * Protected counters by write_lock_irq(&tasklist_lock)
  */
@@ -266,6 +273,25 @@ int __attribute__((weak)) arch_dup_task_struct(struct task_struct *dst,
 					       struct task_struct *src)
 {
 	*dst = *src;
+#ifdef CONFIG_POWER_AGILE
+	memset(&dst->pa, 0, sizeof(struct power_agile));
+	dst->pa.cpu_freq                      = src->pa.cpu_freq ? src->pa.cpu_freq : pa_default_cpu_freq;
+	dst->pa.mem_freq                      = src->pa.mem_freq ? src->pa.mem_freq : pa_default_mem_freq;
+#endif
+#ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
+	dst->pa.inefficiency.budget           = src->pa.inefficiency.budget == 0 ? pa_default_budget : src->pa.inefficiency.budget;
+	dst->pa.inefficiency.library_started  = false;
+	dst->pa.inefficiency.validation_ticks = 0;
+	dst->pa.inefficiency.interval         = src->pa.inefficiency.interval == 0 ? msecs_to_jiffies(POWER_AGILE_DEFAULT_INTERVAL) : src->pa.inefficiency.interval;
+	dst->pa.inefficiency.cur_jiffies      = 0;
+	dst->pa.inefficiency.is_tuning        = src->pa.inefficiency.is_tuning;
+	dst->pa.tuning.algorithm              = src->pa.tuning.algorithm  == 0 ? tuning_algorithms[0] : src->pa.tuning.algorithm;
+#endif
+#ifdef CONFIG_POWER_AGILE_PERIODIC_LOGGING
+	//Keep the same log level so we catch Android processes that fork zygote
+	//and never call exec
+	dst->pa.pa_print_log = src->pa.pa_print_log;
+#endif
 	return 0;
 }
 
