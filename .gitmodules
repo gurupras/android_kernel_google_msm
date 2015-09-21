@@ -1,0 +1,3 @@
+[submodule "lib/library"]
+	path = lib/library
+	url = ssh://src@blue.cse.buffalo.edu/projects/power-agile/library.git
