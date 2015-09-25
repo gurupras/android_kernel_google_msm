@@ -379,7 +379,7 @@ void power_agile_update_energy(struct task_struct *task)
 		//pr_debug("update_energy: begin\n");
 		//print_stats(&diff);
 		//pr_debug("update_energy: end\n");
-		energy = estimate_energy(&diff, NULL, &params, &params, &container);
+		energy = model->estimate_energy(&diff, NULL, &params, &params, &container);
 		task->pa.cum_energy += energy;
 		add_energy_container(&task->pa.energy, &container, &task->pa.energy);
 
@@ -485,7 +485,7 @@ inline void power_agile_tune(struct task_struct *task)
 		store_power_agile_task_stats(task);
 		diff_statistics(&task->pa.stats, &task->pa.tune_start, tune_stats);
 		add_statistics(&task->pa.tune_stats, tune_stats, &task->pa.tune_stats);
-		estimate_energy(tune_stats, NULL, &params, &params, &tune_energy);
+		model->estimate_energy(tune_stats, NULL, &params, &params, &tune_energy);
 		add_energy_container(&task->pa.tuning.tuning_energy, &tune_energy, &task->pa.tuning.tuning_energy);
 
 		kfree(stats);
