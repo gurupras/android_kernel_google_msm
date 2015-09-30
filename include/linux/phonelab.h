@@ -16,10 +16,10 @@ typedef enum {
 	ANDROID_LOG_SILENT,     /* only for SetMinPriority(); must be last */
 } LOGCAT_LEVEL;
 
-void alog_v(char *tag, char *payload);
-void alog_d(char *tag, char *payload);
-void alog_i(char *tag, char *payload);
-void alog_w(char *tag, char *payload);
-void alog_e(char *tag, char *payload);
+void alog_v(char *tag, const char *fmt, ...);
+void alog_d(char *tag, const char *fmt, ...);
+void alog_i(char *tag, const char *fmt, ...);
+void alog_w(char *tag, const char *fmt, ...);
+void alog_e(char *tag, const char *fmt, ...);
 
 #endif	/* __PHONELAB__H_ */
