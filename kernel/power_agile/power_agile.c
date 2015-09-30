@@ -52,6 +52,7 @@ const char *power_agile_register_names[] = {
 	"CPU_L1L2_STALL_CYCLES",
 	"CPU_DRAM_STALL_TIME_NS",
 	"CPU_QUIESCE_TIME_NS",
+	"CPU_BUSY_TIME_NS",
 	"CPU_USER_INSTRUCTIONS",
 	"CPU_KERNEL_INSTRUCTIONS",
 	"MEM_BUSY_TIME_NS",
@@ -69,136 +70,6 @@ const char *power_agile_register_names[] = {
 };
 
 
-inline void power_agile_read_reg(enum power_agile_register reg, u32 *ret_addr)
-{
-	u32 val = 0;
-#ifdef CONFIG_QEMU
-	*ret_addr = val;
-	return;
-#else
-//	pr_debug("power_agile_read_reg  :%s\n", power_agile_register_names[reg]);
-	switch(reg) {
-	case PID_REGISTER:
-		;
-		break;
-	case CPU_BUSY_CYCLES:
-		;
-		break;
-	case CPU_L1L2_STALL_CYCLES:
-		;
-		break;
-	case CPU_DRAM_STALL_TIME_NS:
-		;
-		break;
-	case CPU_QUIESCE_TIME_NS:
-		;
-		break;
-	case CPU_USER_INSTRUCTIONS:
-		;
-		break;
-	case CPU_KERNEL_INSTRUCTIONS:
-		;
-		break;
-
-	case MEM_BUSY_TIME_NS:
-		;
-		break;
-	case MEM_IDLE_TIME_NS:
-		;
-		break;
-	case MEM_ACTIVATE_COUNT:
-		;
-		break;
-	case MEM_PRECHARGE_COUNT:
-		;
-		break;
-	case MEM_READ_COUNT:
-		;
-		break;
-	case MEM_WRITE_COUNT:
-		;
-		break;
-	case MEM_PRECHARGE_TIME_NS:
-		;
-		break;
-	case MEM_ACTIVE_TIME_NS:
-		;
-		break;
-	case MEM_REFRESH_COUNT:
-		;
-		break;
-	case MEM_ACTIVE_IDLE_OVERLAP_TIME_NS:
-		;
-		break;
-	case MEM_PRECHARGE_IDLE_OVERLAP_TIME_NS:
-		;
-		break;
-	}
-	*ret_addr = val;
-#endif
-}
-
-inline void power_agile_write_reg(enum power_agile_register reg, u32 val) {
-//	pr_debug("power_agile_write_reg :%s  %d\n", power_agile_register_names[reg], val);
-	switch(reg) {
-	case PID_REGISTER:
-		asm volatile("mcr p15, 0, %0, c9, c3, 0" : : "r" (val));
-		break;
-	case CPU_BUSY_CYCLES:
-		asm volatile("mcr p15, 0, %0, c9, c4, 0" : : "r" (val));
-		break;
-	case CPU_L1L2_STALL_CYCLES:
-		asm volatile("mcr p15, 0, %0, c9, c4, 1" : : "r" (val));
-		break;
-	case CPU_DRAM_STALL_TIME_NS:
-		asm volatile("mcr p15, 0, %0, c9, c4, 2" : : "r" (val));
-		break;
-	case CPU_QUIESCE_TIME_NS:
-		asm volatile("mcr p15, 0, %0, c9, c4, 3" : : "r" (val));
-		break;
-	case CPU_USER_INSTRUCTIONS:
-		asm volatile("mcr p15, 0, %0, c9, c4, 4" : : "r" (val));
-		break;
-	case CPU_KERNEL_INSTRUCTIONS:
-		asm volatile("mcr p15, 0, %0, c9, c4, 5" : : "r" (val));
-		break;
-
-	case MEM_BUSY_TIME_NS:
-		asm volatile("mcr p15, 0, %0, c9, c5, 0" : : "r" (val));
-		break;
-	case MEM_IDLE_TIME_NS:
-		asm volatile("mcr p15, 0, %0, c9, c5, 1" : : "r" (val));
-		break;
-	case MEM_ACTIVATE_COUNT:
-		asm volatile("mcr p15, 0, %0, c9, c5, 2" : : "r" (val));
-		break;
-	case MEM_PRECHARGE_COUNT:
-		asm volatile("mcr p15, 0, %0, c9, c5, 3" : : "r" (val));
-		break;
-	case MEM_READ_COUNT:
-		asm volatile("mcr p15, 0, %0, c9, c5, 4" : : "r" (val));
-		break;
-	case MEM_WRITE_COUNT:
-		asm volatile("mcr p15, 0, %0, c9, c5, 5" : : "r" (val));
-		break;
-	case MEM_PRECHARGE_TIME_NS:
-		asm volatile("mcr p15, 0, %0, c9, c5, 6" : : "r" (val));
-		break;
-	case MEM_ACTIVE_TIME_NS:
-		asm volatile("mcr p15, 0, %0, c9, c5, 7" : : "r" (val));
-		break;
-	case MEM_REFRESH_COUNT:
-		asm volatile("mcr p15, 0, %0, c9, c6, 0" : : "r" (val));
-		break;
-	case MEM_ACTIVE_IDLE_OVERLAP_TIME_NS:
-		asm volatile("mcr p15, 0, %0, c9, c6, 1" : : "r" (val));
-		break;
-	case MEM_PRECHARGE_IDLE_OVERLAP_TIME_NS:
-		asm volatile("mcr p15, 0, %0, c9, c6, 2" : : "r" (val));
-		break;
-	}
-}
-
 SYSCALL_DEFINE0(dummy)
 {
 	return 0;
@@ -206,62 +77,12 @@ SYSCALL_DEFINE0(dummy)
 
 #ifdef CONFIG_POWER_AGILE_TASK_STATS
 inline static void store_stats(struct task_struct *curr) {
-	u32 tmp;
 #ifdef TIMING
 	u64 ns = sched_clock();
 #endif
-	power_agile_read_reg(CPU_USER_INSTRUCTIONS, &tmp);
-	curr->pa.base_stats.user_instructions += tmp;
+	curr->pa.stats.cpu_busy_time_ns += curr->se.sum_exec_runtime - curr->prev_sum_exec_runtime;
+	curr->prev_sum_exec_runtime = curr->se.sum_exec_runtime;
 
-	power_agile_read_reg(CPU_KERNEL_INSTRUCTIONS, &tmp);
-	curr->pa.base_stats.kernel_instructions += tmp;
-
-
-	power_agile_read_reg(CPU_BUSY_CYCLES, &tmp);
-	curr->pa.stats.cpu_busy_cycles += tmp;
-
-	power_agile_read_reg(CPU_L1L2_STALL_CYCLES, &tmp);
-	curr->pa.stats.cpu_l1l2_stall_cycles    += tmp;
-
-	power_agile_read_reg(CPU_DRAM_STALL_TIME_NS, &tmp);
-	curr->pa.stats.cpu_dram_stall_time_ns    += tmp;
-
-	power_agile_read_reg(CPU_QUIESCE_TIME_NS, &tmp);
-	curr->pa.stats.cpu_quiesce_time_ns += tmp;
-
-	// reading memory stats registers
-	power_agile_read_reg(MEM_BUSY_TIME_NS, &tmp);
-	curr->pa.stats.mem_busy_time_ns += tmp;
-
-	power_agile_read_reg(MEM_IDLE_TIME_NS, &tmp);
-	curr->pa.stats.mem_idle_time_ns += tmp;
-
-	power_agile_read_reg(MEM_ACTIVATE_COUNT, &tmp);
-	curr->pa.stats.mem_activate_count += tmp;
-
-	power_agile_read_reg(MEM_PRECHARGE_COUNT, &tmp);
-	curr->pa.stats.mem_precharge_count += tmp;
-
-	power_agile_read_reg(MEM_READ_COUNT, &tmp);
-	curr->pa.stats.mem_read_count += tmp;
-
-	power_agile_read_reg(MEM_WRITE_COUNT, &tmp);
-	curr->pa.stats.mem_write_count += tmp;
-
-	power_agile_read_reg(MEM_PRECHARGE_TIME_NS, &tmp);
-	curr->pa.stats.mem_precharge_time_ns += tmp;
-
-	power_agile_read_reg(MEM_ACTIVE_TIME_NS, &tmp);
-	curr->pa.stats.mem_active_time_ns += tmp;
-
-	power_agile_read_reg(MEM_REFRESH_COUNT, &tmp);
-	curr->pa.stats.mem_refresh_count += tmp;
-
-	power_agile_read_reg(MEM_ACTIVE_IDLE_OVERLAP_TIME_NS, &tmp);
-	curr->pa.stats.mem_active_idle_overlap_time_ns += tmp;
-
-	power_agile_read_reg(MEM_PRECHARGE_IDLE_OVERLAP_TIME_NS, &tmp);
-	curr->pa.stats.mem_precharge_idle_overlap_time_ns += tmp;
 #ifdef TIMING
 	printk(KERN_INFO "timing:%s: %lluns\n", __func__, sched_clock() - ns);
 #endif

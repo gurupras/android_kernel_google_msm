@@ -1625,6 +1625,7 @@ struct task_struct {
 #endif
 #ifdef CONFIG_POWER_AGILE
 	struct power_agile pa;
+	unsigned long long prev_sum_exec_runtime;
 #endif
 };
 
