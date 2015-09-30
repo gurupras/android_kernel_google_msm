@@ -29,6 +29,8 @@
 #include "a2xx_reg.h"
 #include "a3xx_reg.h"
 
+#include "kgsl_phonelab.h"
+
 #define GSL_RB_NOP_SIZEDWORDS				2
 
 void adreno_ringbuffer_submit(struct adreno_ringbuffer *rb)
@@ -1120,6 +1122,8 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 
 			kgsl_trace_gpu_job_enqueue(drawctxt->base.id,
 				cmdbatch->timestamp, str);
+            
+            phonelab_log_commands(cmdbatch->ibcount);
 		}
 	}
 
