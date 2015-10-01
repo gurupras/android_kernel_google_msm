@@ -2087,9 +2087,6 @@ context_switch(struct rq *rq, struct task_struct *prev,
 {
 #ifdef CONFIG_POWER_AGILE
 	int err;
-#ifdef DEBUG
-	int wanted, set;
-#endif
 #endif
 #ifdef CONFIG_RATE_LIMITING
 	u64 elapsed_time;
