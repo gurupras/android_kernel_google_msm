@@ -40,8 +40,7 @@ static inline void phonelab_log_state_change(unsigned int state)
     }
 
     if (count < NUM_STATES)
-        printk(KERN_INFO "%s|%s|{\"Action\":\"StateChange\",\"NewState\":%s}\n",
-            PHONELAB_MAGIC, PHONELAB_TAG_GPU, state_desc[count]);
+        alog_v(PHONELAB_TAG_GPU, "{\"Action\":\"StateChange\",\"NewState\":%s}", state_desc[count]);
 }
 
 /*
@@ -60,8 +59,7 @@ static inline void phonelab_log_busy_time(unsigned on_time, unsigned elapsed)
     * "Description": "Busy time and elapased time since the last time the statistics were updated."
     * }
     */
-    printk(KERN_INFO "%s|%s|{\"Action\":\"BusyTime\",\"OnTime\":%u,\"Elapsed\":%u}\n",
-        PHONELAB_MAGIC, PHONELAB_TAG_GPU, on_time, elapsed);
+    alog_v(PHONELAB_TAG_GPU, "{\"Action\":\"BusyTime\",\"OnTime\":%u,\"Elapsed\":%u}", on_time, elapsed);
 }
 
 /*
@@ -80,8 +78,7 @@ static inline void phonelab_log_commands(unsigned count)
     * "Description": "Busy time and elapased time since the last time the statistics were updated."
     * }
     */
-    printk(KERN_INFO "%s|%s|{\"Action\":\"Commands\",\"Count\":%u}\n",
-        PHONELAB_MAGIC, PHONELAB_TAG_GPU, count);
+    alog_v(PHONELAB_TAG_GPU, "{\"Action\":\"Commands\",\"Count\":%u}", count);
 }
 
 #endif /* __KGSL_PHONELAB_H */
