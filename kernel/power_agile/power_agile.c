@@ -233,6 +233,7 @@ inline void power_agile_get_current_parameters(struct task_struct *task, struct 
 	params->mem_frequency_MHZ = task->pa.mem_freq / 1000;
 	idx = 0;
 	for_each_netdev_rcu(&init_net, dev) {
+		//printk(KERN_INFO "%s: %s\n", __func__, dev->name);
 		if(dev->netdev_ops->get_epb) {
 			params->net_epb[idx] = dev->netdev_ops->get_epb(dev);
 		}
@@ -258,6 +259,8 @@ inline void power_agile_tune(struct task_struct *task)
 	u64 ns = sched_clock();
 #endif
 
+	if(!library_initialized)
+		return;
 	/* We want tuning stats to be accounted separately
 	 * for understanding overheads
 	 */
@@ -277,10 +280,14 @@ inline void power_agile_tune(struct task_struct *task)
 
 	printk(KERN_INFO "%s: PID:%05d  TGID:%05d  budget:%d\n", __func__, task->pid, task->tgid, task->pa.inefficiency.budget);
 	//FIXME: This is a hack to stop tuning during atomic
-	if(task->pa.stats.cpu_busy_cycles != 0) {
+	if(task->pa.stats.cpu_busy_time_ns != 0) {
 
 		stats = kzalloc(sizeof(struct statistics), GFP_KERNEL);
+		if(!stats)
+			return;
 		tune_stats = kzalloc(sizeof(struct statistics), GFP_KERNEL);
+		if(!tune_stats)
+			return;
 
 		memset(&tune_energy, 0, sizeof(energy_container));
 		memset(&result, 0, sizeof(struct parameters));
