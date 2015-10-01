@@ -92,6 +92,7 @@
 
 #ifdef CONFIG_POWER_AGILE_INEFFICIENCY_CONTROLLER
 #include <linux/power_agile_inefficiency.h>
+#include <linux/sim.h>
 #include <linux/../../lib/library/kernel/frontier.h>
 #endif
 
@@ -405,11 +406,12 @@ static ssize_t proc_power_agile_task_stats_read(struct file *file, char __user *
 			task->pa.base_stats.user_cycles, task->pa.base_stats.kernel_cycles
 		     );
 	//             6
-	len += sprintf(buffer + len, " %llu %llu %llu %llu",
+	len += sprintf(buffer + len, " %llu %llu %llu %llu %llu",
 			task->pa.stats.cpu_busy_cycles,
 			task->pa.stats.cpu_l1l2_stall_cycles,
 			task->pa.stats.cpu_dram_stall_time_ns,
-			task->pa.stats.cpu_quiesce_time_ns
+			task->pa.stats.cpu_quiesce_time_ns,
+			task->pa.stats.cpu_busy_time_ns
 		      );
 	//             10
 	len += sprintf(buffer + len, " %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu",
@@ -607,6 +609,56 @@ out:
 static const struct file_operations proc_power_agile_task_inefficiency_budget_operations = {
 	.read           = proc_power_agile_task_inefficiency_budget_read,
 	.write          = proc_power_agile_task_inefficiency_budget_write,
+	.llseek         = default_llseek,
+};
+
+static ssize_t proc_power_agile_task_inefficiency_interval_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int len;
+	char buffer[PROC_NUMBUF];
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+
+	memset(buffer, 0, sizeof buffer);
+	len = sprintf(buffer, "%d\n", tune_getinterval(task));
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_power_agile_task_inefficiency_interval_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	int err = 0;
+	char buffer[PROC_NUMBUF];
+	int interval;
+
+	memset(buffer, 0, sizeof buffer);
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		printk(KERN_ERR "inefficiency_buffer: Failed to obtain interval from userspace\n");
+		err = -EFAULT;
+		goto out;
+	}
+
+	err = kstrtoint(strstrip(buffer), 0, &interval);
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (unlikely(!task)) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	pr_debug("inefficiency_interval: PID:%05d set interval to :%d\n", task->pid, interval);
+	task_lock(task);
+	tune_setinterval(task, interval);
+	task_unlock(task);
+
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_power_agile_task_inefficiency_interval_operations = {
+	.read           = proc_power_agile_task_inefficiency_interval_read,
+	.write          = proc_power_agile_task_inefficiency_interval_write,
 	.llseek         = default_llseek,
 };
 
@@ -3772,6 +3824,7 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("power_agile_task_algorithm", S_IRUGO|S_IWUSR, proc_power_agile_task_algorithm_operations),
 	REG("power_agile_task_available_algorithms", S_IRUGO, proc_power_agile_task_available_algorithms_operations),
 	REG("power_agile_task_inefficiency_budget", S_IRUGO|S_IWUSR, proc_power_agile_task_inefficiency_budget_operations),
+	REG("power_agile_task_inefficiency_interval", S_IRUGO|S_IWUSR, proc_power_agile_task_inefficiency_interval_operations),
 	REG("power_agile_task_inefficiency_surface", S_IRUGO|S_IWUSR, proc_power_agile_task_inefficiency_surface_operations),
 #endif
 #ifdef CONFIG_RATE_LIMITING
