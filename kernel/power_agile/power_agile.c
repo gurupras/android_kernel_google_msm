@@ -69,6 +69,10 @@ const char *power_agile_register_names[] = {
 	"MEM_PRECHARGE_IDLE_OVERLAP_TIME_NS"
 };
 
+void power_agile_read_reg(enum power_agile_register reg, u32 *ret_addr) {
+}
+void power_agile_write_reg(enum power_agile_register reg, u32 value) {
+}
 
 SYSCALL_DEFINE0(dummy)
 {
