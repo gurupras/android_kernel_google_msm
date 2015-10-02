@@ -7,8 +7,8 @@
 #define PHONELAB_TAG_GPU "GPU-Utilization-QoE"
 
 // KGSL States
-#define NUM_STATES 8
-static char *state_desc[] = {"None", "Init", "Active", "Nap", "Sleep", "Slumber", "Suspend", "Hung", "Slumber"};
+#define NUM_STATES 9
+static char *state_desc[NUM_STATES] = {"None", "Init", "Active", "Nap", "Sleep", "Slumber", "Suspend", "Hung", "Slumber"};
 
 // Logging functions
 
@@ -40,7 +40,7 @@ static inline void phonelab_log_state_change(unsigned int state)
     }
 
     if (count < NUM_STATES)
-        alog_v(PHONELAB_TAG_GPU, "{\"Action\":\"StateChange\",\"NewState\":%s}", state_desc[count]);
+        alog_i(PHONELAB_TAG_GPU, "{\"Action\":\"StateChange\",\"NewState\":%s}", state_desc[count]);
 }
 
 /*
@@ -59,7 +59,7 @@ static inline void phonelab_log_busy_time(unsigned on_time, unsigned elapsed)
     * "Description": "Busy time and elapased time since the last time the statistics were updated."
     * }
     */
-    alog_v(PHONELAB_TAG_GPU, "{\"Action\":\"BusyTime\",\"OnTime\":%u,\"Elapsed\":%u}", on_time, elapsed);
+    alog_i(PHONELAB_TAG_GPU, "{\"Action\":\"BusyTime\",\"OnTime\":%u,\"Elapsed\":%u}", on_time, elapsed);
 }
 
 /*
@@ -78,7 +78,7 @@ static inline void phonelab_log_commands(unsigned count)
     * "Description": "Busy time and elapased time since the last time the statistics were updated."
     * }
     */
-    alog_v(PHONELAB_TAG_GPU, "{\"Action\":\"Commands\",\"Count\":%u}", count);
+    alog_i(PHONELAB_TAG_GPU, "{\"Action\":\"Commands\",\"Count\":%u}", count);
 }
 
 #endif /* __KGSL_PHONELAB_H */
