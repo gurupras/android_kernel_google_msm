@@ -4,10 +4,17 @@
 
 #include <linux/phonelab.h>
 
-#define MAX_LOG_LEN	(128 * 1024)
+#define MAX_LOG_LEN	(4 * 1024)
 static void alog(LOGCAT_LEVEL level, char *tag, const char *fmt, va_list args)
 {
 	char *buffer = kmalloc(sizeof(char) * MAX_LOG_LEN, GFP_KERNEL);
+
+	if (buffer == NULL)
+	{
+		printk(KERN_DEBUG "alog buffer allocation failed\n");
+		return;
+	}
+
 	memset(buffer, 0, MAX_LOG_LEN);
 	vsnprintf(buffer, MAX_LOG_LEN, fmt, args);
 
