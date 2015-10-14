@@ -25,13 +25,15 @@
 #include "kgsl_device.h"
 #include "kgsl_trace.h"
 #include "kgsl_sharedmem.h"
+#include "adreno.h"
+#include "kgsl_phonelab.h"
 
 #define KGSL_PWRFLAGS_POWER_ON 0
 #define KGSL_PWRFLAGS_CLK_ON   1
 #define KGSL_PWRFLAGS_AXI_ON   2
 #define KGSL_PWRFLAGS_IRQ_ON   3
 
-#define UPDATE_BUSY_VAL		1000000
+#define UPDATE_BUSY_VAL		100000
 #define UPDATE_BUSY		50
 
 /*
@@ -81,6 +83,7 @@ static void kgsl_pwrctrl_clk(struct kgsl_device *device, int state,
 static void kgsl_pwrctrl_axi(struct kgsl_device *device, int state);
 static void kgsl_pwrctrl_pwrrail(struct kgsl_device *device, int state);
 
+
 /* Update the elapsed time at a particular clock level
  * if the device is active(on_time = true).Otherwise
  * store it as sleep time.
@@ -93,7 +96,7 @@ static void update_clk_statistics(struct kgsl_device *device,
 	ktime_t elapsed;
 	int elapsed_us;
 	if (clkstats->start.tv64 == 0)
-		clkstats->start = ktime_get();
+        clkstats->start = ktime_get();
 	clkstats->stop = ktime_get();
 	elapsed = ktime_sub(clkstats->stop, clkstats->start);
 	elapsed_us = ktime_to_us(elapsed);
@@ -817,6 +820,7 @@ static void update_statistics(struct kgsl_device *device)
 	unsigned int on_time = 0;
 	int i;
 	int num_pwrlevels = device->pwrctrl.num_pwrlevels - 1;
+
 	/*PER CLK TIME*/
 	for (i = 0; i < num_pwrlevels; i++) {
 		clkstats->old_clock_time[i] = clkstats->clock_time[i];
@@ -829,6 +833,8 @@ static void update_statistics(struct kgsl_device *device)
 	clkstats->on_time_old = on_time;
 	clkstats->elapsed_old = clkstats->elapsed;
 	clkstats->elapsed = 0;
+    
+    phonelab_log_busy_time(clkstats->on_time_old, clkstats->elapsed_old);
 
 	trace_kgsl_gpubusy(device, clkstats->on_time_old,
 		clkstats->elapsed_old);
@@ -1284,6 +1290,7 @@ _nap(struct kgsl_device *device)
 		kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_OFF);
 		kgsl_pwrctrl_clk(device, KGSL_PWRFLAGS_OFF, KGSL_STATE_NAP);
 		kgsl_pwrctrl_set_state(device, KGSL_STATE_NAP);
+        
 	case KGSL_STATE_NAP:
 	case KGSL_STATE_SLEEP:
 	case KGSL_STATE_SLUMBER:
@@ -1483,8 +1490,10 @@ EXPORT_SYMBOL(kgsl_pwrctrl_disable);
 void kgsl_pwrctrl_set_state(struct kgsl_device *device, unsigned int state)
 {
 	trace_kgsl_pwr_set_state(device, state);
+    phonelab_log_state_change(state);
 	device->state = state;
 	device->requested_state = KGSL_STATE_NONE;
+    
 }
 EXPORT_SYMBOL(kgsl_pwrctrl_set_state);
 

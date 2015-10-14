@@ -1,7 +1,5 @@
-#ifndef __PHONELAB__H_
-#define __PHONELAB__H_
-
-#include <linux/types.h>
+#ifndef __PHONELAB__H
+#define __PHONELAB_H
 
 #define PHONELAB_MAGIC "<PhoneLab>"
 
