@@ -40,7 +40,7 @@ static inline void phonelab_log_state_change(unsigned int state)
     }
 
     if (count < NUM_STATES)
-        alog_i(PHONELAB_TAG_GPU, "{\"Action\":\"StateChange\",\"NewState\":%s}", state_desc[count]);
+        alog_i(PHONELAB_TAG_GPU, "{\"Action\":\"StateChange\",\"NewState\":\"%s\"}", state_desc[count]);
 }
 
 /*
