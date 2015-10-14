@@ -1095,6 +1095,9 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 			return -EINVAL;
 	}
 
+    /* Log this before we queue it, in case it gets garbled */
+	phonelab_log_commands(cmdbatch->ibcount);
+
 	/* For now everybody has the same priority */
 	cmdbatch->priority = ADRENO_CONTEXT_DEFAULT_PRIORITY;
 
@@ -1123,7 +1126,6 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 			kgsl_trace_gpu_job_enqueue(drawctxt->base.id,
 				cmdbatch->timestamp, str);
             
-            phonelab_log_commands(cmdbatch->ibcount);
 		}
 	}
 
