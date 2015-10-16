@@ -67,6 +67,8 @@ SYSCALL_DEFINE3(ioprio_set, int, which, int, who, int, ioprio)
 	struct pid *pgrp;
 	int ret;
 
+	printk("Syscall-K_ioprio_set-PhoneLab (%i):  %i, %i, %i\n", current->pid, which, who, ioprio);  // Log
+
 	switch (class) {
 		case IOPRIO_CLASS_RT:
 			if (!capable(CAP_SYS_ADMIN))
