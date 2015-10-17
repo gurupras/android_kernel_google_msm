@@ -10,8 +10,7 @@ obj-y     = fork.o exec_domain.o panic.o printk.o \
 	    kthread.o wait.o kfifo.o sys_ni.o posix-cpu-timers.o mutex.o \
 	    hrtimer.o rwsem.o nsproxy.o srcu.o semaphore.o \
 	    notifier.o ksysfs.o cred.o \
-	    async.o range.o groups.o \
-	    phonelab.o
+	    async.o range.o groups.o
 
 obj-$(CONFIG_POWER_AGILE) += sim.o
 obj-y += power_agile/
@@ -28,6 +27,8 @@ endif
 
 obj-y += sched/
 obj-y += power/
+
+obj-y += phonelab/
 
 obj-$(CONFIG_FREEZER) += freezer.o
 obj-$(CONFIG_PROFILING) += profile.o

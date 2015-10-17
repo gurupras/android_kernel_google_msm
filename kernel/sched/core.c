@@ -106,6 +106,7 @@ int *pid_array;        //FIXME
 
 static void __sched __schedule(void);
 
+#include <linux/phonelab.h>
 
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
 
@@ -2101,6 +2102,9 @@ context_switch(struct rq *rq, struct task_struct *prev,
 #endif
 
 	struct mm_struct *mm, *oldmm;
+	struct json_object *json = json_create_object();
+	char buffer[512];
+	int offset = 0;
 
 	prepare_task_switch(rq, prev, next);
 
@@ -2192,6 +2196,14 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	pr_debug("%s\n", buf);
 #endif /* defined(CONFIG_POWER_AGILE_CTX_SWITCH_INFO) || defined(CONFIG_POWER_AGILE_PROC_INFO) */
 
+        json_object_add_value_string(json, "Action", "CONTEXT_SWITCH");
+        json_object_add_value_int(json, "PrevPID", (int) prev->pid);
+        json_object_add_value_int(json, "PrevTGID", (int) prev->tgid);
+        json_object_add_value_int(json, "NextPID", (int) next->pid);
+        json_object_add_value_int(json, "NextTGID", (int) next->tgid);
+	json_sprint_object(json, buffer, &offset);
+	alog_v("Scheduler-ContextSwitch-PhoneLab", buffer);
+	json_free_object(json);
 
 	/* Here we just switch the register state and the stack. */
 	switch_to(prev, next, prev);

@@ -1,7 +1,14 @@
-#ifndef __PHONELAB__H
-#define __PHONELAB_H
+#ifndef __PHONELAB__H_
+#define __PHONELAB__H_
+
+#include <linux/types.h>
+#include <linux/json.h>
 
 #define PHONELAB_MAGIC "<PhoneLab>"
+
+#ifdef __KERNEL__
+#define printf(msg) printk(KERN_INFO msg);
+#endif
 
 /* This whole enum is borrowed from system/core/include/android/log.h */
 typedef enum {
