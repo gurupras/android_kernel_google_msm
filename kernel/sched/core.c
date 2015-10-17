@@ -87,6 +87,8 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
 
+#include <linux/phonelab.h>
+
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
 
 void start_bandwidth_timer(struct hrtimer *period_timer, ktime_t period)
@@ -2066,6 +2068,9 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next)
 {
 	struct mm_struct *mm, *oldmm;
+	struct json_object *json = json_create_object();
+	char buffer[512];
+	int offset = 0;
 
 	prepare_task_switch(rq, prev, next);
 
@@ -2098,6 +2103,15 @@ context_switch(struct rq *rq, struct task_struct *prev,
 #ifndef __ARCH_WANT_UNLOCKED_CTXSW
 	spin_release(&rq->lock.dep_map, 1, _THIS_IP_);
 #endif
+
+        json_object_add_value_string(json, "Action", "CONTEXT_SWITCH");
+        json_object_add_value_int(json, "PrevPID", (int) prev->pid);
+        json_object_add_value_int(json, "PrevTGID", (int) prev->tgid);
+        json_object_add_value_int(json, "NextPID", (int) next->pid);
+        json_object_add_value_int(json, "NextTGID", (int) next->tgid);
+	json_sprint_object(json, buffer, &offset);
+	alog_v("Scheduler-ContextSwitch-PhoneLab", buffer);
+	json_free_object(json);
 
 	/* Here we just switch the register state and the stack. */
 	switch_to(prev, next, prev);
