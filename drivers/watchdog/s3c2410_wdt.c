@@ -276,6 +276,7 @@ done:
 }
 
 static struct notifier_block s3c2410wdt_cpufreq_transition_nb = {
+	.name = "s3c2410wdt_cpufreq_transition",
 	.notifier_call	= s3c2410wdt_cpufreq_transition,
 };
 

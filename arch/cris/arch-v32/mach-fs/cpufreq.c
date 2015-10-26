@@ -11,6 +11,7 @@ cris_sdram_freq_notifier(struct notifier_block *nb, unsigned long val,
 			 void *data);
 
 static struct notifier_block cris_sdram_freq_notifier_block = {
+	.name = "cris_sdram_freq_notifier",
 	.notifier_call = cris_sdram_freq_notifier
 };
 

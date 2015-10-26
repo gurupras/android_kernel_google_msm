@@ -160,6 +160,7 @@ dbs_cpufreq_notifier(struct notifier_block *nb, unsigned long val,
 }
 
 static struct notifier_block dbs_cpufreq_notifier_block = {
+	.name = "dbs_cpufreq_notifier",
 	.notifier_call = dbs_cpufreq_notifier
 };
 

@@ -368,6 +368,7 @@ static int dspbridge_scale_notification(struct notifier_block *op,
 }
 
 static struct notifier_block iva_clk_notifier = {
+	.name = "dspbridge_scale_notification",
 	.notifier_call = dspbridge_scale_notification,
 	NULL,
 };

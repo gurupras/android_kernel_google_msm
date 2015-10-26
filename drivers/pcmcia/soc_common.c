@@ -654,6 +654,7 @@ soc_pcmcia_notifier(struct notifier_block *nb, unsigned long val, void *data)
 }
 
 static struct notifier_block soc_pcmcia_notifier_block = {
+	.name = "soc_pcmcia_notifier",
 	.notifier_call	= soc_pcmcia_notifier
 };
 

@@ -57,6 +57,7 @@ userspace_cpufreq_notifier(struct notifier_block *nb, unsigned long val,
 }
 
 static struct notifier_block userspace_cpufreq_notifier_block = {
+	.name = "userspace_cpufreq_notifier",
 	.notifier_call  = userspace_cpufreq_notifier
 };
 

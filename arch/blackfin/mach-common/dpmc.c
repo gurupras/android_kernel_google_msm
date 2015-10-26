@@ -121,6 +121,7 @@ vreg_cpufreq_notifier(struct notifier_block *nb, unsigned long val, void *data)
 }
 
 static struct notifier_block vreg_cpufreq_notifier_block = {
+	.name = "vreg_cpufreq_notifier",
 	.notifier_call	= vreg_cpufreq_notifier
 };
 #endif /* CONFIG_CPU_FREQ */

@@ -1053,6 +1053,7 @@ static int s3c24xx_serial_cpufreq_transition(struct notifier_block *nb,
 static inline int s3c24xx_serial_cpufreq_register(struct s3c24xx_uart_port *port)
 {
 	port->freq_transition.notifier_call = s3c24xx_serial_cpufreq_transition;
+	port->freq_transition.name = "s3c24xx_serial_cpufreq_transition";
 
 	return cpufreq_register_notifier(&port->freq_transition,
 					 CPUFREQ_TRANSITION_NOTIFIER);

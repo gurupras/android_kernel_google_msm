@@ -1129,6 +1129,7 @@ oprof_cpufreq_notify(struct notifier_block *nb, unsigned long val, void *data)
 }
 
 static struct notifier_block cpu_freq_notifier_block = {
+	.name = "oprof_cpufreq_notify",
 	.notifier_call	= oprof_cpufreq_notify
 };
 #endif

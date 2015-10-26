@@ -1230,6 +1230,7 @@ static int mmc_davinci_cpufreq_transition(struct notifier_block *nb,
 static inline int mmc_davinci_cpufreq_register(struct mmc_davinci_host *host)
 {
 	host->freq_transition.notifier_call = mmc_davinci_cpufreq_transition;
+	host->freq_transition.name = "mmc_davinci_cpufreq_transition";
 
 	return cpufreq_register_notifier(&host->freq_transition,
 					 CPUFREQ_TRANSITION_NOTIFIER);

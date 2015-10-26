@@ -2227,7 +2227,10 @@ static int __devinit pxafb_probe(struct platform_device *dev)
 
 #ifdef CONFIG_CPU_FREQ
 	fbi->freq_transition.notifier_call = pxafb_freq_transition;
+	fbi->freq_transition.notifier_call.name = "pxafb_freq_transition";
 	fbi->freq_policy.notifier_call = pxafb_freq_policy;
+	fbi->freq_policy.notifier_call.name = "pxafb_freq_policy";
+
 	cpufreq_register_notifier(&fbi->freq_transition,
 				CPUFREQ_TRANSITION_NOTIFIER);
 	cpufreq_register_notifier(&fbi->freq_policy,

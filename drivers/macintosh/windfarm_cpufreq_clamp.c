@@ -32,6 +32,7 @@ static int clamp_notifier_call(struct notifier_block *self,
 }
 
 static struct notifier_block clamp_notifier = {
+	.name = "clamp_notifier_call",
 	.notifier_call = clamp_notifier_call,
 };
 

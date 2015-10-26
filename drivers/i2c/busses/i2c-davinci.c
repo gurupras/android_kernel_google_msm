@@ -609,6 +609,7 @@ static int i2c_davinci_cpufreq_transition(struct notifier_block *nb,
 static inline int i2c_davinci_cpufreq_register(struct davinci_i2c_dev *dev)
 {
 	dev->freq_transition.notifier_call = i2c_davinci_cpufreq_transition;
+	dev->freq_transition.name = "i2c_davinci_cpufreq_transition";
 
 	return cpufreq_register_notifier(&dev->freq_transition,
 					 CPUFREQ_TRANSITION_NOTIFIER);

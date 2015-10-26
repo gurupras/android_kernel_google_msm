@@ -51,6 +51,7 @@ struct notifier_block {
 	int (*notifier_call)(struct notifier_block *, unsigned long, void *);
 	struct notifier_block __rcu *next;
 	int priority;
+	const char *name;
 };
 
 struct atomic_notifier_head {

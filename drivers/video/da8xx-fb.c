@@ -892,6 +892,7 @@ static int lcd_da8xx_cpufreq_transition(struct notifier_block *nb,
 static inline int lcd_da8xx_cpufreq_register(struct da8xx_fb_par *par)
 {
 	par->freq_transition.notifier_call = lcd_da8xx_cpufreq_transition;
+	par->freq_transition.notifier_call = "lcd_da8xx_cpufreq_transition";
 
 	return cpufreq_register_notifier(&par->freq_transition,
 					 CPUFREQ_TRANSITION_NOTIFIER);

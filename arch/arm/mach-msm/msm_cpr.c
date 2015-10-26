@@ -1015,6 +1015,7 @@ static int __devinit msm_cpr_probe(struct platform_device *pdev)
 	cpr_modify_reg(cpr, RBCPR_CTL, LOOP_EN_M, ENABLE_CPR);
 
 	cpr->freq_transition.notifier_call = cpr_freq_transition;
+	cpr->freq_transition.name = "cpr_freq_transition";
 	cpufreq_register_notifier(&cpr->freq_transition,
 					CPUFREQ_TRANSITION_NOTIFIER);
 

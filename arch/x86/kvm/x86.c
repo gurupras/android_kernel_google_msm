@@ -4763,6 +4763,7 @@ static int kvmclock_cpu_notifier(struct notifier_block *nfb,
 }
 
 static struct notifier_block kvmclock_cpu_notifier_block = {
+	.name = "kvmclock_cpu_notifier",
 	.notifier_call  = kvmclock_cpu_notifier,
 	.priority = -INT_MAX
 };

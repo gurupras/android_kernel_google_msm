@@ -691,6 +691,7 @@ static int clk_twd_cpufreq_transition(struct notifier_block *nb,
 }
 
 static struct notifier_block clk_twd_cpufreq_nb = {
+	.name = "clk_twd_cpufreq_transition",
 	.notifier_call = clk_twd_cpufreq_transition,
 };
 

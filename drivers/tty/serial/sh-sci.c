@@ -2377,6 +2377,7 @@ static int __devinit sci_probe(struct platform_device *dev)
 		goto err_unreg;
 
 	sp->freq_transition.notifier_call = sci_notifier;
+	sp->freq_transition.name = "sci_notifier";
 
 	ret = cpufreq_register_notifier(&sp->freq_transition,
 					CPUFREQ_TRANSITION_NOTIFIER);

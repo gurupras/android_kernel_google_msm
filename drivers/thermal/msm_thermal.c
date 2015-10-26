@@ -201,6 +201,7 @@ static int  msm_thermal_cpufreq_callback(struct notifier_block *nfb,
 }
 
 static struct notifier_block msm_thermal_cpufreq_notifier = {
+	.name = "msm_thermal_cpufreq_callback",
 	.notifier_call = msm_thermal_cpufreq_callback,
 };
 

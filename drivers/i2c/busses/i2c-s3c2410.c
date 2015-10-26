@@ -734,6 +734,7 @@ static int s3c24xx_i2c_cpufreq_transition(struct notifier_block *nb,
 static inline int s3c24xx_i2c_register_cpufreq(struct s3c24xx_i2c *i2c)
 {
 	i2c->freq_transition.notifier_call = s3c24xx_i2c_cpufreq_transition;
+	i2c->freq_transition.name = "s3c24xx_i2c_cpufreq_transition";
 
 	return cpufreq_register_notifier(&i2c->freq_transition,
 					 CPUFREQ_TRANSITION_NOTIFIER);

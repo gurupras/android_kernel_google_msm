@@ -719,6 +719,7 @@ static int time_cpufreq_notifier(struct notifier_block *nb, unsigned long val,
 }
 
 static struct notifier_block time_cpufreq_notifier_block = {
+	.name = "time_cpufreq_notifier",
 	.notifier_call  = time_cpufreq_notifier
 };
 

@@ -471,6 +471,7 @@ static int nuc900fb_cpufreq_transition(struct notifier_block *nb,
 static inline int nuc900fb_cpufreq_register(struct nuc900fb_info *fbi)
 {
 	fbi->freq_transition.notifier_call = nuc900fb_cpufreq_transition;
+	fbi->freq_transition.notifier_call = "nuc900fb_cpufreq_transition";
 	return cpufreq_register_notifier(&fbi->freq_transition,
 				  CPUFREQ_TRANSITION_NOTIFIER);
 }

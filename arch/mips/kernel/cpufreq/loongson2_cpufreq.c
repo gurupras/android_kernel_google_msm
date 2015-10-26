@@ -31,6 +31,7 @@ static int loongson2_cpu_freq_notifier(struct notifier_block *nb,
 					unsigned long val, void *data);
 
 static struct notifier_block loongson2_cpufreq_notifier_block = {
+	.name = "loongson2_cpu_freq_notifier",
 	.notifier_call = loongson2_cpu_freq_notifier
 };
 

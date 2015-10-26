@@ -582,10 +582,12 @@ static struct notifier_block cpufreq_stat_cpu_notifier __refdata = {
 };
 
 static struct notifier_block notifier_policy_block = {
+	.name = "cpufreq_stat_notifier_policy",
 	.notifier_call = cpufreq_stat_notifier_policy
 };
 
 static struct notifier_block notifier_trans_block = {
+	.name = "cpufreq_stat_notifier_trans",
 	.notifier_call = cpufreq_stat_notifier_trans
 };
 

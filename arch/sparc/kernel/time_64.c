@@ -671,6 +671,7 @@ static int sparc64_cpufreq_notifier(struct notifier_block *nb, unsigned long val
 }
 
 static struct notifier_block sparc64_cpufreq_notifier_block = {
+	.name = "sparc64_cpufreq_notifier",
 	.notifier_call	= sparc64_cpufreq_notifier
 };
 

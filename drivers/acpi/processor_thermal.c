@@ -107,6 +107,7 @@ static int acpi_thermal_cpufreq_notifier(struct notifier_block *nb,
 }
 
 static struct notifier_block acpi_thermal_cpufreq_notifier_block = {
+	.name = "acpi_thermal_cpufreq_notifier",
 	.notifier_call = acpi_thermal_cpufreq_notifier,
 };
 

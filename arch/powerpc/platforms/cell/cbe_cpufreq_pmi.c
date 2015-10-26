@@ -121,6 +121,7 @@ static int pmi_notifier(struct notifier_block *nb,
 }
 
 static struct notifier_block pmi_notifier_block = {
+	.name = "pmi_notifier",
 	.notifier_call = pmi_notifier,
 };
 

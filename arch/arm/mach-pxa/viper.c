@@ -897,6 +897,7 @@ static int viper_cpufreq_notifier(struct notifier_block *nb,
 }
 
 static struct notifier_block viper_cpufreq_notifier_block = {
+	.name = "viper_cpufreq_notifier",
 	.notifier_call  = viper_cpufreq_notifier
 };
 

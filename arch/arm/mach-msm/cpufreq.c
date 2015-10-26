@@ -26,12 +26,15 @@
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
 #include <linux/suspend.h>
 #include <trace/events/power.h>
 #include <mach/socinfo.h>
 #include <mach/cpufreq.h>
 
 #include "acpuclock.h"
+
+#include <linux/phonelab.h>
 
 struct cpufreq_work_struct {
 	struct work_struct work;
@@ -133,6 +136,12 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 
 	struct cpufreq_work_struct *cpu_work = NULL;
 
+	u64 start, end;
+	struct timespec ts;
+	u32 from_freq;
+
+	from_freq = policy->cur;
+
 	mutex_lock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
 
 	if (per_cpu(cpufreq_suspend, policy->cpu).device_suspended) {
@@ -162,7 +171,19 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 	cancel_work_sync(&cpu_work->work);
 	INIT_COMPLETION(cpu_work->complete);
 	queue_work_on(policy->cpu, msm_cpufreq_wq, &cpu_work->work);
+
+	getnstimeofday(&ts);
+	start = (ts.tv_sec * 1000000000) + ts.tv_nsec;
 	wait_for_completion(&cpu_work->complete);
+	getnstimeofday(&ts);
+	end = (ts.tv_sec * 1000000000) + ts.tv_nsec;
+
+
+	alog_v("CPUFREQ", "{\"Action\": \"TransitionLatency\", \"cpu\": %u, "
+			"\"timeTakenNanos\": %llu, "
+			"\"from\": %u, \"to\": %u}\n",
+			policy->cpu, (end - start), from_freq, cpu_work->frequency);
+
 
 	ret = cpu_work->status;
 

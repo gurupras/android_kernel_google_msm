@@ -576,6 +576,7 @@ static int cpufreq_interactive_notifier(
 }
 
 static struct notifier_block cpufreq_notifier_block = {
+	.name = "cpufreq_interactive_notifier",
 	.notifier_call = cpufreq_interactive_notifier,
 };
 

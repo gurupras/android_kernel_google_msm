@@ -1265,7 +1265,11 @@ static int __devinit sa1100fb_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_CPU_FREQ
 	fbi->freq_transition.notifier_call = sa1100fb_freq_transition;
+	fbi->freq_transition.name = "sa1100fb_freq_transition";
+
 	fbi->freq_policy.notifier_call = sa1100fb_freq_policy;
+	fbi->freq_policy.name = "sa1100fb_freq_policy";
+
 	cpufreq_register_notifier(&fbi->freq_transition, CPUFREQ_TRANSITION_NOTIFIER);
 	cpufreq_register_notifier(&fbi->freq_policy, CPUFREQ_POLICY_NOTIFIER);
 #endif

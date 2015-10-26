@@ -185,6 +185,7 @@ static int idlestats_init(struct kgsl_device *device,
 	spin_lock_init(&priv->cpu_info.lock);
 	priv->cpu_info.cpu_nb.notifier_call =
 			idlestats_cpufreq_notifier;
+	priv->cpu_info.cpu_nb.name = "idlestats_cpufreq_notifier";
 	ret = cpufreq_register_notifier(&priv->cpu_info.cpu_nb,
 				CPUFREQ_TRANSITION_NOTIFIER);
 	if (ret)

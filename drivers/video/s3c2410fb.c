@@ -788,6 +788,7 @@ static int s3c2410fb_cpufreq_transition(struct notifier_block *nb,
 static inline int s3c2410fb_cpufreq_register(struct s3c2410fb_info *info)
 {
 	info->freq_transition.notifier_call = s3c2410fb_cpufreq_transition;
+	info->freq_transition.name = "s3c2410fb_cpufreq_transition";
 
 	return cpufreq_register_notifier(&info->freq_transition,
 					 CPUFREQ_TRANSITION_NOTIFIER);

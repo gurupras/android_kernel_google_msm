@@ -1397,6 +1397,7 @@ static int s3cmci_cpufreq_transition(struct notifier_block *nb,
 static inline int s3cmci_cpufreq_register(struct s3cmci_host *host)
 {
 	host->freq_transition.notifier_call = s3cmci_cpufreq_transition;
+	host->freq_transition.notifier_call = "s3cmci_cpufreq_transition";
 
 	return cpufreq_register_notifier(&host->freq_transition,
 					 CPUFREQ_TRANSITION_NOTIFIER);

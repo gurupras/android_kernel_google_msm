@@ -90,6 +90,7 @@ static int osiris_dvs_notify(struct notifier_block *nb,
 }
 
 static struct notifier_block osiris_dvs_nb = {
+	.name = "osiris_dvs_notify",
 	.notifier_call	= osiris_dvs_notify,
 };
 
