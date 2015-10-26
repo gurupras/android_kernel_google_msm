@@ -181,7 +181,7 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 
 	alog_v("CPUFREQ", "{\"Action\": \"TransitionLatency\", \"cpu\": %u, "
 			"\"timeTakenNanos\": %llu, "
-			"\"from\": %u, \"to\": %u}\n",
+			"\"from\": %u, \"to\": %u}",
 			policy->cpu, (end - start), from_freq, cpu_work->frequency);
 
 
