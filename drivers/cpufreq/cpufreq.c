@@ -32,6 +32,8 @@
 
 #include <trace/events/power.h>
 
+#include <linux/phonelab.h>
+
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
  * level driver of CPUFreq support, and its spinlock. This lock
@@ -1478,6 +1480,8 @@ int cpufreq_register_notifier(struct notifier_block *nb, unsigned int list)
 		ret = -EINVAL;
 	}
 
+	if(!ret)
+		alog_v("CPUFREQ", "{\"Action\": \"cpufreq_register_notifier\", \"name\": \"%s\"}", nb->name);
 	return ret;
 }
 EXPORT_SYMBOL(cpufreq_register_notifier);
