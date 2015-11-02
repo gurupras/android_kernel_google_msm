@@ -92,16 +92,13 @@ inline static void store_stats(struct task_struct *curr) {
 #endif
 }
 
-void store_power_agile_task_stats(struct task_struct *task) {
-	struct statistics stats;
+inline void store_power_agile_task_stats(struct task_struct *task) {
 #ifdef CONFIG_RATE_LIMITING
 	u64 energy;
 #endif
 #ifdef TIMING
 	u64 ns = sched_clock();
 #endif
-	memcpy(&stats, &task->pa.stats, sizeof(struct statistics));
-
 	store_stats(task);
 
 #ifdef CONFIG_POWER_AGILE_ENERGY
@@ -173,7 +170,7 @@ inline void update_power_agile_net_stats(struct sock *sk, int ifindex, unsigned 
 #endif
 
 #ifdef CONFIG_POWER_AGILE_ENERGY
-void power_agile_update_energy(struct task_struct *task)
+inline void power_agile_update_energy(struct task_struct *task)
 {
 	struct statistics diff;
 	struct parameters params;
