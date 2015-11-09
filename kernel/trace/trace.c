@@ -4680,6 +4680,46 @@ static const struct file_operations rb_simple_fops = {
 	.llseek		= default_llseek,
 };
 
+static ssize_t
+trace_clock_now_read(struct file *filp, char __user *ubuf,
+		     size_t count, loff_t *ppos)
+{
+	char buf[64];
+	int r;
+
+	r = sprintf(buf, "%llu\n", ftrace_now(raw_smp_processor_id()));
+	return simple_read_from_buffer(ubuf, count, ppos, buf, r);
+}
+
+static const struct file_operations trace_clock_now_fops = {
+	.open		= tracing_open_generic,
+	.read		= trace_clock_now_read,
+	.llseek		= default_llseek,
+};
+
+static ssize_t
+trace_clock_now_raw_read(struct file *filp, char __user *ubuf,
+		     size_t count, loff_t *ppos)
+{
+	int ret;
+	cycle_t now;
+	ssize_t size;
+
+	now = ftrace_now(raw_smp_processor_id());
+	size = sizeof(cycle_t);
+	ret = copy_to_user(ubuf, &now, size);
+	if (ret == size)
+		return -EFAULT;
+	*ppos += size;
+	return size;
+}
+
+static const struct file_operations trace_clock_now_raw_fops = {
+	.open		= tracing_open_generic,
+	.read		= trace_clock_now_raw_read,
+	.llseek		= default_llseek,
+};
+
 static __init int tracer_init_debugfs(void)
 {
 	struct dentry *d_tracer;
@@ -4746,6 +4786,12 @@ static __init int tracer_init_debugfs(void)
 	trace_create_file("dyn_ftrace_total_info", 0444, d_tracer,
 			&ftrace_update_tot_cnt, &tracing_dyn_info_fops);
 #endif
+
+	trace_create_file("trace_clock_now", 0444, d_tracer,
+				&global_trace, &trace_clock_now_fops);
+
+	trace_create_file("trace_clock_now_raw", 0444, d_tracer,
+				&global_trace, &trace_clock_now_raw_fops);
 
 	create_trace_options_dir();
 
