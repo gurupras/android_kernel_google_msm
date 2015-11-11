@@ -252,9 +252,10 @@ inline void power_agile_tune(struct task_struct *task)
 	struct task_struct *tgid_task;
 	struct tuning_algorithm *algorithm;
 	u64 interval_ns, interval_ms;
-#ifdef TIMING
+
+//#ifdef TIMING
 	u64 ns = sched_clock();
-#endif
+//#endif
 
 	if(!library_initialized)
 		return;
@@ -275,7 +276,7 @@ inline void power_agile_tune(struct task_struct *task)
 	}
 	power_agile_get_current_parameters(task, &params);
 
-	printk(KERN_INFO "%s: PID:%05d  TGID:%05d  budget:%d\n", __func__, task->pid, task->tgid, task->pa.inefficiency.budget);
+//	printk(KERN_INFO "%s: PID:%05d  TGID:%05d  budget:%d\n", __func__, task->pid, task->tgid, task->pa.inefficiency.budget);
 	//FIXME: This is a hack to stop tuning during atomic
 	if(task->pa.stats.cpu_busy_time_ns != 0) {
 
@@ -299,9 +300,9 @@ inline void power_agile_tune(struct task_struct *task)
 		memcpy(&task->pa.current_params, &result, sizeof(struct parameters));
 		memcpy(&task->pa.tuning_prev_stats, stats, sizeof(struct statistics));
 
-		printk(KERN_INFO "tuning: PID:%05d: TGID:%05d: CPU-%d: %d, %d\n",
-				task->pid, task->tgid,
-				cpu, result.cpu_frequency_MHZ, result.mem_frequency_MHZ);
+//		printk(KERN_INFO "tuning: PID:%05d: TGID:%05d: CPU-%d: %d, %d\n",
+//				task->pid, task->tgid,
+//				cpu, result.cpu_frequency_MHZ, result.mem_frequency_MHZ);
 
 		// Update the tuning interval
 		// 100M cycles * 1e9 / HZ = ns
@@ -329,13 +330,14 @@ inline void power_agile_tune(struct task_struct *task)
 		task->pa.mem_freq = result.mem_frequency_MHZ * 1000;
 #endif
 	}
-	else
-		pr_debug("tuning: PID:%05d: cpu_busy_cycles == 0, Not tuning! (Maybe in atomic CPU?)\n", task->pid);
+	else {
+//		pr_debug("tuning: PID:%05d: cpu_busy_cycles == 0, Not tuning! (Maybe in atomic CPU?)\n", task->pid);
+	}
 
-#ifdef TIMING
+//#ifdef TIMING
 	ns = sched_clock() - ns;
-	printk(KERN_INFO "timing:%s: %lluns\n", __func__, ns);
-#endif
+	printk(KERN_INFO "timing:%s:%d: %lluns\n\n", __func__, cpu, ns);
+//#endif
 }
 #endif
 
