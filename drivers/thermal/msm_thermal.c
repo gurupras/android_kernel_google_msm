@@ -38,6 +38,9 @@
 #include <linux/regulator/consumer.h>
 #include <linux/msm_thermal_ioctl.h>
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/thermal.h>
+
 #define MAX_RAILS 5
 #define MAX_THRESHOLD 2
 
@@ -992,6 +995,8 @@ static void __ref check_temp(struct work_struct *work)
 		else
 			limit_init = 1;
 	}
+
+	trace_thermal_temp(msm_thermal_info.sensor_id, temp);
 
 	do_core_control(temp);
 	do_vdd_restriction();
