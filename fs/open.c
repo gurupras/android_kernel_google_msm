@@ -970,6 +970,52 @@ struct file *file_open_root(struct dentry *dentry, struct vfsmount *mnt,
 }
 EXPORT_SYMBOL(file_open_root);
 
+
+
+// Filepath filtering:  Return ==0 if on blacklist; !=0 if not
+int pathname_filter(const char* path) {
+
+	// Path blacklists (i.e., any file in these directories):
+	char logpath[] = "/dev/log/";
+	char catpath[] = "/data/data/edu.buffalo.cse.phonelab.conductor/app_LogcatTask/";
+	char devpath[] = "/dev/";
+	char syspath[] = "/sys/";
+	char procpath[] = "/proc/";
+	char debugpath[] = "/d/";
+
+	// File blacklists (i.e., the file (or directory) itself):
+	char devdir[] = "/dev";
+	char sysdir[] = "/sys";
+	char procdir[] = "/proc";
+
+	// Edit / comment out to adjust path filtering:
+//	#if LOG_FILTER_VIRTUAL
+	return (strncmp(path, devpath, strlen(devpath)) && \
+		strncmp(path, syspath, strlen(syspath)) && \
+		strncmp(path, procpath, strlen(procpath)) && \
+		strncmp(path, debugpath, strlen(debugpath)) && \
+		strncmp(path, catpath, strlen(catpath)) && \
+		strcmp(path, devdir) && \
+		strcmp(path, sysdir) && \
+		strcmp(path, procdir) );
+/*
+	(void)logpath;
+	#else
+	return (strncmp(path, logpath, strlen(logpath)) && \
+		strncmp(path, catpath, strlen(catpath)) );
+	(void)devpath;
+	(void)syspath;
+	(void)procpath;
+	(void)debugpath;
+	(void)devdir;
+	(void)sysdir;
+	(void)procdir;
+	#endif
+*/
+}
+
+
+
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	struct open_flags op;
@@ -987,6 +1033,15 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 			} else {
 				fsnotify_open(f);
 				fd_install(fd, f);
+
+				// PhoneLab File Logging
+				if (pathname_filter(tmp)) {
+					f->f_logging = true;
+				} else {
+					f->f_logging = false;
+				}
+				// Endlog
+
 			}
 		}
 		putname(tmp);

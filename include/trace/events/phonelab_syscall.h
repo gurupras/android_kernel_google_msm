@@ -1,14 +1,14 @@
 
 #undef TRACE_SYSTEM
-#define TRACE_SYSTEM syscall_tracing
+#define TRACE_SYSTEM phonelab_syscall_tracing
 
 // Name of _this_ file (.h appended automatically):
 // Q -- should be undefined??
 #undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_FILE syscall_trace
+#define TRACE_INCLUDE_FILE phonelab_syscall
 
 #if !defined(_SYSCALL_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
-#define _SYSCALL_TRACE_H_
+#define _PHONELAB_SYSCALL_H_
 
 #include <linux/tracepoint.h>
 
@@ -33,7 +33,7 @@ TRACE_EVENT(syscall_foobar,
 
 
 
-#endif /* _SYSCALL_TRACE_H  */
+#endif /* _PHONELAB_SYSCALL_H  */
 
 /* This part must be outside protection */
 #undef TRACE_INCLUDE_PATH
