@@ -1021,7 +1021,8 @@ struct file {
 	unsigned long f_mnt_write_state;
 #endif
 
-	bool			f_logging;
+	bool			f_logging;  // PhoneLab
+	int			session_id;  // PhoneLab
 
 };
 

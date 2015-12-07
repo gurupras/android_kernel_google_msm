@@ -30,7 +30,7 @@
 #include <linux/pid_namespace.h>
 
 #define CREATE_TRACE_POINTS
-#include <trace/events/phonelab_syscall.h>
+#include <trace/phonelab_syscall.h>
 
 int set_task_ioprio(struct task_struct *task, int ioprio)
 {

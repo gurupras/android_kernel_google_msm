@@ -33,6 +33,8 @@
 
 #include "internal.h"
 
+#include <trace/phonelab_syscall.h>  // Log
+
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
 	struct file *filp)
 {
@@ -998,8 +1000,8 @@ int pathname_filter(const char* path) {
 		strcmp(path, devdir) && \
 		strcmp(path, sysdir) && \
 		strcmp(path, procdir) );
-/*
 	(void)logpath;
+/*
 	#else
 	return (strncmp(path, logpath, strlen(logpath)) && \
 		strncmp(path, catpath, strlen(catpath)) );
@@ -1023,8 +1025,23 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	char *tmp = getname(filename);
 	int fd = PTR_ERR(tmp);
 
+	// PhoneLab Log
+	bool log_flag;
+	struct kstat stat_struct;  // loff_t size, umode_t mode
+	int error;
+	int session_id;
+
+	// Set variable defaults to keep gcc happy
+	memset(&stat_struct, 0, sizeof(stat_struct));
+	error = 0;  // for now
+	session_id = 0;
+
 	if (!IS_ERR(tmp)) {
 		fd = get_unused_fd_flags(flags);
+
+		// Filter whether to log file activity by filetype:
+		log_flag = pathname_filter(tmp);
+
 		if (fd >= 0) {
 			struct file *f = do_filp_open(dfd, tmp, &op, lookup);
 			if (IS_ERR(f)) {
@@ -1034,16 +1051,41 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 				fsnotify_open(f);
 				fd_install(fd, f);
 
-				// PhoneLab File Logging
-				if (pathname_filter(tmp)) {
-					f->f_logging = true;
-				} else {
-					f->f_logging = false;
+				// Now that we know we have a valid file handle:
+				// (1)  Save logging status -- preserve across session
+				f->f_logging = log_flag;
+				// (2)  Conditionally, if we are also logging:
+				if (log_flag) {
+					// (2a) grab file stats for this event.  N.b., must use fstat() --
+					// at boot, stat() has a race condition against the newly recorded pathname
+					vfs_fstat(fd, &stat_struct);
+					// (2b) Assign a unique ID to this session:
+					session_id = atomic_inc_return(&current->files->next_session);
+					f->session_id = session_id;
 				}
-				// Endlog
 
 			}
 		}
+
+		// (Possibly) log the open():
+		if (log_flag) {
+
+			struct timespec sts;
+			unsigned long long time_gm;
+			unsigned long long time_sc;
+
+//			getrawmonotonic(&sts);
+//			time_gm = (long long unsigned)sts.tv_sec * NSEC_PER_SEC + (long long unsigned)sts.tv_nsec;			
+//			time_sc = sched_clock();
+
+			(void)sts;
+			time_gm = 0;
+			time_sc = 0;
+
+			trace_plsc_open(time_gm, time_sc, tmp, fd, &stat_struct, flags, mode, error, session_id);
+			// need:  time, delta, error, [progname]
+		}
+
 		putname(tmp);
 	}
 	return fd;

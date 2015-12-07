@@ -67,6 +67,7 @@ struct files_struct {
   /*
    * read mostly part
    */
+	atomic_t next_session;  /* PhoneLab */
 	atomic_t count;
 	struct fdtable __rcu *fdt;
 	struct fdtable fdtab;
