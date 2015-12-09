@@ -33,6 +33,8 @@
 
 #include "internal.h"
 
+#include <trace/phonelab_syscall.h>  // Log
+
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
 	struct file *filp)
 {
@@ -970,15 +972,82 @@ struct file *file_open_root(struct dentry *dentry, struct vfsmount *mnt,
 }
 EXPORT_SYMBOL(file_open_root);
 
+
+
+// Filepath filtering:  Return ==0 if on blacklist; !=0 if not
+int pathname_filter(const char* path) {
+
+	// Path blacklists (i.e., any file in these directories):
+	char logpath[] = "/dev/log/";
+	char catpath[] = "/data/data/edu.buffalo.cse.phonelab.conductor/app_LogcatTask/";
+	char devpath[] = "/dev/";
+	char syspath[] = "/sys/";
+	char procpath[] = "/proc/";
+	char debugpath[] = "/d/";
+
+	// File blacklists (i.e., the file (or directory) itself):
+	char devdir[] = "/dev";
+	char sysdir[] = "/sys";
+	char procdir[] = "/proc";
+
+	// Edit / comment out to adjust path filtering:
+//	#if LOG_FILTER_VIRTUAL
+	return (strncmp(path, devpath, strlen(devpath)) && \
+		strncmp(path, syspath, strlen(syspath)) && \
+		strncmp(path, procpath, strlen(procpath)) && \
+		strncmp(path, debugpath, strlen(debugpath)) && \
+		strncmp(path, catpath, strlen(catpath)) && \
+		strcmp(path, devdir) && \
+		strcmp(path, sysdir) && \
+		strcmp(path, procdir) );
+	(void)logpath;
+/*
+	#else
+	return (strncmp(path, logpath, strlen(logpath)) && \
+		strncmp(path, catpath, strlen(catpath)) );
+	(void)devpath;
+	(void)syspath;
+	(void)procpath;
+	(void)debugpath;
+	(void)devdir;
+	(void)sysdir;
+	(void)procdir;
+	#endif
+*/
+}
+
+
+
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
+
+	unsigned long long time_start = sched_clock();  // PL:  timestamp before memalloc
+
 	struct open_flags op;
 	int lookup = build_open_flags(flags, mode, &op);
 	char *tmp = getname(filename);
 	int fd = PTR_ERR(tmp);
 
+	// PhoneLab
+	bool log_flag;
+	struct kstat stat_struct;  // loff_t size, umode_t mode
+	int error = 0;  // 0 for now
+	int session_id = 0;
+	char pathname_buffer[PLSC_OPEN_PATHMAX];
+	char* pathname_buffer_ptr = NULL;  // huge kludge
+	memset(&stat_struct, 0, sizeof(stat_struct));  //  init
+
 	if (!IS_ERR(tmp)) {
 		fd = get_unused_fd_flags(flags);
+
+		// Filter whether to log file activity by filetype:
+		log_flag = pathname_filter(tmp);
+		// If logging, grab the pathname before it goes out of scope:
+		if (log_flag) {
+			memcpy(pathname_buffer, tmp, PLSC_OPEN_PATHMAX);
+			pathname_buffer_ptr = pathname_buffer;
+		}
+
 		if (fd >= 0) {
 			struct file *f = do_filp_open(dfd, tmp, &op, lookup);
 			if (IS_ERR(f)) {
@@ -987,9 +1056,34 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 			} else {
 				fsnotify_open(f);
 				fd_install(fd, f);
+
+				// Now that we know we have a valid file handle:
+				// (1)  Save logging status -- preserve across session
+				f->f_logging = log_flag;
+				// (2)  Conditionally, if we are also logging:
+				if (log_flag) {
+					// (2a) grab file stats for this event.  N.b., must use fstat() --
+					// at boot, stat() has a race condition against the newly recorded pathname
+					vfs_fstat(fd, &stat_struct);
+					// (2b) Assign a unique ID to this session:
+					session_id = atomic_inc_return(&current->files->next_session);
+					f->session_id = session_id;
+				}
+
 			}
 		}
+
 		putname(tmp);
+	
+		// (Possibly) log the open():
+		if (log_flag) {
+			unsigned long long time_delta;
+			time_delta = sched_clock() - time_start;
+			trace_plsc_open(time_start, time_delta, pathname_buffer_ptr, fd, &stat_struct, flags, mode, error, session_id);
+			// need:  error, [progname]
+		}
+
+
 	}
 	return fd;
 }

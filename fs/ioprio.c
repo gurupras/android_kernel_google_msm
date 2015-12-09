@@ -29,6 +29,9 @@
 #include <linux/security.h>
 #include <linux/pid_namespace.h>
 
+#define CREATE_TRACE_POINTS
+#include <trace/phonelab_syscall.h>
+
 int set_task_ioprio(struct task_struct *task, int ioprio)
 {
 	int err;
@@ -68,6 +71,8 @@ SYSCALL_DEFINE3(ioprio_set, int, which, int, who, int, ioprio)
 	int ret;
 
 	printk("Syscall-K_ioprio_set-PhoneLab (%i):  %i, %i, %i\n", current->pid, which, who, ioprio);  // Log
+
+	trace_syscall_foobar(which, who, ioprio);
 
 	switch (class) {
 		case IOPRIO_CLASS_RT:

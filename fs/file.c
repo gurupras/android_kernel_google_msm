@@ -296,6 +296,8 @@ struct files_struct *dup_fd(struct files_struct *oldf, int *errorp)
 	int open_files, size, i;
 	struct fdtable *old_fdt, *new_fdt;
 
+	int session_id;  /* PhoneLab */
+
 	*errorp = -ENOMEM;
 	newf = kmem_cache_alloc(files_cachep, GFP_KERNEL);
 	if (!newf)
@@ -315,6 +317,13 @@ struct files_struct *dup_fd(struct files_struct *oldf, int *errorp)
 	spin_lock(&oldf->file_lock);
 	old_fdt = files_fdtable(oldf);
 	open_files = count_open_files(old_fdt);
+
+	/*
+	 * PhoneLab -- Copy unique session ID to new file table.  Note that this data
+	 * copy works properly because newf is not yet in context, not the atomic subroutines
+	 */
+	session_id = atomic_read(&oldf->next_session);
+	atomic_set(&newf->next_session, session_id);
 
 	/*
 	 * Check whether we need to allocate a larger fd array and fd set.
@@ -413,6 +422,7 @@ void __init files_defer_init(void)
 }
 
 struct files_struct init_files = {
+	.next_session	= ATOMIC_INIT(0),  /* PhoneLab */
 	.count		= ATOMIC_INIT(1),
 	.fdt		= &init_files.fdtab,
 	.fdtab		= {

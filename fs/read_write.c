@@ -20,6 +20,8 @@
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 
+#include <trace/phonelab_syscall.h>  // PhoneLab
+
 const struct file_operations generic_ro_fops = {
 	.llseek		= generic_file_llseek,
 	.read		= do_sync_read,
@@ -457,17 +459,31 @@ static inline void file_pos_write(struct file *file, loff_t pos)
 	file->f_pos = pos;
 }
 
+#include <linux/time.h>
+
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
 	struct file *file;
 	ssize_t ret = -EBADF;
 	int fput_needed;
 
+	unsigned long long time_start = sched_clock();  // PhoneLab
+
 	file = fget_light(fd, &fput_needed);
 	if (file) {
 		loff_t pos = file_pos_read(file);
+		loff_t pos_old = pos;  // PhoneLab -- save value
 		ret = vfs_read(file, buf, count, &pos);
 		file_pos_write(file, pos);
+
+		// (possibly) log the read()
+		if (file->f_logging == true) {
+			unsigned long long time_delta;
+			time_delta = sched_clock() - time_start;
+			trace_plsc_read(time_start, time_delta, ret, file->session_id, fd, count, pos_old);
+			// need:  type
+		}
+
 		fput_light(file, fput_needed);
 	}
 
