@@ -32,8 +32,10 @@ struct user_logger_entry_compat {
 	__s32		tid;	/* generating process's tid */
 	__s32		sec;	/* seconds since Epoch */
 	__s32		nsec;	/* nanoseconds */
+	__u64		logline;   /* logline id (unique up to reboot) */
+	__u64		tracens;   /* trace timestamp in ns */
 	char		msg[0];	/* the entry's payload */
-};
+}__attribute__((__packed__));
 
 /*
  * The structure for version 2 of the logger_entry ABI.
@@ -47,9 +49,11 @@ struct logger_entry {
 	__s32		tid;		/* generating process's tid */
 	__s32		sec;		/* seconds since Epoch */
 	__s32		nsec;		/* nanoseconds */
+	__u64		logline;   /* logline id (unique up to reboot) */
+	__u64		tracens;   /* trace timestamp in ns */
 	uid_t		euid;		/* effective UID of logger */
 	char		msg[0];		/* the entry's payload */
-};
+}__attribute__((__packed__));
 
 #define LOGGER_LOG_RADIO	"log_radio"	/* radio-related messages */
 #define LOGGER_LOG_EVENTS	"log_events"	/* system/hardware events */
