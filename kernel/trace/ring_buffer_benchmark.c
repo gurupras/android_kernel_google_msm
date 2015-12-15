@@ -81,7 +81,7 @@ static enum event_status read_event(int cpu)
 	int *entry;
 	u64 ts;
 
-	event = ring_buffer_consume(buffer, cpu, &ts, NULL);
+	event = ring_buffer_consume(buffer, cpu, &ts, NULL, NULL);
 	if (!event)
 		return EVENT_DROPPED;
 

@@ -29,6 +29,8 @@
 
 #include <asm/ioctls.h>
 
+#include "../../../kernel/trace/trace.h"
+
 /*
  * struct logger_log - represents a specific log, such as 'main' or 'radio'
  *
@@ -45,6 +47,7 @@ struct logger_log {
 	size_t			w_off;	/* current write head offset */
 	size_t			head;	/* new readers start here */
 	size_t			size;	/* size of the log */
+	u64				logline; /* Strictly increasing id */
 };
 
 /*
@@ -66,7 +69,6 @@ size_t logger_offset(struct logger_log *log, size_t n)
 {
 	return n & (log->size-1);
 }
-
 
 /*
  * file_get_log - Given a file structure, return the associated log
@@ -153,6 +155,8 @@ static ssize_t copy_header_to_user(int ver, struct logger_entry *entry,
 		v1.tid      = entry->tid;
 		v1.sec      = entry->sec;
 		v1.nsec     = entry->nsec;
+		v1.logline  = entry->logline;
+		v1.tracens  = entry->tracens;
 		hdr         = &v1;
 		hdr_len     = sizeof(struct user_logger_entry_compat);
 	} else {
@@ -198,6 +202,7 @@ static ssize_t do_read_log_to_user(struct logger_log *log,
 	 * the log, whichever comes first.
 	 */
 	len = min(count, log->size - msg_start);
+
 	if (copy_to_user(buf, log->buffer + msg_start, len))
 		return -EFAULT;
 
@@ -458,15 +463,17 @@ ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	header.tid = current->pid;
 	header.sec = now.tv_sec;
 	header.nsec = now.tv_nsec;
+	header.tracens = ftrace_now(raw_smp_processor_id());
 	header.euid = current_euid();
 	header.len = min_t(size_t, iocb->ki_left, LOGGER_ENTRY_MAX_PAYLOAD);
 	header.hdr_size = sizeof(struct logger_entry);
-
 	/* null writes succeed, return zero */
 	if (unlikely(!header.len))
 		return 0;
 
 	mutex_lock(&log->mutex);
+
+	header.logline = ++log->logline;
 
 	/*
 	 * Fix up any readers, pulling them forward to the first readable
@@ -725,6 +732,7 @@ static struct logger_log VAR = { \
 	.mutex = __MUTEX_INITIALIZER(VAR .mutex), \
 	.w_off = 0, \
 	.head = 0, \
+	.logline = 0, \
 	.size = SIZE, \
 };
 

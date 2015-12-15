@@ -84,6 +84,8 @@ struct trace_iterator {
 	long			idx;
 
 	cpumask_var_t		started;
+
+	u32			event_id;
 };
 
 
