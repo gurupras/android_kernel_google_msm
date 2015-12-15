@@ -87,6 +87,7 @@ u64 notrace trace_clock_global(void)
 
 	this_cpu = raw_smp_processor_id();
 	now = cpu_clock(this_cpu);
+
 	/*
 	 * If in an NMI context then dont risk lockups and return the
 	 * cpu_clock() time:

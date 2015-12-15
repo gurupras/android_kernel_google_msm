@@ -23,6 +23,9 @@
 #include <asm/local.h>
 #include "trace.h"
 
+// Unique event id to determine entry loss in userspace
+static atomic_t s_event_id;
+
 /*
  * The ring buffer header is special. We must manually up keep it.
  */
@@ -175,6 +178,7 @@ void tracing_off_permanent(void)
 #define RB_MAX_SMALL_DATA	(RB_ALIGNMENT * RINGBUF_TYPE_DATA_TYPE_LEN_MAX)
 #define RB_EVNT_MIN_SIZE	8U	/* two 32bit words */
 
+//#ifndef CONFIG_HAVE_64BIT_ALIGNED_ACCESS
 #if !defined(CONFIG_64BIT) || defined(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)
 # define RB_FORCE_8BYTE_ALIGNMENT	0
 # define RB_ARCH_ALIGNMENT		RB_ALIGNMENT
@@ -183,11 +187,13 @@ void tracing_off_permanent(void)
 # define RB_ARCH_ALIGNMENT		8U
 #endif
 
+#define RB_ALIGN_DATA      __aligned(RB_ARCH_ALIGNMENT)
+
 /* define RINGBUF_TYPE_DATA for 'case RINGBUF_TYPE_DATA:' */
 #define RINGBUF_TYPE_DATA 0 ... RINGBUF_TYPE_DATA_TYPE_LEN_MAX
 
 enum {
-	RB_LEN_TIME_EXTEND = 8,
+	RB_LEN_TIME_EXTEND = 12,
 	RB_LEN_TIME_STAMP = 16,
 };
 
@@ -331,7 +337,7 @@ EXPORT_SYMBOL_GPL(ring_buffer_event_data);
 struct buffer_data_page {
 	u64		 time_stamp;	/* page time stamp */
 	local_t		 commit;	/* write committed index */
-	unsigned char	 data[];	/* data of buffer page */
+	unsigned char	 data[] RB_ALIGN_DATA;	/* data of buffer page */
 };
 
 /*
@@ -1607,7 +1613,7 @@ rb_add_time_stamp(struct ring_buffer_event *event, u64 delta)
 static void
 rb_update_event(struct ring_buffer_per_cpu *cpu_buffer,
 		struct ring_buffer_event *event, unsigned length,
-		int add_timestamp, u64 delta)
+		int add_timestamp, u64 delta, u32 id)
 {
 	/* Only a commit updates the timestamp */
 	if (unlikely(!rb_event_is_commit(cpu_buffer, event)))
@@ -1630,6 +1636,7 @@ rb_update_event(struct ring_buffer_per_cpu *cpu_buffer,
 		event->array[0] = length;
 	} else
 		event->type_len = DIV_ROUND_UP(length, RB_ALIGNMENT);
+	event->event_id = id;
 }
 
 /*
@@ -1987,7 +1994,7 @@ rb_move_tail(struct ring_buffer_per_cpu *cpu_buffer,
 static struct ring_buffer_event *
 __rb_reserve_next(struct ring_buffer_per_cpu *cpu_buffer,
 		  unsigned long length, u64 ts,
-		  u64 delta, int add_timestamp)
+		  u64 delta, int add_timestamp, u32 id)
 {
 	struct buffer_page *tail_page;
 	struct ring_buffer_event *event;
@@ -2017,7 +2024,7 @@ __rb_reserve_next(struct ring_buffer_per_cpu *cpu_buffer,
 
 	event = __rb_page_index(tail_page, tail);
 	kmemcheck_annotate_bitfield(event, bitfield);
-	rb_update_event(cpu_buffer, event, length, add_timestamp, delta);
+	rb_update_event(cpu_buffer, event, length, add_timestamp, delta, id);
 
 	local_inc(&tail_page->entries);
 
@@ -2122,6 +2129,7 @@ rb_reserve_next_event(struct ring_buffer *buffer,
 	int nr_loops = 0;
 	int add_timestamp;
 	u64 diff;
+	u32 id;
 
 	rb_start_commit(cpu_buffer);
 
@@ -2141,6 +2149,8 @@ rb_reserve_next_event(struct ring_buffer *buffer,
 #endif
 
 	length = rb_calculate_event_length(length);
+	id = atomic_add_return(1, &s_event_id);
+
  again:
 	add_timestamp = 0;
 	delta = 0;
@@ -2185,7 +2195,8 @@ rb_reserve_next_event(struct ring_buffer *buffer,
 	}
 
 	event = __rb_reserve_next(cpu_buffer, length, ts,
-				  delta, add_timestamp);
+				  delta, add_timestamp, id);
+
 	if (unlikely(PTR_ERR(event) == -EAGAIN))
 		goto again;
 
@@ -3017,6 +3028,10 @@ rb_get_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
 	if (cpu_buffer->commit_page == cpu_buffer->reader_page)
 		goto out;
 
+	/* Don't bother swapping if the ring buffer is empty */
+	if (rb_num_of_entries(cpu_buffer) == 0)
+		goto out;
+
 	/*
 	 * Reset the reader page to size zero.
 	 */
@@ -3172,7 +3187,7 @@ static int rb_lost_events(struct ring_buffer_per_cpu *cpu_buffer)
 
 static struct ring_buffer_event *
 rb_buffer_peek(struct ring_buffer_per_cpu *cpu_buffer, u64 *ts,
-	       unsigned long *lost_events)
+	       unsigned long *lost_events, u32 *event_id)
 {
 	struct ring_buffer_event *event;
 	struct buffer_page *reader;
@@ -3226,6 +3241,11 @@ rb_buffer_peek(struct ring_buffer_per_cpu *cpu_buffer, u64 *ts,
 		}
 		if (lost_events)
 			*lost_events = rb_lost_events(cpu_buffer);
+
+		if (event_id) {
+			*event_id = event->event_id;
+		}
+
 		return event;
 
 	default:
@@ -3341,7 +3361,7 @@ static inline int rb_ok_to_lock(void)
  */
 struct ring_buffer_event *
 ring_buffer_peek(struct ring_buffer *buffer, int cpu, u64 *ts,
-		 unsigned long *lost_events)
+		 unsigned long *lost_events, u32 *event_id)
 {
 	struct ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
 	struct ring_buffer_event *event;
@@ -3356,7 +3376,7 @@ ring_buffer_peek(struct ring_buffer *buffer, int cpu, u64 *ts,
 	local_irq_save(flags);
 	if (dolock)
 		raw_spin_lock(&cpu_buffer->reader_lock);
-	event = rb_buffer_peek(cpu_buffer, ts, lost_events);
+	event = rb_buffer_peek(cpu_buffer, ts, lost_events, event_id);
 	if (event && event->type_len == RINGBUF_TYPE_PADDING)
 		rb_advance_reader(cpu_buffer);
 	if (dolock)
@@ -3408,7 +3428,7 @@ ring_buffer_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
  */
 struct ring_buffer_event *
 ring_buffer_consume(struct ring_buffer *buffer, int cpu, u64 *ts,
-		    unsigned long *lost_events)
+		    unsigned long *lost_events, u32 *event_id)
 {
 	struct ring_buffer_per_cpu *cpu_buffer;
 	struct ring_buffer_event *event = NULL;
@@ -3429,7 +3449,7 @@ ring_buffer_consume(struct ring_buffer *buffer, int cpu, u64 *ts,
 	if (dolock)
 		raw_spin_lock(&cpu_buffer->reader_lock);
 
-	event = rb_buffer_peek(cpu_buffer, ts, lost_events);
+	event = rb_buffer_peek(cpu_buffer, ts, lost_events, event_id);
 	if (event) {
 		cpu_buffer->lost_events = 0;
 		rb_advance_reader(cpu_buffer);
