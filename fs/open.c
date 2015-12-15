@@ -1021,7 +1021,7 @@ int pathname_filter(const char* path) {
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 
-	unsigned long long time_start = sched_clock();  // PL:  timestamp before memalloc
+	unsigned long long time_start = sched_clock();  // PL:  timestamp before calls below:
 
 	struct open_flags op;
 	int lookup = build_open_flags(flags, mode, &op);
@@ -1029,21 +1029,19 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	int fd = PTR_ERR(tmp);
 
 	// PhoneLab
-	bool log_flag;
-	struct kstat stat_struct;  // loff_t size, umode_t mode
-	int error = 0;  // 0 for now
+	bool f_logging;
 	int session_id = 0;
 	char pathname_buffer[PLSC_OPEN_PATHMAX];
 	char* pathname_buffer_ptr = NULL;  // huge kludge
-	memset(&stat_struct, 0, sizeof(stat_struct));  //  init
+	struct kstat stat_struct = {.size = 0, .mode = 0};
 
 	if (!IS_ERR(tmp)) {
 		fd = get_unused_fd_flags(flags);
 
-		// Filter whether to log file activity by filetype:
-		log_flag = pathname_filter(tmp);
+		// PL:  Filter whether to log file activity by filetype:
+		f_logging = pathname_filter(tmp);
 		// If logging, grab the pathname before it goes out of scope:
-		if (log_flag) {
+		if (f_logging) {
 			memcpy(pathname_buffer, tmp, PLSC_OPEN_PATHMAX);
 			pathname_buffer_ptr = pathname_buffer;
 		}
@@ -1057,17 +1055,17 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 				fsnotify_open(f);
 				fd_install(fd, f);
 
-				// Now that we know we have a valid file handle:
+				// PL:  Now that we know we have a valid file handle:
 				// (1)  Save logging status -- preserve across session
-				f->f_logging = log_flag;
+				f->f_logging = f_logging;
 				// (2)  Conditionally, if we are also logging:
-				if (log_flag) {
-					// (2a) grab file stats for this event.  N.b., must use fstat() --
-					// at boot, stat() has a race condition against the newly recorded pathname
-					vfs_fstat(fd, &stat_struct);
-					// (2b) Assign a unique ID to this session:
+				if (f_logging) {
+					// (2a) Assign a unique ID to this session:
 					session_id = atomic_inc_return(&current->files->next_session);
 					f->session_id = session_id;
+					// (2b) grab file stats for this event.  N.b., must use fstat() --
+					// at boot, stat() has a race condition against the newly recorded pathname
+					vfs_fstat(fd, &stat_struct);
 				}
 
 			}
@@ -1075,12 +1073,10 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 
 		putname(tmp);
 	
-		// (Possibly) log the open():
-		if (log_flag) {
-			unsigned long long time_delta;
-			time_delta = sched_clock() - time_start;
-			trace_plsc_open(time_start, time_delta, pathname_buffer_ptr, fd, &stat_struct, flags, mode, error, session_id);
-			// need:  error, [progname]
+		// PL:  (Possibly) log the open():
+		if (f_logging) {
+			trace_plsc_open("open", time_start, sched_clock() - time_start, pathname_buffer_ptr, fd, session_id, &stat_struct, flags, mode);
+			// need:  type, [progname]
 		}
 
 
@@ -1166,6 +1162,12 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 	struct fdtable *fdt;
 	int retval;
 
+	// PhoneLab
+	unsigned long long time_start = sched_clock();
+	bool f_logging = false;
+	int session_id = 0;
+	struct kstat stat_struct = {.size = 0};
+
 	spin_lock(&files->file_lock);
 	fdt = files_fdtable(files);
 	if (fd >= fdt->max_fds)
@@ -1177,6 +1179,15 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 	__clear_close_on_exec(fd, fdt);
 	__put_unused_fd(files, fd);
 	spin_unlock(&files->file_lock);
+
+	// PL:  After dropping lock, but while "file" is in scope, save out values...
+	f_logging = filp->f_logging;
+	session_id = filp->session_id;
+	// ...and possibly stat info (if logging):
+	if (f_logging) {
+		vfs_fstat(fd, &stat_struct);
+	}
+
 	retval = filp_close(filp, files);
 
 	/* can't restart close syscall because file table entry was cleared */
@@ -1185,6 +1196,12 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 		     retval == -ERESTARTNOHAND ||
 		     retval == -ERESTART_RESTARTBLOCK))
 		retval = -EINTR;
+
+	// PL:  (Possibly) log the call():
+	if (f_logging) {
+		trace_plsc_close(time_start, sched_clock() - time_start, retval, session_id, fd, &stat_struct);
+		// need:  type
+	}
 
 	return retval;
 
