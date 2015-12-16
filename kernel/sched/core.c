@@ -2057,6 +2057,29 @@ asmlinkage void schedule_tail(struct task_struct *prev)
 		put_user(task_pid_vnr(current), current->set_child_tid);
 }
 
+static inline int is_background_task(struct task_struct *task)
+{
+	int i;
+	char buf[256];
+	int bg_task = 0;
+
+	if(task->cgroups) {
+		for(i = 0; i < CGROUP_SUBSYS_COUNT; i++) {
+			if(task->cgroups->subsys[i]) {
+				if(task->cgroups->subsys[i]->cgroup) {
+					cgroup_path(task->cgroups->subsys[i]->cgroup, buf, 256);
+					if(strcmp("/bg_non_interactive", buf) == 0) {
+						bg_task = 1;
+						break;
+					}
+					memset(buf, 0, 256);
+				}
+			}
+		}
+	}
+	return bg_task;
+}
+
 /*
  * context_switch - switch to the new MM and the new
  * thread's register state.
@@ -2065,9 +2088,11 @@ static inline void
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next)
 {
+	int cpu;
 	struct mm_struct *mm, *oldmm;
 
 	prepare_task_switch(rq, prev, next);
+	cpu = smp_processor_id();
 
 	mm = next->mm;
 	oldmm = prev->active_mm;
@@ -2099,6 +2124,16 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	spin_release(&rq->lock.dep_map, 1, _THIS_IP_);
 #endif
 
+	/*
+	 * Before we switch, check if process is in background cgroup.
+	 * If no, then it is foreground and needs to be logged.
+	 */
+	if(!is_background_task(prev)) {
+		trace_sched_foreground_switch_out(prev, next, cpu);
+	}
+//	if(!is_background_task(next)) {
+//		trace_sched_foreground_switch_in(prev, next, cpu);
+//	}
 	/* Here we just switch the register state and the stack. */
 	switch_to(prev, next, prev);
 

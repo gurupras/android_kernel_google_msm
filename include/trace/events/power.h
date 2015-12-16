@@ -330,6 +330,30 @@ DEFINE_EVENT(power_domain, power_domain_target,
 
 	TP_ARGS(name, state, cpu_id)
 );
+
+TRACE_EVENT(cpufreq_scaling,
+
+	TP_PROTO(unsigned int min, unsigned int max, unsigned int cpu),
+
+	TP_ARGS(min, max, cpu),
+
+	TP_STRUCT__entry(
+		__field(	u32,		min		)
+		__field(	u32,		max		)
+		__field(	u32,		cpu		)
+	),
+
+	TP_fast_assign(
+		__entry->min = min;
+		__entry->max = max;
+		__entry->cpu = cpu;
+	),
+
+	TP_printk("min=%u max=%u cpu=%u",
+		__entry->min, __entry->max, __entry->cpu)
+);
+
+
 #endif /* _TRACE_POWER_H */
 
 /* This part must be outside protection */

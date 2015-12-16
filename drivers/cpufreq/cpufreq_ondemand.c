@@ -28,6 +28,9 @@
 #include <linux/workqueue.h>
 #include <linux/slab.h>
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/ondemand.h>
+
 /*
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
@@ -342,9 +345,12 @@ static ssize_t show_powersave_bias
 static void update_sampling_rate(unsigned int new_rate)
 {
 	int cpu;
-
+	unsigned int old_rate;
+	old_rate = dbs_tuners_ins.sampling_rate;
 	dbs_tuners_ins.sampling_rate = new_rate
 				     = max(new_rate, min_sampling_rate);
+
+	trace_sampling_rate(old_rate, new_rate);
 
 	for_each_online_cpu(cpu) {
 		struct cpufreq_policy *policy;
@@ -397,46 +403,52 @@ static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 static ssize_t store_sync_freq(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
 {
-	unsigned int input;
+	unsigned int old, input;
 	int ret;
 
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
+	old = dbs_tuners_ins.sync_freq;
 	dbs_tuners_ins.sync_freq = input;
+	trace_sync_freq(old, input);
 	return count;
 }
 
 static ssize_t store_io_is_busy(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
 {
-	unsigned int input;
+	unsigned int old, input;
 	int ret;
 
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
+	old = dbs_tuners_ins.io_is_busy;
 	dbs_tuners_ins.io_is_busy = !!input;
+	trace_io_is_busy(old, dbs_tuners_ins.io_is_busy);
 	return count;
 }
 
 static ssize_t store_optimal_freq(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
 {
-	unsigned int input;
+	unsigned int old, input;
 	int ret;
 
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
+	old = dbs_tuners_ins.optimal_freq;
 	dbs_tuners_ins.optimal_freq = input;
+	trace_optimal_freq(old, input);
 	return count;
 }
 
 static ssize_t store_up_threshold(struct kobject *a, struct attribute *b,
 				  const char *buf, size_t count)
 {
-	unsigned int input;
+	unsigned int old, input;
 	int ret;
 	ret = sscanf(buf, "%u", &input);
 
@@ -444,14 +456,16 @@ static ssize_t store_up_threshold(struct kobject *a, struct attribute *b,
 			input < MIN_FREQUENCY_UP_THRESHOLD) {
 		return -EINVAL;
 	}
+	old = dbs_tuners_ins.up_threshold;
 	dbs_tuners_ins.up_threshold = input;
+	trace_up_threshold(old, input);
 	return count;
 }
 
 static ssize_t store_up_threshold_multi_core(struct kobject *a,
 			struct attribute *b, const char *buf, size_t count)
 {
-	unsigned int input;
+	unsigned int old, input;
 	int ret;
 	ret = sscanf(buf, "%u", &input);
 
@@ -459,14 +473,16 @@ static ssize_t store_up_threshold_multi_core(struct kobject *a,
 			input < MIN_FREQUENCY_UP_THRESHOLD) {
 		return -EINVAL;
 	}
+	old = dbs_tuners_ins.up_threshold_multi_core;
 	dbs_tuners_ins.up_threshold_multi_core = input;
+	trace_up_threshold_multi_core(old, input);
 	return count;
 }
 
 static ssize_t store_up_threshold_any_cpu_load(struct kobject *a,
 			struct attribute *b, const char *buf, size_t count)
 {
-	unsigned int input;
+	unsigned int old, input;
 	int ret;
 	ret = sscanf(buf, "%u", &input);
 
@@ -474,14 +490,16 @@ static ssize_t store_up_threshold_any_cpu_load(struct kobject *a,
 			input < MIN_FREQUENCY_UP_THRESHOLD) {
 		return -EINVAL;
 	}
+	old = dbs_tuners_ins.up_threshold_any_cpu_load;
 	dbs_tuners_ins.up_threshold_any_cpu_load = input;
+	trace_up_threshold_any_cpu_load(old, input);
 	return count;
 }
 
 static ssize_t store_down_differential(struct kobject *a, struct attribute *b,
 		const char *buf, size_t count)
 {
-	unsigned int input;
+	unsigned int old, input;
 	int ret;
 	ret = sscanf(buf, "%u", &input);
 
@@ -490,22 +508,24 @@ static ssize_t store_down_differential(struct kobject *a, struct attribute *b,
 		return -EINVAL;
 	}
 
+	old = dbs_tuners_ins.down_differential;
 	dbs_tuners_ins.down_differential = input;
-
+	trace_down_differential(old, input);
 	return count;
 }
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 			struct attribute *b, const char *buf, size_t count)
 {
-	unsigned int input, j;
+	unsigned int old, input, j;
 	int ret;
 	ret = sscanf(buf, "%u", &input);
 
 	if (ret != 1 || input > MAX_SAMPLING_DOWN_FACTOR || input < 1)
 		return -EINVAL;
+	old = dbs_tuners_ins.sampling_down_factor;
 	dbs_tuners_ins.sampling_down_factor = input;
-
+	trace_sampling_down_factor(old, input);
 	/* Reset down sampling multiplier in case it was active */
 	for_each_online_cpu(j) {
 		struct cpu_dbs_info_s *dbs_info;
@@ -518,7 +538,7 @@ static ssize_t store_sampling_down_factor(struct kobject *a,
 static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 				      const char *buf, size_t count)
 {
-	unsigned int input;
+	unsigned int old, input;
 	int ret;
 
 	unsigned int j;
@@ -533,7 +553,9 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 	if (input == dbs_tuners_ins.ignore_nice) { /* nothing to do */
 		return count;
 	}
+	old = dbs_tuners_ins.ignore_nice;
 	dbs_tuners_ins.ignore_nice = input;
+	trace_ignore_nice_load(old, input);
 
 	/* we need to re-evaluate prev_cpu_idle */
 	for_each_online_cpu(j) {
@@ -555,6 +577,7 @@ static ssize_t store_powersave_bias(struct kobject *a, struct attribute *b,
 	int bypass = 0;
 	int ret, cpu, reenable_timer, j;
 	struct cpu_dbs_info_s *dbs_info;
+	unsigned int old;
 
 	struct cpumask cpus_timer_done;
 	cpumask_clear(&cpus_timer_done);
@@ -582,7 +605,9 @@ static ssize_t store_powersave_bias(struct kobject *a, struct attribute *b,
 				(dbs_tuners_ins.powersave_bias ==
 				POWERSAVE_BIAS_MINLEVEL));
 
+	old = dbs_tuners_ins.powersave_bias;
 	dbs_tuners_ins.powersave_bias = input;
+	trace_powersave_bias(old, input);
 
 	mutex_lock(&dbs_mutex);
 	get_online_cpus();
