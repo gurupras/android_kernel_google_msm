@@ -1,0 +1,6 @@
+config PERIODIC_CTX_SWITCH_TRACING
+	bool "Periodic context switch tracing"
+	help
+	  Enable periodic event tracing of context switches.
+	  These events are logged every scheduler_tick().
+
