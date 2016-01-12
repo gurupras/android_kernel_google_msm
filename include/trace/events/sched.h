@@ -509,6 +509,28 @@ DEFINE_EVENT(sched_foreground_switch, sched_foreground_switch_out,
 	TP_ARGS(prev, next, cpu)
 );
 
+TRACE_EVENT(sched_periodic_ctx_switch_info,
+
+	TP_PROTO(struct task_struct *task, u32 cpu),
+
+	TP_ARGS(task, cpu),
+
+	TP_STRUCT__entry(
+		__field( struct task_struct *,	task	)
+		__field( int,	cpu			)
+	),
+
+	TP_fast_assign(
+		__entry->task = task;
+		__entry->cpu  = cpu;
+	),
+
+	TP_printk("cpu=%d pid=%d tgid=%d cutime=%lu cstime=%lu",
+		__entry->cpu,
+		__entry->task->pid, __entry->task->tgid,
+		__entry->task->utime, __entry->task->stime)
+);
+
 #endif /* _TRACE_SCHED_H */
 
 /* This part must be outside protection */
