@@ -25,6 +25,8 @@
 #include <asm/siginfo.h>
 #include <asm/uaccess.h>
 
+#include <trace/phonelab_syscall.h>  // PhoneLab
+
 void set_close_on_exec(unsigned int fd, int flag)
 {
 	struct files_struct *files = current->files;
@@ -56,6 +58,8 @@ SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
 	struct file * file, *tofree;
 	struct files_struct * files = current->files;
 	struct fdtable *fdt;
+
+	trace_plsc_dup("dup3", oldfd, newfd, flags);  // PhoneLab
 
 	if ((flags & ~O_CLOEXEC) != 0)
 		return -EINVAL;
@@ -115,6 +119,9 @@ out_unlock:
 
 SYSCALL_DEFINE2(dup2, unsigned int, oldfd, unsigned int, newfd)
 {
+
+	trace_plsc_dup("dup2", oldfd, newfd, 0);  // PhoneLab
+
 	if (unlikely(newfd == oldfd)) { /* corner case */
 		struct files_struct *files = current->files;
 		int retval = oldfd;
@@ -133,13 +140,26 @@ SYSCALL_DEFINE1(dup, unsigned int, fildes)
 	int ret = -EBADF;
 	struct file *file = fget_raw(fildes);
 
+//	trace_plsc_dup("dup", fildes, 0, 0);  // PhoneLab
+	bool f_logging = false;
+
 	if (file) {
+
+		f_logging = file->f_logging;
+
 		ret = get_unused_fd();
 		if (ret >= 0)
 			fd_install(ret, file);
 		else
 			fput(file);
 	}
+
+	if (f_logging) {
+		trace_plsc_dup("dup", fildes, 0, 111);  // PhoneLab
+	} else {
+		trace_plsc_dup("dup", fildes, 0, 222);  // PhoneLab
+	}
+
 	return ret;
 }
 

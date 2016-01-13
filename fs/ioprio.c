@@ -30,7 +30,7 @@
 #include <linux/pid_namespace.h>
 
 #define CREATE_TRACE_POINTS
-#include <trace/phonelab_syscall.h>
+#include <trace/phonelab_syscall.h>  // PhoneLab
 
 int set_task_ioprio(struct task_struct *task, int ioprio)
 {
@@ -70,9 +70,7 @@ SYSCALL_DEFINE3(ioprio_set, int, which, int, who, int, ioprio)
 	struct pid *pgrp;
 	int ret;
 
-	printk("Syscall-K_ioprio_set-PhoneLab (%i):  %i, %i, %i\n", current->pid, which, who, ioprio);  // Log
-
-	trace_syscall_foobar(which, who, ioprio);
+	trace_plsc_ioprio("ioprio_set", which, who, ioprio);  // PhoneLab
 
 	switch (class) {
 		case IOPRIO_CLASS_RT:
@@ -183,6 +181,8 @@ SYSCALL_DEFINE2(ioprio_get, int, which, int, who)
 	struct pid *pgrp;
 	int ret = -ESRCH;
 	int tmpio;
+
+	trace_plsc_ioprio("ioprio_get", which, who, 0);  // PhoneLab
 
 	rcu_read_lock();
 	switch (which) {

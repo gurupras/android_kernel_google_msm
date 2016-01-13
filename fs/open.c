@@ -33,7 +33,7 @@
 
 #include "internal.h"
 
-#include <trace/phonelab_syscall.h>  // Log
+#include <trace/phonelab_syscall.h>  // PL
 
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
 	struct file *filp)
@@ -1076,7 +1076,6 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 		// PL:  (Possibly) log the open():
 		if (f_logging) {
 			trace_plsc_open("open", time_start, sched_clock() - time_start, pathname_buffer_ptr, fd, session_id, &stat_struct, flags, mode);
-			// need:  type, [progname]
 		}
 
 

@@ -17,6 +17,8 @@
 #include <linux/backing-dev.h>
 #include "internal.h"
 
+#include <trace/phonelab_syscall.h>  // PhoneLab
+
 #define VALID_FLAGS (SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE| \
 			SYNC_FILE_RANGE_WAIT_AFTER)
 
@@ -133,6 +135,12 @@ void emergency_sync(void)
  */
 SYSCALL_DEFINE1(syncfs, int, fd)
 {
+
+	// PhoneLab
+	unsigned long long time_start = sched_clock();
+	bool f_logging = false;
+	int session_id = 0;
+
 	struct file *file;
 	struct super_block *sb;
 	int ret;
@@ -141,6 +149,11 @@ SYSCALL_DEFINE1(syncfs, int, fd)
 	file = fget_light(fd, &fput_needed);
 	if (!file)
 		return -EBADF;
+
+	// PL:  Save out values while "file" is in scope:
+	f_logging = file->f_logging;
+	session_id = file->session_id;
+
 	sb = file->f_dentry->d_sb;
 
 	down_read(&sb->s_umount);
@@ -148,6 +161,12 @@ SYSCALL_DEFINE1(syncfs, int, fd)
 	up_read(&sb->s_umount);
 
 	fput_light(file, fput_needed);
+
+	// PL:  (Possibly) log the call():
+	if (f_logging) {
+		trace_plsc_sync("syncfs", time_start, sched_clock() - time_start, ret, session_id, fd);
+	}
+
 	return ret;
 }
 
@@ -186,13 +205,36 @@ EXPORT_SYMBOL(vfs_fsync);
 
 static int do_fsync(unsigned int fd, int datasync)
 {
+
+	// PhoneLab
+	unsigned long long time_start = sched_clock();
+	bool f_logging = false;
+	int session_id = 0;
+
 	struct file *file;
 	int ret = -EBADF;
 
 	file = fget(fd);
 	if (file) {
+
+		// PL:  Save out values while "file" is in scope:
+		f_logging = file->f_logging;
+		session_id = file->session_id;
+
 		ret = vfs_fsync(file, datasync);
 		fput(file);
+
+		// PL:  (Possibly) log the call():
+		if (f_logging) {
+			char* syscall;
+			if (datasync) {
+				syscall = "fdatasync";
+			} else {
+				syscall = "fsync";
+			}
+			trace_plsc_sync(syscall, time_start, sched_clock() - time_start, ret, session_id, fd);
+		}
+
 	}
 	return ret;
 }

@@ -38,6 +38,10 @@
 #include "internal.h"
 #include "mount.h"
 
+#include <trace/phonelab_syscall.h>  // PL
+
+int pathname_filter(const char*);  // PL
+
 /* [Feb-1997 T. Schoebel-Theuer]
  * Fundamental changes in the pathname lookup mechanisms (namei)
  * were necessary because of omirr.  The reason is that omirr needs
@@ -2646,16 +2650,41 @@ int vfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	return error;
 }
 
-SYSCALL_DEFINE3(mkdirat, int, dfd, const char __user *, pathname, umode_t, mode)
+//SYSCALL_DEFINE3(mkdirat, int, dfd, const char __user *, pathname, umode_t, mode)
+//PL:  added wrapper for syscall param
+static long do_mkdirat(int dfd, const char __user *pathname, umode_t mode, char* syscall)
 {
 	struct dentry *dentry;
 	struct path path;
 	int error;
 
+	// PhoneLab
+	unsigned long long time_start; // = sched_clock();
+	bool f_logging;
+	char pathname_buffer[PLSC_OPEN_PATHMAX];
+	char* pathname_buffer_ptr = NULL;  // huge kludge
+	struct kstat stat_struct = {.size = 0, .mode = 0};
+	int error_stat;
+	struct nameidata nd_stat;
+
+//char name[] = "/sys/test";
+
+	unsigned long long time_start = sched_clock();
+	char name* = getname(pathname);
+
+	// PL:  Filter whether to log file activity by filetype:
+	f_logging = pathname_filter(name);
+	// If logging, grab the pathname and statistics before they go out of scope:
+	if (f_logging) {
+		memcpy(pathname_buffer, name, PLSC_OPEN_PATHMAX);
+		pathname_buffer_ptr = pathname_buffer;
+	}
+	putname(name);
+	time_start = sched_clock();
+	
 	dentry = user_path_create(dfd, pathname, &path, 1);
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);
-
 	if (!IS_POSIXACL(path.dentry->d_inode))
 		mode &= ~current_umask();
 	error = mnt_want_write(path.mnt);
@@ -2671,12 +2700,28 @@ out_dput:
 	dput(dentry);
 	mutex_unlock(&path.dentry->d_inode->i_mutex);
 	path_put(&path);
+
+	// PL:  (Possibly) log the call:
+	if (f_logging) {
+		error_stat = do_path_lookup(dfd, name, LOOKUP_FOLLOW, &nd_stat);
+		// Trap for bad paths:
+		if (error_stat == 0) {
+			vfs_getattr(nd_stat.path.mnt, nd_stat.path.dentry, &stat_struct);
+		}
+		trace_plsc_delete(syscall, time_start, sched_clock() - time_start, pathname_buffer_ptr, error, &stat_struct);
+	}
+
 	return error;
+}
+
+SYSCALL_DEFINE3(mkdirat, int, dfd, const char __user *, pathname, umode_t, mode)
+{
+	return do_mkdirat(dfd, pathname, mode, "mkdirat");
 }
 
 SYSCALL_DEFINE2(mkdir, const char __user *, pathname, umode_t, mode)
 {
-	return sys_mkdirat(AT_FDCWD, pathname, mode);
+	return do_mkdirat(AT_FDCWD, pathname, mode, "mkdir");
 }
 
 /*
@@ -2740,16 +2785,39 @@ out:
 	return error;
 }
 
-static long do_rmdir(int dfd, const char __user *pathname)
+// PL:  added syscall to param list
+static long do_rmdir(int dfd, const char __user *pathname, char* syscall)
 {
 	int error = 0;
 	char * name;
 	struct dentry *dentry;
 	struct nameidata nd;
 
+	// PhoneLab
+	unsigned long long time_start = sched_clock();
+	bool f_logging;
+	char pathname_buffer[PLSC_OPEN_PATHMAX];
+	char* pathname_buffer_ptr = NULL;  // huge kludge
+	struct kstat stat_struct = {.size = 0, .mode = 0};
+	int error_stat;
+	struct nameidata nd_stat;
+
 	error = user_path_parent(dfd, pathname, &nd, &name);
 	if (error)
 		return error;
+
+	// PL:  Filter whether to log file activity by filetype:
+	f_logging = pathname_filter(name);
+	// If logging, grab the pathname and statistics before they go out of scope:
+	if (f_logging) {
+		memcpy(pathname_buffer, name, PLSC_OPEN_PATHMAX);
+		pathname_buffer_ptr = pathname_buffer;
+		error_stat = do_path_lookup(dfd, name, LOOKUP_FOLLOW, &nd_stat);
+		// Trap for bad paths:
+		if (error_stat == 0) {
+			vfs_getattr(nd_stat.path.mnt, nd_stat.path.dentry, &stat_struct);
+		}
+	}
 
 	switch(nd.last_type) {
 	case LAST_DOTDOT:
@@ -2790,12 +2858,18 @@ exit2:
 exit1:
 	path_put(&nd.path);
 	putname(name);
+
+	// PL:  (Possibly) log the call:
+	if (f_logging) {
+		trace_plsc_delete(syscall, time_start, sched_clock() - time_start, pathname_buffer_ptr, error, &stat_struct);
+	}
+
 	return error;
 }
 
 SYSCALL_DEFINE1(rmdir, const char __user *, pathname)
 {
-	return do_rmdir(AT_FDCWD, pathname);
+	return do_rmdir(AT_FDCWD, pathname, "rmdir");
 }
 
 int vfs_unlink(struct inode *dir, struct dentry *dentry)
@@ -2836,7 +2910,8 @@ int vfs_unlink(struct inode *dir, struct dentry *dentry)
  * writeout happening, and we don't want to prevent access to the directory
  * while waiting on the I/O.
  */
-static long do_unlinkat(int dfd, const char __user *pathname)
+// PL:  added syscall to param list
+static long do_unlinkat(int dfd, const char __user *pathname, char* syscall)
 {
 	int error;
 	char *name;
@@ -2844,9 +2919,31 @@ static long do_unlinkat(int dfd, const char __user *pathname)
 	struct nameidata nd;
 	struct inode *inode = NULL;
 
+	// PhoneLab
+	unsigned long long time_start = sched_clock();
+	bool f_logging;
+	char pathname_buffer[PLSC_OPEN_PATHMAX];
+	char* pathname_buffer_ptr = NULL;  // huge kludge
+	struct kstat stat_struct = {.size = 0, .mode = 0};
+	int error_stat;
+	struct nameidata nd_stat;
+
 	error = user_path_parent(dfd, pathname, &nd, &name);
 	if (error)
 		return error;
+
+	// PL:  Filter whether to log file activity by filetype:
+	f_logging = pathname_filter(name);
+	// If logging, grab the pathname and statistics before they go out of scope:
+	if (f_logging) {
+		memcpy(pathname_buffer, name, PLSC_OPEN_PATHMAX);
+		pathname_buffer_ptr = pathname_buffer;
+		error_stat = do_path_lookup(dfd, name, LOOKUP_FOLLOW, &nd_stat);
+		// Trap for bad paths:
+		if (error_stat == 0) {
+			vfs_getattr(nd_stat.path.mnt, nd_stat.path.dentry, &stat_struct);
+		}
+	}
 
 	error = -EISDIR;
 	if (nd.last_type != LAST_NORM)
@@ -2883,6 +2980,12 @@ exit3:
 exit1:
 	path_put(&nd.path);
 	putname(name);
+
+	// PL:  (Possibly) log the call:
+	if (f_logging) {
+		trace_plsc_delete(syscall, time_start, sched_clock() - time_start, pathname_buffer_ptr, error, &stat_struct);
+	}
+
 	return error;
 
 slashes:
@@ -2897,14 +3000,14 @@ SYSCALL_DEFINE3(unlinkat, int, dfd, const char __user *, pathname, int, flag)
 		return -EINVAL;
 
 	if (flag & AT_REMOVEDIR)
-		return do_rmdir(dfd, pathname);
+		return do_rmdir(dfd, pathname, "unlinkat-dir");
 
-	return do_unlinkat(dfd, pathname);
+	return do_unlinkat(dfd, pathname, "unlinkat");
 }
 
 SYSCALL_DEFINE1(unlink, const char __user *, pathname)
 {
-	return do_unlinkat(AT_FDCWD, pathname);
+	return do_unlinkat(AT_FDCWD, pathname, "unlink");
 }
 
 int vfs_symlink(struct inode *dir, struct dentry *dentry, const char *oldname)
