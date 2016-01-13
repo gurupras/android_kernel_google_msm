@@ -4,3 +4,9 @@ config PERIODIC_CTX_SWITCH_TRACING
 	  Enable periodic event tracing of context switches.
 	  These events are logged every scheduler_tick().
 
+config POST_FOREGROUND_PID
+	bool "Enable /proc/foreground"
+	help
+	  Enable /proc/foreground that Android publishes to to acquire
+	  PID of the task that is in the foreground.
+
