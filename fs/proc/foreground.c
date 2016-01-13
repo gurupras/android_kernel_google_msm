@@ -66,7 +66,7 @@ static const struct file_operations proc_foreground_trigger_operations = {
 
 static void foreground_init_procfs(void)
 {
-	if (!proc_create("foreground", S_IRUGO | S_IWUSR, NULL,
+	if (!proc_create("foreground", S_IRUGO | S_IWUGO, NULL,
 			&proc_foreground_trigger_operations))
 		printk(KERN_ERR "Failed to register proc interface\n");
 }
