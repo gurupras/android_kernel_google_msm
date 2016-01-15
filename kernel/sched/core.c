@@ -86,6 +86,7 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
+#include <trace/events/phonelab.h>
 
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
 
@@ -2142,10 +2143,10 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	 * If no, then it is foreground and needs to be logged.
 	 */
 	if(!is_background_task(prev)) {
-		trace_sched_foreground_switch_out(prev, next, cpu);
+		trace_phonelab_foreground_switch_out(prev, next, cpu);
 	}
 //	if(!is_background_task(next)) {
-//		trace_sched_foreground_switch_in(prev, next, cpu);
+//		trace_phonelab_foreground_switch_in(prev, next, cpu);
 //	}
 	/* Here we just switch the register state and the stack. */
 	switch_to(prev, next, prev);
@@ -3109,7 +3110,7 @@ void scheduler_tick(void)
 //	printk(KERN_DEBUG "periodic_ctx_switch: lim: %d\n", lim);
 	for(i = 0; i < lim; i++) {
 		task = per_cpu(ctx_switch_info[i], cpu);
-		trace_sched_periodic_ctx_switch_info(task, cpu);
+		trace_phonelab_periodic_ctx_switch_info(task, cpu);
 		/* TODO: Add trace event and log it here */
 		/* clear this out so we can use it again next round */
 		per_cpu(ctx_switch_info[i], cpu) = NULL;
