@@ -26,6 +26,8 @@
 #include <linux/uaccess.h>
 #include "internal.h"
 
+#include <trace/events/phonelab.h>
+
 int android_foreground_pid;
 
 static ssize_t read_file(struct file *file, char __user *buf, size_t count, loff_t *ppos)
@@ -42,6 +44,7 @@ static ssize_t write_file(struct file *file, const char __user *buf, size_t coun
 {
 	int err = 0;
 	char buffer[PROC_NUMBUF];
+	struct task_struct *task;
 
 	memset(buffer, 0, sizeof buffer);
 	if (count > sizeof(buffer) - 1)
@@ -55,6 +58,14 @@ static ssize_t write_file(struct file *file, const char __user *buf, size_t coun
 	err = kstrtoint(strstrip(buffer), 0, &android_foreground_pid);
 	if(err)
 		goto out;
+
+	task = pid_task(find_vpid(android_foreground_pid), PIDTYPE_PID);
+	if(!task) {
+		printk(KERN_DEBUG "/proc/foreground: Could not find task struct for PID: %05d\n", android_foreground_pid);
+		err = -EINVAL;
+		goto out;
+	}
+	trace_phonelab_proc_foreground(task);
 out:
 	return err < 0 ? err : count;
 }
