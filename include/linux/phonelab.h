@@ -5,6 +5,12 @@
 
 #define PHONELAB_MAGIC "<PhoneLab>"
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#define CTX_SWITCH_INFO_LIM	2000
+DECLARE_PER_CPU(struct task_struct *[CTX_SWITCH_INFO_LIM], ctx_switch_info);
+DECLARE_PER_CPU(int, ctx_switch_info_idx);
+#endif
+
 /* This whole enum is borrowed from system/core/include/android/log.h */
 typedef enum {
 	ANDROID_LOG_UNKNOWN = 0,

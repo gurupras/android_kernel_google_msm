@@ -84,16 +84,15 @@
 #include "sched.h"
 #include "../workqueue_sched.h"
 
+#ifdef CONFIG_PHONELAB
+#include <linux/phonelab.h>
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
 #include <trace/events/phonelab.h>
 
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
-
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-DEFINE_PER_CPU(struct task_struct *[2000], ctx_switch_info);
-DEFINE_PER_CPU(int, ctx_switch_idx);
-#endif
 
 void start_bandwidth_timer(struct hrtimer *period_timer, ktime_t period)
 {
@@ -2104,9 +2103,9 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	cpu = smp_processor_id();
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	lim = per_cpu(ctx_switch_idx, cpu);
+	lim = per_cpu(ctx_switch_info_idx, cpu);
 	per_cpu(ctx_switch_info[lim], cpu) = next;
-	per_cpu(ctx_switch_idx, cpu) = lim + 1;
+	per_cpu(ctx_switch_info_idx, cpu) = lim + 1;
 #endif
 	mm = next->mm;
 	oldmm = prev->active_mm;
@@ -3084,10 +3083,6 @@ void thread_group_times(struct task_struct *p, cputime_t *ut, cputime_t *st)
  */
 void scheduler_tick(void)
 {
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	int i, lim;
-	struct task_struct *task;
-#endif
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
 	struct task_struct *curr = rq->curr;
@@ -3104,20 +3099,6 @@ void scheduler_tick(void)
 #ifdef CONFIG_SMP
 	rq->idle_balance = idle_cpu(cpu);
 	trigger_load_balance(rq, cpu);
-#endif
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	lim = per_cpu(ctx_switch_idx, cpu);
-//	printk(KERN_DEBUG "periodic_ctx_switch: lim: %d\n", lim);
-	for(i = 0; i < lim; i++) {
-		task = per_cpu(ctx_switch_info[i], cpu);
-		trace_phonelab_periodic_ctx_switch_info(task, cpu);
-		/* TODO: Add trace event and log it here */
-		/* clear this out so we can use it again next round */
-		per_cpu(ctx_switch_info[i], cpu) = NULL;
-	}
-	(void) i;
-	(void) task;
-	per_cpu(ctx_switch_idx, cpu) = 0;
 #endif
 }
 

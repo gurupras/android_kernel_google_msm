@@ -25,6 +25,7 @@ endif
 
 obj-y += sched/
 obj-y += power/
+obj-$(CONFIG_PHONELAB) += phonelab/
 
 obj-$(CONFIG_FREEZER) += freezer.o
 obj-$(CONFIG_PROFILING) += profile.o

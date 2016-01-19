@@ -1,10 +1,18 @@
+config PHONELAB
+	bool
+	help
+	  Hidden open that includes the Makefile located at
+	  kernel/phonelab/Makefile.
+
 config PERIODIC_CTX_SWITCH_TRACING
+	select PHONELAB
 	bool "Periodic context switch tracing"
 	help
 	  Enable periodic event tracing of context switches.
 	  These events are logged every scheduler_tick().
 
 config POST_FOREGROUND_PID
+	select PHONELAB
 	bool "Enable /proc/foreground"
 	help
 	  Enable /proc/foreground that Android publishes to to acquire
