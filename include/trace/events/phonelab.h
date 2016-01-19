@@ -88,6 +88,23 @@ TRACE_EVENT(phonelab_proc_foreground,
 		__entry->task->comm)
 );
 
+TRACE_EVENT(phonelab_periodic_lim_exceeded,
+
+	TP_PROTO(int cpu),
+
+	TP_ARGS(cpu),
+
+	TP_STRUCT__entry(
+		__field( int,	cpu	)
+	),
+
+	TP_fast_assign(
+		__entry->cpu = cpu;
+	),
+
+	TP_printk("cpu=%d exceeded!", __entry->cpu)
+);
+
 #endif	/* _TRACE_PHONELAB_H */
 
 /* This part must be outside protection */

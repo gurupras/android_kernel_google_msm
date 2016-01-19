@@ -2103,9 +2103,18 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	cpu = smp_processor_id();
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	lim = per_cpu(ctx_switch_info_idx, cpu);
-	per_cpu(ctx_switch_info[lim], cpu) = next;
-	per_cpu(ctx_switch_info_idx, cpu) = lim + 1;
+	if(likely(periodic_ctx_switch_info_ready)) {
+		(void) lim;
+		lim = per_cpu(ctx_switch_info_idx, cpu);
+		if(lim < CTX_SWITCH_INFO_LIM) {
+			per_cpu(ctx_switch_info[lim], cpu) = next;
+			per_cpu(ctx_switch_info_idx, cpu) = lim + 1;
+		}
+		else {
+			trace_phonelab_periodic_lim_exceeded(cpu);
+			per_cpu(ctx_switch_info_idx, cpu) = 0;
+		}
+	}
 #endif
 	mm = next->mm;
 	oldmm = prev->active_mm;
