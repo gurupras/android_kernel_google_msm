@@ -489,14 +489,14 @@ static void remove_subsystem(struct ftrace_subsystem_dir *dir)
 static void remove_event_file_dir(struct ftrace_event_file *file)
 {
 	struct dentry *dir = file->dir;
-	struct dentry *child;
+//	struct dentry *child;
 
 	if (dir) {
 		spin_lock(&dir->d_lock);	/* probably unneeded */
-		list_for_each_entry(child, &dir->d_subdirs, d_child) {
-			if (child->d_inode)	/* probably unneeded */
-				child->d_inode->i_private = NULL;
-		}
+//		list_for_each_entry(child, &dir->d_subdirs, d_child) {
+//			if (child->d_inode)	/* probably unneeded */
+//				child->d_inode->i_private = NULL;
+//		}
 		spin_unlock(&dir->d_lock);
 
 		debugfs_remove_recursive(dir);

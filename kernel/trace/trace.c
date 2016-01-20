@@ -38,7 +38,7 @@
 #include <linux/poll.h>
 #include <linux/nmi.h>
 #include <linux/fs.h>
-#include <linux/sched/rt.h>
+#include <linux/preempt.h>
 
 #include "trace.h"
 #include "trace_output.h"
@@ -837,7 +837,6 @@ static struct {
 	{ trace_clock_counter,		"counter",	0 },
 	{ trace_clock_jiffies,		"uptime",	0 },
 	{ trace_clock,			"perf",		1 },
-	{ ktime_get_mono_fast_ns,	"mono",		1 },
 	ARCH_TRACE_CLOCKS
 };
 
@@ -1785,7 +1784,7 @@ static void __ftrace_trace_stack(struct ring_buffer *buffer,
 	 */
 	barrier();
 	if (use_stack == 1) {
-		trace.entries		= this_cpu_ptr(ftrace_stack.calls);
+		trace.entries		= &__get_cpu_var(ftrace_stack).calls[0];
 		trace.max_entries	= FTRACE_STACK_MAX_ENTRIES;
 
 		if (regs)
@@ -2609,7 +2608,7 @@ print_trace_header(struct seq_file *m, struct trace_iterator *iter)
 	seq_printf(m, "#    | task: %.16s-%d "
 		   "(uid:%d nice:%ld policy:%ld rt_prio:%ld)\n",
 		   data->comm, data->pid,
-		   from_kuid_munged(seq_user_ns(m), data->uid), data->nice,
+		   data->uid, data->nice,
 		   data->policy, data->rt_priority);
 	seq_puts(m, "#    -----------------\n");
 
@@ -4712,7 +4711,7 @@ static ssize_t tracing_splice_read_pipe(struct file *filp,
 
 	ret = splice_to_pipe(pipe, &spd);
 out:
-	splice_shrink_spd(&spd);
+	splice_shrink_spd(pipe, &spd);
 	return ret;
 
 out_err:
@@ -5627,7 +5626,7 @@ tracing_buffers_splice_read(struct file *file, loff_t *ppos,
 	}
 
 	ret = splice_to_pipe(pipe, &spd);
-	splice_shrink_spd(&spd);
+	splice_shrink_spd(pipe, &spd);
 out:
 	mutex_unlock(&trace_types_lock);
 
@@ -5867,8 +5866,10 @@ struct dentry *tracing_init_dentry_tr(struct trace_array *tr)
 	if (!debugfs_initialized())
 		return NULL;
 
-	if (tr->flags & TRACE_ARRAY_FL_GLOBAL)
+//	if (tr->flags & TRACE_ARRAY_FL_GLOBAL) {
+		printk(KERN_DEBUG "tracing: attempting to create debugfs directory\n");
 		tr->dir = debugfs_create_dir("tracing", NULL);
+//	}
 
 	if (!tr->dir)
 		pr_warn_once("Could not create debugfs directory 'tracing'\n");
@@ -6487,13 +6488,13 @@ static int instance_delete(const char *name)
 
 static int instance_mkdir (struct inode *inode, struct dentry *dentry, umode_t mode)
 {
-	struct dentry *parent;
+//	struct dentry *parent;
 	int ret;
 
 	/* Paranoid: Make sure the parent is the "instances" directory */
-	parent = hlist_entry(inode->i_dentry.first, struct dentry, d_u.d_alias);
-	if (WARN_ON_ONCE(parent != trace_instance_dir))
-		return -ENOENT;
+//	parent = hlist_entry(inode->i_dentry.first, struct dentry, d_u.d_alias);
+//	if (WARN_ON_ONCE(parent != trace_instance_dir))
+//		return -ENOENT;
 
 	/*
 	 * The inode mutex is locked, but debugfs_create_dir() will also
@@ -6514,13 +6515,13 @@ static int instance_mkdir (struct inode *inode, struct dentry *dentry, umode_t m
 
 static int instance_rmdir(struct inode *inode, struct dentry *dentry)
 {
-	struct dentry *parent;
+//	struct dentry *parent;
 	int ret;
 
 	/* Paranoid: Make sure the parent is the "instances" directory */
-	parent = hlist_entry(inode->i_dentry.first, struct dentry, d_u.d_alias);
-	if (WARN_ON_ONCE(parent != trace_instance_dir))
-		return -ENOENT;
+//	parent = hlist_entry(inode->i_dentry.first, struct dentry, d_u.d_alias);
+//	if (WARN_ON_ONCE(parent != trace_instance_dir))
+//		return -ENOENT;
 
 	/* The caller did a dget() on dentry */
 	mutex_unlock(&dentry->d_inode->i_mutex);

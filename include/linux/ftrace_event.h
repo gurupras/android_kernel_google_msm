@@ -84,6 +84,7 @@ struct trace_iterator {
 	struct trace_seq	tmp_seq;
 
 	cpumask_var_t		started;
+	u32			event_id;
 
 	/* it's true when current open file is snapshot */
 	bool			snapshot;

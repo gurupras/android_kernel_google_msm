@@ -22,6 +22,7 @@
  * they can flush it and try again.
  *
  */
+#include <linux/export.h>
 #include <linux/uaccess.h>
 #include <linux/seq_file.h>
 #include <linux/trace_seq.h>
