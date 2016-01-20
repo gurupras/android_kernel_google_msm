@@ -200,7 +200,15 @@ extern struct cred init_cred;
 	INIT_TRACE_RECURSION						\
 	INIT_TASK_RCU_PREEMPT(tsk)					\
 	INIT_CPUSET_SEQ							\
+	INIT_PERIODIC_CTX_SWITCH_INFO					\
 }
+
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#define INIT_PERIODIC_CTX_SWITCH_INFO					\
+	.is_logged = {0,},
+#else
+#define INIT_PERIODIC_CTX_SWITCH_INFO
+#endif
 
 
 #define INIT_CPU_TIMERS(cpu_timers)					\

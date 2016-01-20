@@ -2102,20 +2102,6 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	prepare_task_switch(rq, prev, next);
 	cpu = smp_processor_id();
 
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	if(likely(periodic_ctx_switch_info_ready)) {
-		(void) lim;
-		lim = per_cpu(ctx_switch_info_idx, cpu);
-		if(lim < CTX_SWITCH_INFO_LIM) {
-			per_cpu(ctx_switch_info[lim], cpu) = next;
-			per_cpu(ctx_switch_info_idx, cpu) = lim + 1;
-		}
-		else {
-			trace_phonelab_periodic_lim_exceeded(cpu);
-			per_cpu(ctx_switch_info_idx, cpu) = 0;
-		}
-	}
-#endif
 	mm = next->mm;
 	oldmm = prev->active_mm;
 	/*
@@ -2160,6 +2146,26 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	switch_to(prev, next, prev);
 
 	barrier();
+
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+	if(likely(periodic_ctx_switch_info_ready)) {
+		if(per_cpu(test_field, cpu)) {
+			printk(KERN_DEBUG "periodic: context switch happening during local_irq_disabled() on cpu=%d\n", cpu);
+			goto end;
+		}
+		lim = per_cpu(ctx_switch_info_idx, cpu);
+
+		if(lim < CTX_SWITCH_INFO_LIM) {
+			per_cpu(ctx_switch_info[lim], cpu) = prev;
+			per_cpu(ctx_switch_info_idx, cpu) = lim + 1;
+		}
+		else {
+			trace_phonelab_periodic_lim_exceeded(cpu);
+			per_cpu(ctx_switch_info_idx, cpu) = 0;
+		}
+	}
+end:
+#endif
 	/*
 	 * this_rq must be evaluated again because prev may have moved
 	 * CPUs since it called schedule(), thus the 'rq' on its stack
@@ -3108,6 +3114,9 @@ void scheduler_tick(void)
 #ifdef CONFIG_SMP
 	rq->idle_balance = idle_cpu(cpu);
 	trigger_load_balance(rq, cpu);
+#endif
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+//	periodic_ctx_switch_info(NULL);
 #endif
 }
 

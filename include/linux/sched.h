@@ -1619,6 +1619,9 @@ struct task_struct {
 #ifdef CONFIG_HAVE_HW_BREAKPOINT
 	atomic_t ptrace_bp_refcnt;
 #endif
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+	u32 is_logged[4];
+#endif
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */

@@ -59,6 +59,10 @@
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#include <trace/events/phonelab.h>
+#endif
+
 static void exit_mm(struct task_struct * tsk);
 
 static void __unhash_process(struct task_struct *p, bool group_dead)
@@ -904,6 +908,10 @@ void do_exit(long code)
 	struct task_struct *tsk = current;
 	int group_dead;
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+	// Make sure it is 0 so it gets added and logged if necessary
+	trace_phonelab_periodic_ctx_switch_info(tsk, smp_processor_id());
+#endif
 	profile_task_exit(tsk);
 
 	WARN_ON(blk_needs_flush_plug(tsk));
@@ -1069,6 +1077,7 @@ void do_exit(long code)
 	/* causes final put_task_struct in finish_task_switch(). */
 	tsk->state = TASK_DEAD;
 	tsk->flags |= PF_NOFREEZE;	/* tell freezer to ignore us */
+
 	schedule();
 	BUG();
 	/* Avoid "noreturn function does return".  */

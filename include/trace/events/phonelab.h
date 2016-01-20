@@ -55,18 +55,25 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 
 	TP_STRUCT__entry(
 		__field( struct task_struct *,	task	)
+		__field( unsigned long,		utime	)
+		__field( unsigned long,		stime	)
 		__field( int,	cpu			)
 	),
 
 	TP_fast_assign(
 		__entry->task = task;
 		__entry->cpu  = cpu;
+		task_times(__entry->task, &__entry->utime, &__entry->stime);
 	),
 
-	TP_printk("cpu=%d pid=%d tgid=%d cutime=%lu cstime=%lu",
+	TP_printk("cpu=%d pid=%d tgid=%d comm=%s utime_t=%lu stime_t=%lu cutime=%lu cstime=%lu"
+		"cutime_t=%lu cstime_t=%lu cutime=%lu cstime=%lu",
 		__entry->cpu,
-		__entry->task->pid, __entry->task->tgid,
-		__entry->task->utime, __entry->task->stime)
+		__entry->task->pid, __entry->task->tgid, __entry->task->comm,
+		__entry->task->utime, __entry->task->stime,
+		cputime_to_clock_t(__entry->utime), cputime_to_clock_t(__entry->stime),
+		__entry->task->signal->cutime, __entry->task->signal->cstime,
+		cputime_to_clock_t(__entry->task->signal->cutime), cputime_to_clock_t(__entry->task->signal->cstime))
 );
 
 TRACE_EVENT(phonelab_proc_foreground,

@@ -266,6 +266,9 @@ int __attribute__((weak)) arch_dup_task_struct(struct task_struct *dst,
 					       struct task_struct *src)
 {
 	*dst = *src;
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_INFO
+	dst->is_logged = {0,};
+#endif
 	return 0;
 }
 

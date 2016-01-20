@@ -3,6 +3,7 @@
 #include <linux/pid.h>
 #include <linux/types.h>
 #include <linux/cpu.h>
+#include <linux/spinlock_types.h>
 
 #include <linux/atomic.h>
 
@@ -22,10 +23,13 @@ struct periodic_work {
 
 DEFINE_PER_CPU(struct task_struct *[CTX_SWITCH_INFO_LIM], ctx_switch_info);
 DEFINE_PER_CPU(int, ctx_switch_info_idx);
-
+DEFINE_PER_CPU(spinlock_t, ctx_switch_info_lock);
+DEFINE_PER_CPU(int, test_field);
 DEFINE_PER_CPU(struct periodic_work, periodic_ctx_switch_info_work);
 
 int periodic_ctx_switch_info_ready;
+
+static void clear_cpu_ctx_switch_info(int cpu);
 
 void periodic_ctx_switch_info(struct work_struct *w) {
 
@@ -34,6 +38,8 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	struct task_struct *task;
 	struct delayed_work *work, *dwork;
 	struct periodic_work *pwork;
+	spinlock_t *spinlock;
+	unsigned long utime, stime, flags;
 
 	cpu = smp_processor_id();
 
@@ -41,19 +47,48 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	pwork = container_of(dwork, struct periodic_work, dwork);
 	wcpu = pwork->cpu;
 	if(unlikely(cpu != wcpu)) {
+		printk(KERN_DEBUG "periodic: wrong cpu (%d != %d)..restarting\n", cpu, wcpu);
 		cpu = wcpu;
+		goto out;
 	}
+
+	(void) utime;
+	(void) stime;
+	(void) spinlock;
+	(void) flags;
 
 	if(unlikely(!periodic_ctx_switch_info_ready))
 		goto out;
-	lim = per_cpu(ctx_switch_info_idx, cpu);
+	local_irq_save(flags);
+		spinlock = &per_cpu(ctx_switch_info_lock, cpu);
+		spin_lock(spinlock);
 
-	for(i = 0; i < lim; i++) {
-		task = per_cpu(ctx_switch_info[i], cpu);
-		trace_phonelab_periodic_ctx_switch_info(task, cpu);
-		per_cpu(ctx_switch_info[i], cpu) = NULL;
-	}
-	per_cpu(ctx_switch_info_idx, cpu) = 0;
+		per_cpu(test_field, cpu) = 1;
+		lim = per_cpu(ctx_switch_info_idx, cpu);
+
+//		printk(KERN_DEBUG "periodic: cpu=%d lim=%d\n", cpu, lim);
+		for(i = 0; i < lim; i++) {
+			task = per_cpu(ctx_switch_info[i], cpu);
+			task_lock(task);
+			if(!task->is_logged[cpu]) {
+//				task_times(task, &utime, &stime);
+//				printk(KERN_DEBUG "periodic: cpu=%d pid=%d tgid=%d comm=%s utime_t=%lu stime_t=%lu cutime=%lu cstime=%lu"
+//					"cutime_t=%lu cstime_t=%lu cutime=%lu cstime=%lu",
+//					cpu, task->pid, task->tgid, task->comm,
+//					task->utime, task->stime,
+//					cputime_to_clock_t(utime), cputime_to_clock_t(stime),
+//					task->signal->cutime, task->signal->cstime,
+//					cputime_to_clock_t(task->signal->cutime), cputime_to_clock_t(task->signal->cstime));
+				trace_phonelab_periodic_ctx_switch_info(task, cpu);
+				task->is_logged[cpu] = 1;
+			}
+			task_unlock(task);
+		}
+		clear_cpu_ctx_switch_info(cpu);
+		per_cpu(test_field, cpu) = 0;
+
+		spin_unlock(spinlock);
+	local_irq_restore(flags);
 out:
 	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 	schedule_delayed_work_on(cpu, work, msecs_to_jiffies(100));
@@ -63,8 +98,14 @@ static void
 clear_cpu_ctx_switch_info(int cpu)
 {
 	int i;
-	int lim = per_cpu(ctx_switch_info_idx, cpu);
-	for(i = 0; i < lim; i++) {
+	struct task_struct *task;
+	for(i = 0; i < CTX_SWITCH_INFO_LIM; i++) {
+		task = per_cpu(ctx_switch_info[i], cpu);
+		if(task == NULL)
+			continue;
+		task_lock(task);
+		task->is_logged[cpu] = 0;
+		task_unlock(task);
 		per_cpu(ctx_switch_info[i], cpu) = NULL;
 	}
 	per_cpu(ctx_switch_info_idx, cpu) = 0;
@@ -79,6 +120,7 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	switch (action) {
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
+		printk(KERN_DEBUG "periodic: scheduling work for CPU: %ld\n", cpu);
 		clear_cpu_ctx_switch_info(cpu);
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 		schedule_delayed_work(work, msecs_to_jiffies(100));
@@ -88,6 +130,7 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	case CPU_UP_CANCELED_FROZEN:
 	case CPU_DEAD:
 	case CPU_DEAD_FROZEN:
+		printk(KERN_DEBUG "periodic: cancelling work for CPU: %ld\n", cpu);
 		clear_cpu_ctx_switch_info(cpu);
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 		cancel_delayed_work(work);
@@ -132,6 +175,7 @@ static int __init init_per_cpu_data(void) {
 	int i;
 	for_each_possible_cpu(i) {
 		per_cpu(ctx_switch_info_idx, i) = 0;
+		spin_lock_init(&per_cpu(ctx_switch_info_lock, i));
 	}
 	periodic_ctx_switch_info_ready = 0;
 	return 0;
