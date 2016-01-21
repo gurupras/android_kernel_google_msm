@@ -446,6 +446,8 @@ enum ftrace_dump_mode {
 void tracing_on(void);
 void tracing_off(void);
 int tracing_is_on(void);
+void tracing_snapshot(void);
+void tracing_snapshot_alloc(void);
 
 extern void tracing_start(void);
 extern void tracing_stop(void);
@@ -497,7 +499,7 @@ int __trace_bprintk(unsigned long ip, const char *fmt, ...);
 extern __printf(2, 3)
 int __trace_printk(unsigned long ip, const char *fmt, ...);
 
-extern void trace_dump_stack(void);
+extern void trace_dump_stack(int);
 
 /*
  * The double __builtin_constant_p is because gcc will give us an error
@@ -535,6 +537,8 @@ static inline void trace_dump_stack(void) { }
 static inline void tracing_on(void) { }
 static inline void tracing_off(void) { }
 static inline int tracing_is_on(void) { return 0; }
+static inline void tracing_snapshot(void) { }
+static inline void tracing_snapshot_alloc(void) { }
 
 static inline int
 trace_printk(const char *fmt, ...)

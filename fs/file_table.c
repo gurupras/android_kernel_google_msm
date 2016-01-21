@@ -179,6 +179,7 @@ struct file *alloc_file(struct path *path, fmode_t mode,
 	file->f_mapping = path->dentry->d_inode->i_mapping;
 	file->f_mode = mode;
 	file->f_op = fop;
+	file->f_inode = path->dentry->d_inode;
 
 	/*
 	 * These mounts don't really matter in practice
@@ -259,6 +260,7 @@ static void __fput(struct file *file)
 		drop_file_write_access(file);
 	file->f_path.dentry = NULL;
 	file->f_path.mnt = NULL;
+	file->f_inode = NULL;
 	file_free(file);
 	dput(dentry);
 	mntput(mnt);

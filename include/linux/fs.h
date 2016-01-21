@@ -984,6 +984,7 @@ struct file {
 		struct rcu_head 	fu_rcuhead;
 	} f_u;
 	struct path		f_path;
+	struct inode		*f_inode;
 #define f_dentry	f_path.dentry
 #define f_vfsmnt	f_path.mnt
 	const struct file_operations	*f_op;
@@ -2307,6 +2308,11 @@ extern int generic_delete_inode(struct inode *inode);
 static inline int generic_drop_inode(struct inode *inode)
 {
 	return !inode->i_nlink || inode_unhashed(inode);
+}
+
+static inline struct inode *file_inode(const struct file *f)
+{
+	return f->f_inode;
 }
 
 extern struct inode *ilookup5_nowait(struct super_block *sb,
