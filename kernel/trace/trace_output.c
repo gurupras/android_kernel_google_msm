@@ -527,8 +527,6 @@ int trace_print_context(struct trace_iterator *iter)
 	trace_seq_printf(s, "%16s-%-5d [%03d] ",
 			       comm, entry->pid, iter->cpu);
 
-	trace_seq_printf(s, " %10u ", iter->event_id);
-
 	if (trace_flags & TRACE_ITER_IRQ_INFO)
 		trace_print_lat_fmt(s, entry);
 

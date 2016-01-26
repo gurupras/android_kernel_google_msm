@@ -2246,7 +2246,7 @@ static void trace_iterator_increment(struct trace_iterator *iter)
 
 static struct trace_entry *
 peek_next_entry(struct trace_iterator *iter, int cpu, u64 *ts,
-		unsigned long *lost_events, u32 *entry_id)
+		unsigned long *lost_events)
 {
 	struct ring_buffer_event *event;
 	struct ring_buffer_iter *buf_iter = trace_buffer_iter(iter, cpu);
@@ -2255,7 +2255,7 @@ peek_next_entry(struct trace_iterator *iter, int cpu, u64 *ts,
 		event = ring_buffer_iter_peek(buf_iter, ts);
 	else
 		event = ring_buffer_peek(iter->trace_buffer->buffer, cpu, ts,
-					 lost_events, entry_id);
+					 lost_events);
 
 	if (event) {
 		iter->ent_size = ring_buffer_event_length(event);
@@ -2267,7 +2267,7 @@ peek_next_entry(struct trace_iterator *iter, int cpu, u64 *ts,
 
 static struct trace_entry *
 __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
-		  unsigned long *missing_events, u64 *ent_ts, u32 *entry_id)
+		  unsigned long *missing_events, u64 *ent_ts)
 {
 	struct ring_buffer *buffer = iter->trace_buffer->buffer;
 	struct trace_entry *ent, *next = NULL;
@@ -2277,7 +2277,6 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 	int next_cpu = -1;
 	int next_size = 0;
 	int cpu;
-	u32 next_id = 0, eid;
 
 	/*
 	 * If we are in a per_cpu trace file, don't bother by iterating over
@@ -2286,7 +2285,7 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 	if (cpu_file > RING_BUFFER_ALL_CPUS) {
 		if (ring_buffer_empty_cpu(buffer, cpu_file))
 			return NULL;
-		ent = peek_next_entry(iter, cpu_file, ent_ts, missing_events, entry_id);
+		ent = peek_next_entry(iter, cpu_file, ent_ts, missing_events);
 		if (ent_cpu)
 			*ent_cpu = cpu_file;
 
@@ -2298,7 +2297,7 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 		if (ring_buffer_empty_cpu(buffer, cpu))
 			continue;
 
-		ent = peek_next_entry(iter, cpu, &ts, &lost_events, &eid);
+		ent = peek_next_entry(iter, cpu, &ts, &lost_events);
 
 		/*
 		 * Pick the entry with the smallest timestamp:
@@ -2309,7 +2308,6 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 			next_ts = ts;
 			next_lost = lost_events;
 			next_size = iter->ent_size;
-			next_id = eid;
 		}
 	}
 
@@ -2324,9 +2322,6 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 	if (missing_events)
 		*missing_events = next_lost;
 
-	if (entry_id)
-		*entry_id = next_id;
-
 	return next;
 }
 
@@ -2334,14 +2329,14 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 struct trace_entry *trace_find_next_entry(struct trace_iterator *iter,
 					  int *ent_cpu, u64 *ent_ts)
 {
-	return __find_next_entry(iter, ent_cpu, NULL, ent_ts, NULL);
+	return __find_next_entry(iter, ent_cpu, NULL, ent_ts);
 }
 
 /* Find the next real entry, and increment the iterator to the next entry */
 void *trace_find_next_entry_inc(struct trace_iterator *iter)
 {
 	iter->ent = __find_next_entry(iter, &iter->cpu,
-				      &iter->lost_events, &iter->ts, &iter->event_id);
+				      &iter->lost_events, &iter->ts);
 
 	if (iter->ent)
 		trace_iterator_increment(iter);
@@ -2352,7 +2347,7 @@ void *trace_find_next_entry_inc(struct trace_iterator *iter)
 static void trace_consume(struct trace_iterator *iter)
 {
 	ring_buffer_consume(iter->trace_buffer->buffer, iter->cpu, &iter->ts,
-			    &iter->lost_events, &iter->event_id);
+			    &iter->lost_events);
 }
 
 static void *s_next(struct seq_file *m, void *v, loff_t *pos)
