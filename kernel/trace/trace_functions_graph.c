@@ -597,9 +597,9 @@ get_return_for_leaf(struct trace_iterator *iter,
 			 * the next one.
 			 */
 			ring_buffer_consume(iter->trace_buffer->buffer, iter->cpu,
-					    NULL, NULL, NULL);
+					    NULL, NULL);
 			event = ring_buffer_peek(iter->trace_buffer->buffer, iter->cpu,
-						 NULL, NULL, NULL);
+						 NULL, NULL);
 		}
 
 		if (!event)

@@ -27,10 +27,6 @@
 
 #include <asm/local.h>
 
-
-// Unique event id to determine entry loss in userspace
-static atomic_t s_event_id;
-
 static void update_pages_handler(struct work_struct *work);
 
 /*
@@ -196,8 +192,8 @@ void tracing_off_permanent(void)
 #define RINGBUF_TYPE_DATA 0 ... RINGBUF_TYPE_DATA_TYPE_LEN_MAX
 
 enum {
-	RB_LEN_TIME_EXTEND = 12,
-	RB_LEN_TIME_STAMP = 16,
+	RB_LEN_TIME_EXTEND = 8,
+	RB_LEN_TIME_STAMP = 12,
 };
 
 #define skip_time_extend(event) \
@@ -2021,7 +2017,7 @@ rb_add_time_stamp(struct ring_buffer_event *event, u64 delta)
 static void
 rb_update_event(struct ring_buffer_per_cpu *cpu_buffer,
 		struct ring_buffer_event *event, unsigned length,
-		int add_timestamp, u64 delta, u32 id)
+		int add_timestamp, u64 delta)
 {
 	/* Only a commit updates the timestamp */
 	if (unlikely(!rb_event_is_commit(cpu_buffer, event)))
@@ -2044,7 +2040,6 @@ rb_update_event(struct ring_buffer_per_cpu *cpu_buffer,
 		event->array[0] = length;
 	} else
 		event->type_len = DIV_ROUND_UP(length, RB_ALIGNMENT);
-	event->event_id = id;
 }
 
 /*
@@ -2404,7 +2399,7 @@ rb_move_tail(struct ring_buffer_per_cpu *cpu_buffer,
 static struct ring_buffer_event *
 __rb_reserve_next(struct ring_buffer_per_cpu *cpu_buffer,
 		  unsigned long length, u64 ts,
-		  u64 delta, int add_timestamp, u32 id)
+		  u64 delta, int add_timestamp)
 {
 	struct buffer_page *tail_page;
 	struct ring_buffer_event *event;
@@ -2441,7 +2436,7 @@ __rb_reserve_next(struct ring_buffer_per_cpu *cpu_buffer,
 
 	event = __rb_page_index(tail_page, tail);
 	kmemcheck_annotate_bitfield(event, bitfield);
-	rb_update_event(cpu_buffer, event, length, add_timestamp, delta, id);
+	rb_update_event(cpu_buffer, event, length, add_timestamp, delta);
 
 	local_inc(&tail_page->entries);
 
@@ -2546,7 +2541,6 @@ rb_reserve_next_event(struct ring_buffer *buffer,
 	int nr_loops = 0;
 	int add_timestamp;
 	u64 diff;
-	u32 id;
 
 	rb_start_commit(cpu_buffer);
 
@@ -2566,7 +2560,6 @@ rb_reserve_next_event(struct ring_buffer *buffer,
 #endif
 
 	length = rb_calculate_event_length(length);
-	id = atomic_add_return(1, &s_event_id);
 
  again:
 	add_timestamp = 0;
@@ -2612,7 +2605,7 @@ rb_reserve_next_event(struct ring_buffer *buffer,
 	}
 
 	event = __rb_reserve_next(cpu_buffer, length, ts,
-				  delta, add_timestamp, id);
+				  delta, add_timestamp);
 
 	if (unlikely(PTR_ERR(event) == -EAGAIN))
 		goto again;
@@ -3700,7 +3693,7 @@ static int rb_lost_events(struct ring_buffer_per_cpu *cpu_buffer)
 
 static struct ring_buffer_event *
 rb_buffer_peek(struct ring_buffer_per_cpu *cpu_buffer, u64 *ts,
-	       unsigned long *lost_events, u32 *event_id)
+	       unsigned long *lost_events)
 {
 	struct ring_buffer_event *event;
 	struct buffer_page *reader;
@@ -3754,10 +3747,6 @@ rb_buffer_peek(struct ring_buffer_per_cpu *cpu_buffer, u64 *ts,
 		}
 		if (lost_events)
 			*lost_events = rb_lost_events(cpu_buffer);
-
-		if (event_id) {
-			*event_id = event->event_id;
-		}
 
 		return event;
 
@@ -3876,7 +3865,7 @@ static inline int rb_ok_to_lock(void)
  */
 struct ring_buffer_event *
 ring_buffer_peek(struct ring_buffer *buffer, int cpu, u64 *ts,
-		 unsigned long *lost_events, u32 *event_id)
+		 unsigned long *lost_events)
 {
 	struct ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
 	struct ring_buffer_event *event;
@@ -3891,7 +3880,7 @@ ring_buffer_peek(struct ring_buffer *buffer, int cpu, u64 *ts,
 	local_irq_save(flags);
 	if (dolock)
 		raw_spin_lock(&cpu_buffer->reader_lock);
-	event = rb_buffer_peek(cpu_buffer, ts, lost_events, event_id);
+	event = rb_buffer_peek(cpu_buffer, ts, lost_events);
 	if (event && event->type_len == RINGBUF_TYPE_PADDING)
 		rb_advance_reader(cpu_buffer);
 	if (dolock)
@@ -3943,7 +3932,7 @@ ring_buffer_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
  */
 struct ring_buffer_event *
 ring_buffer_consume(struct ring_buffer *buffer, int cpu, u64 *ts,
-		    unsigned long *lost_events, u32 *event_id)
+		    unsigned long *lost_events)
 {
 	struct ring_buffer_per_cpu *cpu_buffer;
 	struct ring_buffer_event *event = NULL;
@@ -3964,7 +3953,7 @@ ring_buffer_consume(struct ring_buffer *buffer, int cpu, u64 *ts,
 	if (dolock)
 		raw_spin_lock(&cpu_buffer->reader_lock);
 
-	event = rb_buffer_peek(cpu_buffer, ts, lost_events, event_id);
+	event = rb_buffer_peek(cpu_buffer, ts, lost_events);
 	if (event) {
 		cpu_buffer->lost_events = 0;
 		rb_advance_reader(cpu_buffer);
