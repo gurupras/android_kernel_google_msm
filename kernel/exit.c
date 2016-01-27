@@ -60,6 +60,7 @@
 #include <asm/mmu_context.h>
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#include <linux/phonelab.h>
 #include <trace/events/phonelab.h>
 #endif
 
@@ -910,7 +911,19 @@ void do_exit(long code)
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
 	// Make sure it is 0 so it gets added and logged if necessary
-	trace_phonelab_periodic_ctx_switch_info(tsk, smp_processor_id());
+	int cpu, lim, i;
+	cpu = smp_processor_id();
+	trace_phonelab_periodic_ctx_switch_info(tsk, cpu);
+	// Remove this task from all ctx_switch_info buffers
+	if(likely(periodic_ctx_switch_info_ready)) {
+		lim = per_cpu(ctx_switch_info_idx, cpu);
+		for(i = 0; i < lim; i++) {
+			if(per_cpu(ctx_switch_info[i], cpu) == tsk) {
+				per_cpu(ctx_switch_info[i], cpu) = NULL;
+				break;
+			}
+		}
+	}
 #endif
 	profile_task_exit(tsk);
 

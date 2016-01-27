@@ -24,7 +24,7 @@ struct periodic_work {
 DEFINE_PER_CPU(struct task_struct *[CTX_SWITCH_INFO_LIM], ctx_switch_info);
 DEFINE_PER_CPU(int, ctx_switch_info_idx);
 DEFINE_PER_CPU(spinlock_t, ctx_switch_info_lock);
-DEFINE_PER_CPU(int, test_field);
+DEFINE_PER_CPU(atomic_t, test_field);
 DEFINE_PER_CPU(struct periodic_work, periodic_ctx_switch_info_work);
 
 int periodic_ctx_switch_info_ready;
@@ -63,7 +63,8 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		spinlock = &per_cpu(ctx_switch_info_lock, cpu);
 		spin_lock(spinlock);
 
-		per_cpu(test_field, cpu) = 1;
+		atomic_set(&per_cpu(test_field, cpu), 1);
+		barrier();
 		lim = per_cpu(ctx_switch_info_idx, cpu);
 
 //		printk(KERN_DEBUG "periodic: cpu=%d lim=%d\n", cpu, lim);
@@ -85,7 +86,8 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 			task_unlock(task);
 		}
 		clear_cpu_ctx_switch_info(cpu);
-		per_cpu(test_field, cpu) = 0;
+		atomic_set(&per_cpu(test_field, cpu), 0);
+		barrier();
 
 		spin_unlock(spinlock);
 	local_irq_restore(flags);
@@ -120,7 +122,7 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	switch (action) {
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
-		printk(KERN_DEBUG "periodic: scheduling work for CPU: %ld\n", cpu);
+//		printk(KERN_DEBUG "periodic: scheduling work for CPU: %ld\n", cpu);
 		clear_cpu_ctx_switch_info(cpu);
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 		schedule_delayed_work(work, msecs_to_jiffies(100));
@@ -130,7 +132,7 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	case CPU_UP_CANCELED_FROZEN:
 	case CPU_DEAD:
 	case CPU_DEAD_FROZEN:
-		printk(KERN_DEBUG "periodic: cancelling work for CPU: %ld\n", cpu);
+//		printk(KERN_DEBUG "periodic: cancelling work for CPU: %ld\n", cpu);
 		clear_cpu_ctx_switch_info(cpu);
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 		cancel_delayed_work(work);
@@ -176,6 +178,7 @@ static int __init init_per_cpu_data(void) {
 	for_each_possible_cpu(i) {
 		per_cpu(ctx_switch_info_idx, i) = 0;
 		spin_lock_init(&per_cpu(ctx_switch_info_lock, i));
+		atomic_set(&per_cpu(test_field, i), 0);
 	}
 	periodic_ctx_switch_info_ready = 0;
 	return 0;

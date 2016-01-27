@@ -2149,8 +2149,8 @@ context_switch(struct rq *rq, struct task_struct *prev,
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
 	if(likely(periodic_ctx_switch_info_ready)) {
-		if(per_cpu(test_field, cpu)) {
-			printk(KERN_DEBUG "periodic: context switch happening during local_irq_disabled() on cpu=%d\n", cpu);
+		if(atomic_read(&per_cpu(test_field, cpu))) {
+//			printk(KERN_DEBUG "periodic: context switch happening during local_irq_disabled() on cpu=%d\n", cpu);
 			goto end;
 		}
 		lim = per_cpu(ctx_switch_info_idx, cpu);
