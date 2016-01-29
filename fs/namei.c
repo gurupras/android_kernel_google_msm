@@ -40,7 +40,7 @@
 
 #include <trace/phonelab_syscall.h>  // PL
 
-int pathname_filter(const char*);  // PL
+int plsc_pathname_filter(const char*);  // PL
 
 /* [Feb-1997 T. Schoebel-Theuer]
  * Fundamental changes in the pathname lookup mechanisms (namei)
@@ -2660,26 +2660,25 @@ static long do_mkdirat(int dfd, const char __user *pathname, umode_t mode, char*
 
 	// PhoneLab
 	unsigned long long time_start; // = sched_clock();
-	bool f_logging;
-	char pathname_buffer[PLSC_OPEN_PATHMAX];
+	bool f_logging = false;
+	char pathname_buffer[PLSC_PATHMAX];
 	char* pathname_buffer_ptr = NULL;  // huge kludge
 	struct kstat stat_struct = {.size = 0, .mode = 0};
 	int error_stat;
 	struct nameidata nd_stat;
 
 //char name[] = "/sys/test";
-
-	unsigned long long time_start = sched_clock();
-	char name* = getname(pathname);
-
-	// PL:  Filter whether to log file activity by filetype:
-	f_logging = pathname_filter(name);
-	// If logging, grab the pathname and statistics before they go out of scope:
-	if (f_logging) {
-		memcpy(pathname_buffer, name, PLSC_OPEN_PATHMAX);
-		pathname_buffer_ptr = pathname_buffer;
+	char* name = getname(pathname);
+	if (!IS_ERR(name)) {
+		// PL:  Filter whether to log file activity by filetype:
+		f_logging = plsc_pathname_filter(name);
+		// If logging, grab the pathname and statistics before they go out of scope:
+		if (f_logging) {
+			memcpy(pathname_buffer, name, PLSC_PATHMAX);
+			pathname_buffer_ptr = pathname_buffer;
+		}
+		putname(name);
 	}
-	putname(name);
 	time_start = sched_clock();
 	
 	dentry = user_path_create(dfd, pathname, &path, 1);
@@ -2796,7 +2795,7 @@ static long do_rmdir(int dfd, const char __user *pathname, char* syscall)
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
 	bool f_logging;
-	char pathname_buffer[PLSC_OPEN_PATHMAX];
+	char pathname_buffer[PLSC_PATHMAX];
 	char* pathname_buffer_ptr = NULL;  // huge kludge
 	struct kstat stat_struct = {.size = 0, .mode = 0};
 	int error_stat;
@@ -2807,10 +2806,10 @@ static long do_rmdir(int dfd, const char __user *pathname, char* syscall)
 		return error;
 
 	// PL:  Filter whether to log file activity by filetype:
-	f_logging = pathname_filter(name);
+	f_logging = plsc_pathname_filter(name);
 	// If logging, grab the pathname and statistics before they go out of scope:
 	if (f_logging) {
-		memcpy(pathname_buffer, name, PLSC_OPEN_PATHMAX);
+		memcpy(pathname_buffer, name, PLSC_PATHMAX);
 		pathname_buffer_ptr = pathname_buffer;
 		error_stat = do_path_lookup(dfd, name, LOOKUP_FOLLOW, &nd_stat);
 		// Trap for bad paths:
@@ -2922,7 +2921,7 @@ static long do_unlinkat(int dfd, const char __user *pathname, char* syscall)
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
 	bool f_logging;
-	char pathname_buffer[PLSC_OPEN_PATHMAX];
+	char pathname_buffer[PLSC_PATHMAX];
 	char* pathname_buffer_ptr = NULL;  // huge kludge
 	struct kstat stat_struct = {.size = 0, .mode = 0};
 	int error_stat;
@@ -2933,10 +2932,10 @@ static long do_unlinkat(int dfd, const char __user *pathname, char* syscall)
 		return error;
 
 	// PL:  Filter whether to log file activity by filetype:
-	f_logging = pathname_filter(name);
+	f_logging = plsc_pathname_filter(name);
 	// If logging, grab the pathname and statistics before they go out of scope:
 	if (f_logging) {
-		memcpy(pathname_buffer, name, PLSC_OPEN_PATHMAX);
+		memcpy(pathname_buffer, name, PLSC_PATHMAX);
 		pathname_buffer_ptr = pathname_buffer;
 		error_stat = do_path_lookup(dfd, name, LOOKUP_FOLLOW, &nd_stat);
 		// Trap for bad paths:

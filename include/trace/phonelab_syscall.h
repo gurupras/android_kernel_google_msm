@@ -38,7 +38,7 @@ TRACE_EVENT(plsc_ioprio,
 
 #define PHONELAB_LOG_SYSCALLS
 
-#define PLSC_OPEN_PATHMAX 256
+#define PLSC_PATHMAX 256
 TRACE_EVENT(plsc_open,
 	TP_PROTO(char* syscall, unsigned long long start, unsigned long long delta, char* tmp, int fd, int session, struct kstat* stat_struct_ptr, int flags, umode_t mode),
 	TP_ARGS(syscall, start, delta, tmp, fd, session, stat_struct_ptr, flags, mode),
@@ -49,7 +49,7 @@ TRACE_EVENT(plsc_open,
 		__field(long, uid)
 		__field(long, pid)
 		__array(char, comm, TASK_COMM_LEN)
-		__array(char, pathname, PLSC_OPEN_PATHMAX)
+		__array(char, pathname, PLSC_PATHMAX)
 		__field(int, retval)
 		__field(int, session)
 		__field(loff_t, size)
@@ -64,7 +64,7 @@ TRACE_EVENT(plsc_open,
 		__entry->uid = current_uid();
 		__entry->pid = task_tgid_vnr(current);
 		memcpy(__entry->comm, current->comm, TASK_COMM_LEN);
-		memcpy(__entry->pathname, tmp, PLSC_OPEN_PATHMAX);
+		memcpy(__entry->pathname, tmp, PLSC_PATHMAX);
 		__entry->retval = fd;
 		__entry->session = session;
 		__entry->size = stat_struct_ptr->size;
@@ -213,7 +213,7 @@ TRACE_EVENT(plsc_delete,
 		__field(long, uid)
 		__field(long, pid)
 		__array(char, comm, TASK_COMM_LEN)
-		__array(char, pathname, PLSC_OPEN_PATHMAX)
+		__array(char, pathname, PLSC_PATHMAX)
 		__field(int, retval)
 		__field(loff_t, size)
 		__field(umode_t, type)
@@ -225,7 +225,7 @@ TRACE_EVENT(plsc_delete,
 		__entry->uid = current_uid();
 		__entry->pid = task_tgid_vnr(current);
 		memcpy(__entry->comm, current->comm, TASK_COMM_LEN);
-		memcpy(__entry->pathname, name, PLSC_OPEN_PATHMAX);
+		memcpy(__entry->pathname, name, PLSC_PATHMAX);
 		__entry->retval = error;
 		__entry->size = stat_struct_ptr->size;
 		__entry->type = stat_struct_ptr->mode & S_IFMT;

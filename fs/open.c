@@ -35,6 +35,9 @@
 
 #include <trace/phonelab_syscall.h>  // PL
 
+int kern_getcwd(char*, unsigned long);  // PL
+int kern_readlink(const char*, char*, int);  // PL
+
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
 	struct file *filp)
 {
@@ -974,11 +977,11 @@ EXPORT_SYMBOL(file_open_root);
 
 
 
-// Filepath filtering:  Return ==0 if on blacklist; !=0 if not
-int pathname_filter(const char* path) {
+// PL:  Filepath filtering:  Return ==0 if on blacklist; !=0 if not
+int plsc_pathname_filter(const char* path) {
 
 	// Path blacklists (i.e., any file in these directories):
-	char logpath[] = "/dev/log/";
+	//char logpath[] = "/dev/log/";
 	char catpath[] = "/data/data/edu.buffalo.cse.phonelab.conductor/app_LogcatTask/";
 	char devpath[] = "/dev/";
 	char syspath[] = "/sys/";
@@ -991,7 +994,6 @@ int pathname_filter(const char* path) {
 	char procdir[] = "/proc";
 
 	// Edit / comment out to adjust path filtering:
-//	#if LOG_FILTER_VIRTUAL
 	return (strncmp(path, devpath, strlen(devpath)) && \
 		strncmp(path, syspath, strlen(syspath)) && \
 		strncmp(path, procpath, strlen(procpath)) && \
@@ -1000,20 +1002,39 @@ int pathname_filter(const char* path) {
 		strcmp(path, devdir) && \
 		strcmp(path, sysdir) && \
 		strcmp(path, procdir) );
-	(void)logpath;
-/*
-	#else
-	return (strncmp(path, logpath, strlen(logpath)) && \
-		strncmp(path, catpath, strlen(catpath)) );
-	(void)devpath;
-	(void)syspath;
-	(void)procpath;
-	(void)debugpath;
-	(void)devdir;
-	(void)sysdir;
-	(void)procdir;
-	#endif
-*/
+
+}
+
+
+// Construct the absolute path of a given filename, relative to either current or another directory:
+void plsc_get_fullpath(const char* pathname, char* fullpath, int directory_fd) {
+
+	int LINK_BUFFER_LEN = 32;
+	int error;
+	char link_buffer[LINK_BUFFER_LEN];
+
+	strncpy(fullpath, "NONE\0", 5);
+	// Get the full (pre-filename) path that is requested:  either ...
+	if (directory_fd == AT_FDCWD) {
+		// ... (1) that of the CWD, or ...
+		error = kern_getcwd(fullpath, PLSC_PATHMAX - 1);
+	} else {
+		// ... (2) a specified directory fd:
+		snprintf(link_buffer, LINK_BUFFER_LEN, "/proc/self/fd/%i", directory_fd);
+		error = kern_readlink(link_buffer, fullpath, PLSC_PATHMAX - 1);
+	}
+	// Trap for (1) various errors and (2) overlong paths (reserve 64ish chars for filename):
+	if ((error <= 0) || (error > PLSC_PATHMAX - 65)) {
+		char errmsg[] = "ERR_FULLPATH\0";
+		strncpy(fullpath, errmsg, sizeof(errmsg));
+		return;
+	}
+	// Append filename to path:
+	fullpath[error] = '/';
+	fullpath[error + 1] = (char)0;
+	strncat(fullpath, pathname, 63);
+	return;
+
 }
 
 
@@ -1031,19 +1052,19 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	// PhoneLab
 	bool f_logging;
 	int session_id = 0;
-	char pathname_buffer[PLSC_OPEN_PATHMAX];
-	char* pathname_buffer_ptr = NULL;  // huge kludge
+	char pathname_buffer[PLSC_PATHMAX];
+	char fullpath_buffer[PLSC_PATHMAX];
+	char* buffer_ptr = pathname_buffer;  // huge kludge
 	struct kstat stat_struct = {.size = 0, .mode = 0};
 
 	if (!IS_ERR(tmp)) {
 		fd = get_unused_fd_flags(flags);
 
 		// PL:  Filter whether to log file activity by filetype:
-		f_logging = pathname_filter(tmp);
+		f_logging = plsc_pathname_filter(tmp);
 		// If logging, grab the pathname before it goes out of scope:
 		if (f_logging) {
-			memcpy(pathname_buffer, tmp, PLSC_OPEN_PATHMAX);
-			pathname_buffer_ptr = pathname_buffer;
+			memcpy(pathname_buffer, tmp, PLSC_PATHMAX);
 		}
 
 		if (fd >= 0) {
@@ -1067,7 +1088,6 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 					// at boot, stat() has a race condition against the newly recorded pathname
 					vfs_fstat(fd, &stat_struct);
 				}
-
 			}
 		}
 
@@ -1075,7 +1095,18 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	
 		// PL:  (Possibly) log the open():
 		if (f_logging) {
-			trace_plsc_open("open", time_start, sched_clock() - time_start, pathname_buffer_ptr, fd, session_id, &stat_struct, flags, mode);
+
+			if (pathname_buffer[0] != '/') {
+
+				plsc_get_fullpath(pathname_buffer, fullpath_buffer, dfd);
+//				strcpy(fullpath_buffer, "RELATIVE321");
+
+				buffer_ptr = fullpath_buffer;
+
+			}
+
+
+			trace_plsc_open("open", time_start, sched_clock() - time_start, buffer_ptr, fd, session_id, &stat_struct, flags, mode);
 		}
 
 

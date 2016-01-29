@@ -2864,6 +2864,63 @@ out:
 	return error;
 }
 
+
+
+// PhoneLab:  in-kern vers
+int kern_getcwd(char* path_buffer, unsigned long size)
+{
+	int error;
+	struct path pwd, root;
+	char *page = (char *) __get_free_page(GFP_USER);
+
+	if (!page)
+		return -ENOMEM;
+
+	get_fs_root_and_pwd(current->fs, &root, &pwd);
+
+	error = -ENOENT;
+	write_seqlock(&rename_lock);
+	if (!d_unlinked(pwd.dentry)) {
+		unsigned long len;
+		char *cwd = page + PAGE_SIZE;
+		int buflen = PAGE_SIZE;
+
+		prepend(&cwd, &buflen, "\0", 1);
+		error = prepend_path(&pwd, &root, &cwd, &buflen);
+		write_sequnlock(&rename_lock);
+
+		if (error < 0)
+			goto out;
+
+		/* Unreachable from current root */
+		if (error > 0) {
+			error = prepend_unreachable(&cwd, &buflen);
+			if (error)
+				goto out;
+		}
+
+		error = -ERANGE;
+		len = PAGE_SIZE + page - cwd;
+		if (len <= size) {
+			error = len;
+			//if (copy_to_user(buf, cwd, len))
+			//	error = -EFAULT;
+			memcpy(path_buffer, cwd, len);
+		}
+	} else {
+		write_sequnlock(&rename_lock);
+	}
+
+out:
+	path_put(&pwd);
+	path_put(&root);
+	free_page((unsigned long) page);
+	return error;
+}
+// PL end
+
+
+
 /*
  * Test whether new_dentry is a subdirectory of old_dentry.
  *

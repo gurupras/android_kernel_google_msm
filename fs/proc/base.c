@@ -1500,7 +1500,7 @@ static int do_proc_readlink(struct path *path, char __user *buffer, int buflen)
 	return len;
 }
 
-static int proc_pid_readlink(struct dentry * dentry, char __user * buffer, int buflen)
+/*static*/ int proc_pid_readlink(struct dentry * dentry, char __user * buffer, int buflen)
 {
 	int error = -EACCES;
 	struct inode *inode = dentry->d_inode;
@@ -1511,14 +1511,65 @@ static int proc_pid_readlink(struct dentry * dentry, char __user * buffer, int b
 		goto out;
 
 	error = PROC_I(inode)->op.proc_get_link(dentry, &path);
-	if (error)
+if (error)
 		goto out;
-
 	error = do_proc_readlink(&path, buffer, buflen);
 	path_put(&path);
 out:
 	return error;
 }
+
+
+
+// PhoneLab
+
+// Hacky kludge to enrun scoping limit -- subroutine definition is declared static (didn't want to edit)
+int (*ptr_proc_pid_readlink)(struct dentry*, char __user*, int) = proc_pid_readlink;
+
+int kern_do_proc_readlink(struct path* path, char* kern_buffer, int buflen) {
+
+	char *tmp = (char*)__get_free_page(GFP_TEMPORARY);
+	char *pathname;
+	int len;
+
+	if (!tmp)
+		return -ENOMEM;
+
+	pathname = d_path(path, tmp, PAGE_SIZE);
+	len = PTR_ERR(pathname);
+	if (IS_ERR(pathname))
+		goto out;
+	len = tmp + PAGE_SIZE - 1 - pathname;
+
+	if (len > buflen)
+		len = buflen;
+	memcpy(kern_buffer, pathname, len);  // PL:  in-kern copy
+
+out:
+	free_page((unsigned long)tmp);
+	return len;
+
+}
+
+int kern_proc_pid_readlink(struct dentry* dentry, char* kern_buffer, int buflen)  {
+
+	int error = -EACCES;
+	struct inode *inode = dentry->d_inode;
+	struct path path;
+
+	error = PROC_I(inode)->op.proc_get_link(dentry, &path);
+	if (error) {
+		goto out;
+	}
+	error = kern_do_proc_readlink(&path, kern_buffer, buflen);  // custom PL version
+	path_put(&path);
+out:
+	return error;
+}
+
+// PL End
+
+
 
 static const struct inode_operations proc_pid_link_inode_operations = {
 	.readlink	= proc_pid_readlink,

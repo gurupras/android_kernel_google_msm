@@ -324,6 +324,40 @@ SYSCALL_DEFINE3(readlink, const char __user *, path, char __user *, buf,
 }
 
 
+
+// PhoneLab
+int /*ptr_*/proc_pid_readlink(struct dentry*, char __user*, int);
+int kern_proc_pid_readlink(struct dentry*, char*, int);
+
+int kern_readlink(const char* pathname, char* kern_buf, int bufsiz) {
+
+	struct path path;
+	int error;
+
+	if (bufsiz <= 0)
+		return -EINVAL;
+
+	error = kern_path(pathname, LOOKUP_EMPTY, &path);  // existing in-kern version in lieu
+	if (!error) {
+		struct inode *inode = path.dentry->d_inode;
+
+		if (inode->i_op->readlink) {
+			// ** We only support proc_pid_readlink **
+			if (inode->i_op->readlink == /*ptr_*/proc_pid_readlink) {
+				error = kern_proc_pid_readlink(path.dentry, kern_buf, bufsiz);  // custom PL version
+			} else {
+				error = -EINVAL;
+			}
+		}
+		path_put(&path);
+	}
+	return error;
+
+}
+// PL end
+
+
+
 /* ---------- LFS-64 ----------- */
 #ifdef __ARCH_WANT_STAT64
 
