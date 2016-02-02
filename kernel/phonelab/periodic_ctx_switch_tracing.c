@@ -70,6 +70,8 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 //		printk(KERN_DEBUG "periodic: cpu=%d lim=%d\n", cpu, lim);
 		for(i = 0; i < lim; i++) {
 			task = per_cpu(ctx_switch_info[i], cpu);
+			if(task == NULL)
+				continue;
 			task_lock(task);
 			if(!task->is_logged[cpu]) {
 //				task_times(task, &utime, &stime);
