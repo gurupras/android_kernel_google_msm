@@ -644,8 +644,13 @@ int trace_print_context(struct trace_iterator *iter)
 			return 0;
 	}
 
-	return trace_seq_printf(s, " %5lu.%06lu: ",
+	ret = trace_seq_printf(s, " %5lu.%06lu: ",
 				secs, usec_rem);
+
+	if (!ret)
+		return 0;
+
+	return trace_seq_printf(s, " %10u ", iter->event_id);
 }
 
 int trace_print_lat_context(struct trace_iterator *iter)

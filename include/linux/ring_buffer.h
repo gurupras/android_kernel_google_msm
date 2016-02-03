@@ -16,6 +16,7 @@ struct ring_buffer_event {
 	u32		type_len:5, time_delta:27;
 	kmemcheck_bitfield_end(bitfield);
 
+	u32		event_id;
 	u32		array[];
 };
 
@@ -111,10 +112,10 @@ int ring_buffer_write(struct ring_buffer *buffer,
 
 struct ring_buffer_event *
 ring_buffer_peek(struct ring_buffer *buffer, int cpu, u64 *ts,
-		 unsigned long *lost_events);
+		 unsigned long *lost_events, u32 *event_id);
 struct ring_buffer_event *
 ring_buffer_consume(struct ring_buffer *buffer, int cpu, u64 *ts,
-		    unsigned long *lost_events);
+		    unsigned long *lost_events, u32 *event_id);
 
 struct ring_buffer_iter *
 ring_buffer_read_prepare(struct ring_buffer *buffer, int cpu);

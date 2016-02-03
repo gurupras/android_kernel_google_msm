@@ -1666,7 +1666,7 @@ static void trace_iterator_increment(struct trace_iterator *iter)
 
 static struct trace_entry *
 peek_next_entry(struct trace_iterator *iter, int cpu, u64 *ts,
-		unsigned long *lost_events)
+		unsigned long *lost_events, u32 *entry_id)
 {
 	struct ring_buffer_event *event;
 	struct ring_buffer_iter *buf_iter = iter->buffer_iter[cpu];
@@ -1678,7 +1678,7 @@ peek_next_entry(struct trace_iterator *iter, int cpu, u64 *ts,
 		event = ring_buffer_iter_peek(buf_iter, ts);
 	else
 		event = ring_buffer_peek(iter->tr->buffer, cpu, ts,
-					 lost_events);
+					 lost_events, entry_id);
 
 	ftrace_enable_cpu();
 
@@ -1692,7 +1692,7 @@ peek_next_entry(struct trace_iterator *iter, int cpu, u64 *ts,
 
 static struct trace_entry *
 __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
-		  unsigned long *missing_events, u64 *ent_ts)
+		  unsigned long *missing_events, u64 *ent_ts, u32 *entry_id)
 {
 	struct ring_buffer *buffer = iter->tr->buffer;
 	struct trace_entry *ent, *next = NULL;
@@ -1702,6 +1702,7 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 	int next_cpu = -1;
 	int next_size = 0;
 	int cpu;
+	u32 next_id = 0, eid;
 
 	/*
 	 * If we are in a per_cpu trace file, don't bother by iterating over
@@ -1710,7 +1711,7 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 	if (cpu_file > TRACE_PIPE_ALL_CPU) {
 		if (ring_buffer_empty_cpu(buffer, cpu_file))
 			return NULL;
-		ent = peek_next_entry(iter, cpu_file, ent_ts, missing_events);
+		ent = peek_next_entry(iter, cpu_file, ent_ts, missing_events, entry_id);
 		if (ent_cpu)
 			*ent_cpu = cpu_file;
 
@@ -1722,7 +1723,7 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 		if (ring_buffer_empty_cpu(buffer, cpu))
 			continue;
 
-		ent = peek_next_entry(iter, cpu, &ts, &lost_events);
+		ent = peek_next_entry(iter, cpu, &ts, &lost_events, &eid);
 
 		/*
 		 * Pick the entry with the smallest timestamp:
@@ -1733,6 +1734,7 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 			next_ts = ts;
 			next_lost = lost_events;
 			next_size = iter->ent_size;
+			next_id = eid;
 		}
 	}
 
@@ -1747,6 +1749,9 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 	if (missing_events)
 		*missing_events = next_lost;
 
+	if (entry_id)
+		*entry_id = next_id;
+
 	return next;
 }
 
@@ -1754,14 +1759,14 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 struct trace_entry *trace_find_next_entry(struct trace_iterator *iter,
 					  int *ent_cpu, u64 *ent_ts)
 {
-	return __find_next_entry(iter, ent_cpu, NULL, ent_ts);
+	return __find_next_entry(iter, ent_cpu, NULL, ent_ts, NULL);
 }
 
 /* Find the next real entry, and increment the iterator to the next entry */
 void *trace_find_next_entry_inc(struct trace_iterator *iter)
 {
 	iter->ent = __find_next_entry(iter, &iter->cpu,
-				      &iter->lost_events, &iter->ts);
+				      &iter->lost_events, &iter->ts, &iter->event_id);
 
 	if (iter->ent)
 		trace_iterator_increment(iter);
@@ -1774,7 +1779,7 @@ static void trace_consume(struct trace_iterator *iter)
 	/* Don't allow ftrace to trace into the ring buffers */
 	ftrace_disable_cpu();
 	ring_buffer_consume(iter->tr->buffer, iter->cpu, &iter->ts,
-			    &iter->lost_events);
+			    &iter->lost_events, &iter->event_id);
 	ftrace_enable_cpu();
 }
 
@@ -4680,6 +4685,46 @@ static const struct file_operations rb_simple_fops = {
 	.llseek		= default_llseek,
 };
 
+static ssize_t
+trace_clock_now_read(struct file *filp, char __user *ubuf,
+		     size_t count, loff_t *ppos)
+{
+	char buf[64];
+	int r;
+
+	r = sprintf(buf, "%llu\n", ftrace_now(raw_smp_processor_id()));
+	return simple_read_from_buffer(ubuf, count, ppos, buf, r);
+}
+
+static const struct file_operations trace_clock_now_fops = {
+	.open		= tracing_open_generic,
+	.read		= trace_clock_now_read,
+	.llseek		= default_llseek,
+};
+
+static ssize_t
+trace_clock_now_raw_read(struct file *filp, char __user *ubuf,
+		     size_t count, loff_t *ppos)
+{
+	int ret;
+	cycle_t now;
+	ssize_t size;
+
+	now = ftrace_now(raw_smp_processor_id());
+	size = sizeof(cycle_t);
+	ret = copy_to_user(ubuf, &now, size);
+	if (ret == size)
+		return -EFAULT;
+	*ppos += size;
+	return size;
+}
+
+static const struct file_operations trace_clock_now_raw_fops = {
+	.open		= tracing_open_generic,
+	.read		= trace_clock_now_raw_read,
+	.llseek		= default_llseek,
+};
+
 static __init int tracer_init_debugfs(void)
 {
 	struct dentry *d_tracer;
@@ -4746,6 +4791,12 @@ static __init int tracer_init_debugfs(void)
 	trace_create_file("dyn_ftrace_total_info", 0444, d_tracer,
 			&ftrace_update_tot_cnt, &tracing_dyn_info_fops);
 #endif
+
+	trace_create_file("trace_clock_now", 0444, d_tracer,
+				&global_trace, &trace_clock_now_fops);
+
+	trace_create_file("trace_clock_now_raw", 0444, d_tracer,
+				&global_trace, &trace_clock_now_raw_fops);
 
 	create_trace_options_dir();
 
