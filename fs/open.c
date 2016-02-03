@@ -1095,20 +1095,13 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	
 		// PL:  (Possibly) log the open():
 		if (f_logging) {
-
+			// If we do not already have the absolute path, construct it manually:
 			if (pathname_buffer[0] != '/') {
-
 				plsc_get_fullpath(pathname_buffer, fullpath_buffer, dfd);
-//				strcpy(fullpath_buffer, "RELATIVE321");
-
 				buffer_ptr = fullpath_buffer;
-
 			}
-
-
 			trace_plsc_open("open", time_start, sched_clock() - time_start, buffer_ptr, fd, session_id, &stat_struct, flags, mode);
 		}
-
 
 	}
 	return fd;

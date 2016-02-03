@@ -38,6 +38,8 @@
 
 #include "internal.h"
 
+#include <trace/phonelab_syscall.h>  // PhoneLab
+
 #ifndef arch_mmap_check
 #define arch_mmap_check(addr, len, flags)	(0)
 #endif
@@ -1129,6 +1131,11 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	struct file *file = NULL;
 	unsigned long retval = -EBADF;
 
+	// PhoneLab
+	unsigned long long time_start = sched_clock();
+	bool f_logging = false;
+	int session_id = 0;
+
 	if (!(flags & MAP_ANONYMOUS)) {
 		audit_mmap_fd(fd, flags);
 		if (unlikely(flags & MAP_HUGETLB))
@@ -1139,6 +1146,7 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	} else if (flags & MAP_HUGETLB) {
 		struct user_struct *user = NULL;
 		/*
+    assig
 		 * VM_NORESERVE is used because the reservations will be
 		 * taken when vm_ops->mmap() is called
 		 * A dummy user value is used because we are not locking
@@ -1151,6 +1159,12 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 			return PTR_ERR(file);
 	}
 
+	// PL
+	if (file) {
+		f_logging = file->f_logging;
+		session_id = file->session_id;
+	}
+
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 
 	down_write(&current->mm->mmap_sem);
@@ -1159,6 +1173,15 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 
 	if (file)
 		fput(file);
+
+	// PL
+	if (f_logging) {
+//		trace_plsc_mm("mmap_pgoff", time_start, sched_clock() - time_start, retval, session_id, fd, 0, 0);
+		trace_plsc_mm("mmap_pgoff", time_start, sched_clock() - time_start, retval, session_id, fd, addr, len, prot, flags, pgoff);
+	
+
+	}
+
 out:
 	return retval;
 }
