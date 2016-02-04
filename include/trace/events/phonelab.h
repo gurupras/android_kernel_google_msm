@@ -47,6 +47,29 @@ DEFINE_EVENT(phonelab_foreground_switch, phonelab_foreground_switch_out,
 	TP_ARGS(prev, next, cpu)
 );
 
+TRACE_EVENT(phonelab_periodic_ctx_switch_marker,
+
+	TP_PROTO(int cpu, int begin),
+
+	TP_ARGS(cpu, begin),
+
+	TP_STRUCT__entry(
+		__field( int,	cpu				)
+		__field( int,	begin				)
+	),
+
+	TP_fast_assign(
+		__entry->cpu = cpu;
+		__entry->begin = begin;
+	),
+
+	TP_printk("===================== CPU-%d %s =====================",
+		__entry->cpu,
+		__entry->begin == 1 ?
+			"BEGIN: PERIODIC_CTX_SWITCH_INFO" :
+			"END: PERIODIC_CTX_SWITCH_INFO  ")
+);
+
 TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 
 	TP_PROTO(struct task_struct *task, u32 cpu),
@@ -85,7 +108,7 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 		__entry->cstime	= cputime_to_clock_t(task->signal->cstime);
 	),
 
-	TP_printk("cpu=%d pid=%d tgid=%d comm=%s utime_t=%lu stime_t=%lu utime=%lu stime=%lu"
+	TP_printk("cpu=%d pid=%d tgid=%d comm=%s utime_t=%lu stime_t=%lu utime=%lu stime=%lu "
 		"cutime_t=%lu cstime_t=%lu cutime=%lu cstime=%lu",
 		__entry->cpu,
 		__entry->pid, __entry->tgid, __entry->comm,
