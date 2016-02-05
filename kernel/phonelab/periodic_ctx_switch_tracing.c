@@ -40,6 +40,7 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	struct periodic_work *pwork;
 	spinlock_t *spinlock;
 	unsigned long utime, stime, flags;
+	int DELAY=100;
 
 	cpu = smp_processor_id();
 
@@ -59,6 +60,12 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 
 	if(unlikely(!periodic_ctx_switch_info_ready))
 		goto out;
+	if(unlikely(atomic_read(&per_cpu(test_field, cpu)) == 1)) {
+		// We were rescheduled while another version of this function
+		// was still running..Just reschedule in 10ms
+		DELAY=10;
+		goto out;
+	}
 	local_irq_save(flags);
 		spinlock = &per_cpu(ctx_switch_info_lock, cpu);
 		spin_lock(spinlock);
@@ -97,7 +104,7 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	local_irq_restore(flags);
 out:
 	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
-	schedule_delayed_work_on(cpu, work, msecs_to_jiffies(100));
+	schedule_delayed_work_on(cpu, work, msecs_to_jiffies(DELAY));
 }
 
 static void
