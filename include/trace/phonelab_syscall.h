@@ -12,6 +12,15 @@
 
 #include <linux/tracepoint.h>
 
+#define PHONELAB_LOG_SYSCALLS
+#define PLSC_PATHMAX 256
+
+
+// N.b., array entry references in struct definition (TP_STRUCT__entry) are of type [entry], not [entry*]
+// For TID:  "__field(long, pid)" -- "__entry->tid = task_pid_vnr(current);"
+// For struct kstat:  loff_t size, umode_t mode
+// For task name:  strictly, should use get_task_comm() for atomic results; still safe w/o though -- buffer guaranteed to always have NULLTERM
+
 
 
 TRACE_EVENT(plsc_ioprio,
@@ -34,11 +43,6 @@ TRACE_EVENT(plsc_ioprio,
 
 
 
-// N.b., array entry references in struct definition (TP_STRUCT__entry) are of type [entry], not [entry*]
-
-#define PHONELAB_LOG_SYSCALLS
-
-#define PLSC_PATHMAX 256
 TRACE_EVENT(plsc_open,
 	TP_PROTO(char* syscall, unsigned long long start, unsigned long long delta, char* tmp, int fd, int session, struct kstat* stat_struct_ptr, int flags, umode_t mode),
 	TP_ARGS(syscall, start, delta, tmp, fd, session, stat_struct_ptr, flags, mode),
@@ -74,9 +78,7 @@ TRACE_EVENT(plsc_open,
 		),
 	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"uid\":%lu, \"pid\":%lu, \"task\":\"%s\", \"path\":\"%s\", \"retval\":%i, \"session\":%i, \"size\":%lli, \"type\": %i, \"flags\":%i, \"mode\":%i}", __get_str(action), __entry->start, __entry->delta, __entry->uid, __entry->pid, __entry->comm, __entry->pathname, __entry->retval, __entry->session, __entry->size, __entry->type, __entry->flags, __entry->mode)
 );
-// For TID:  "__field(long, pid)" -- "__entry->tid = task_pid_vnr(current);"
-// For struct kstat:  loff_t size, umode_t mode
-// For task name:  strictly, should use get_task_comm() for atomic results; still safe w/o though -- buffer guaranteed to always have NULLTERM
+
 
 
 TRACE_EVENT(plsc_rw,
@@ -103,6 +105,40 @@ TRACE_EVENT(plsc_rw,
 		__entry->offset = pos_old;
 		),
 	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"bytes\":%i, \"offset\":%llu}", __get_str(action), __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd, __entry->bytes, __entry->offset)
+);
+
+
+
+TRACE_EVENT(plsc_mmap,
+	TP_PROTO(char* syscall, unsigned long long start, unsigned long long delta, unsigned long retval, int session, unsigned int fd, unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags, unsigned long pgoff),
+	TP_ARGS(syscall, start, delta, retval, session, fd, addr, len, prot, flags, pgoff),
+	TP_STRUCT__entry(
+		__string(action, syscall)
+		__field(unsigned long long, start)
+		__field(unsigned long long, delta)
+		__field(unsigned long, retval)
+		__field(int, session)
+		__field(unsigned int, fd)
+		__field(unsigned long, addr)
+		__field(unsigned long, len)
+		__field(unsigned long, prot)
+		__field(unsigned long, flags)
+		__field(unsigned long, pgoff)
+		),
+	TP_fast_assign(
+		__assign_str(action, syscall);
+		__entry->start = start;
+		__entry->delta = delta;
+		__entry->retval = retval;
+		__entry->session = session;
+		__entry->fd = fd;
+		__entry->addr = addr;
+		__entry->len = len;
+		__entry->prot = prot;
+		__entry->flags = flags;
+		__entry->pgoff = pgoff;
+		),
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"retval\":%lu, \"session\":%i, \"fd\":%i, \"addr\":%lu, \"len\":%lu, \"prot\":%lu, \"flags\":%lu, \"pgoff\":%lu}", __get_str(action), __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd, __entry->addr, __entry->len, __entry->prot, __entry->flags, __entry->pgoff)
 );
 
 
