@@ -139,7 +139,8 @@ TRACE_EVENT(plsc_mmap,
 		__entry->flags = flags;
 		__entry->pgoff = pgoff;
 		),
-	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"retval\":%lu, \"session\":%i, \"fd\":%i, \"addr\":%lu, \"len\":%lu, \"prot\":%lu, \"flags\":%lu, \"pgoff\":%lu}", __get_str(action), __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd, __entry->addr, __entry->len, __entry->prot, __entry->flags, __entry->pgoff)
+//	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"retval\":%lu, \"session\":%i, \"fd\":%i, \"addr\":%lu, \"len\":%lu, \"prot\":%lu, \"flags\":%lu, \"pgoff\":%lu}", __get_str(action), __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd, __entry->addr, __entry->len, __entry->prot, __entry->flags, __entry->pgoff)
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"addr\":%lu, \"len\":%lu, \"prot\":%lu, \"flags\":%lu, \"pgoff\":%lu}", __get_str(action), __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd, __entry->addr, __entry->len, __entry->prot, __entry->flags, __entry->pgoff)
 );
 
 

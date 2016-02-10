@@ -1176,10 +1176,7 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 
 	// PL
 	if (f_logging) {
-//		trace_plsc_mm("mmap_pgoff", time_start, sched_clock() - time_start, retval, session_id, fd, 0, 0);
 		trace_plsc_mmap("mmap_pgoff", time_start, sched_clock() - time_start, retval, session_id, fd, addr, len, prot, flags, pgoff);
-	
-
 	}
 
 out:
