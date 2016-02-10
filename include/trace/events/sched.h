@@ -8,6 +8,29 @@
 #include <linux/tracepoint.h>
 #include <linux/binfmts.h>
 
+
+
+TRACE_EVENT(plsc_fork,
+	TP_PROTO(char* syscall, int flags, pid_t xid),
+	TP_ARGS(syscall, flags, xid),
+	TP_STRUCT__entry(
+		__string(action, syscall)
+		__field(int, flags)
+		__field(long, pid)
+		__field(long, tid)
+		__field(long, xid)
+		),
+	TP_fast_assign(
+		__assign_str(action, syscall);
+		__entry->flags = flags;
+		__entry->pid = current->tgid;
+		__entry->tid = current->pid;
+		__entry->xid = xid;
+		),
+	TP_printk("{\"action\":\"%s\", \"flags\":%i, \"parent_pid\":%lu, \"parent_tid\":%lu, \"child_xid\":%lu}", __get_str(action), __entry->flags, __entry->pid, __entry->tid, __entry->xid)
+);
+
+
 /*
  * Tracepoint for calling kthread_stop, performed to end a kthread:
  */

@@ -1640,6 +1640,16 @@ long do_fork(unsigned long clone_flags,
 	} else {
 		nr = PTR_ERR(p);
 	}
+
+	// PhoneLab
+	if (clone_flags & CLONE_THREAD) {
+		//printk("PID %i TID %i cloning TID %li\n", current->pid, current->tgid, nr);
+		trace_plsc_fork("clone", clone_flags, nr);
+	} else {
+		//printk("PID %i TID %i forking PID %li\n", current->pid, current->tgid, nr);
+		trace_plsc_fork("fork", clone_flags, nr);
+	}
+
 	return nr;
 }
 

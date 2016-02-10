@@ -17,7 +17,8 @@
 
 
 // N.b., array entry references in struct definition (TP_STRUCT__entry) are of type [entry], not [entry*]
-// For TID:  "__field(long, pid)" -- "__entry->tid = task_pid_vnr(current);"
+// For pid = task_tgid_vnr(current);
+// For tid = task_pid_vnr(current);
 // For struct kstat:  loff_t size, umode_t mode
 // For task name:  strictly, should use get_task_comm() for atomic results; still safe w/o though -- buffer guaranteed to always have NULLTERM
 
@@ -66,7 +67,7 @@ TRACE_EVENT(plsc_open,
 		__entry->start = start;
 		__entry->delta = delta;
 		__entry->uid = current_uid();
-		__entry->pid = task_tgid_vnr(current);
+		__entry->pid = current->tgid;
 		memcpy(__entry->comm, current->comm, TASK_COMM_LEN);
 		memcpy(__entry->pathname, tmp, PLSC_PATHMAX);
 		__entry->retval = fd;
