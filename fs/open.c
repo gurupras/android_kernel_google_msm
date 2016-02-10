@@ -665,6 +665,8 @@ static struct file *__dentry_open(struct dentry *dentry, struct vfsmount *mnt,
 		f->f_mode = FMODE_PATH;
 
 	inode = dentry->d_inode;
+	f->f_inode = inode;
+
 	if (f->f_mode & FMODE_WRITE) {
 		error = __get_file_write_access(inode, mnt);
 		if (error)
@@ -738,6 +740,7 @@ cleanup_all:
 	file_sb_list_del(f);
 	f->f_path.dentry = NULL;
 	f->f_path.mnt = NULL;
+	f->f_inode = NULL;
 cleanup_file:
 	put_filp(f);
 	dput(dentry);
