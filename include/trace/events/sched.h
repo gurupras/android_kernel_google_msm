@@ -8,6 +8,62 @@
 #include <linux/tracepoint.h>
 #include <linux/binfmts.h>
 
+
+// PhoneLab
+#include <linux/stat.h>
+
+#define PLSC_EXECMAX 256
+
+TRACE_EVENT(plsc_fork,
+	TP_PROTO(char* syscall, unsigned long long start, int flags, char* xid_type, pid_t xid_val),
+	TP_ARGS(syscall, start, flags, xid_type, xid_val),
+	TP_STRUCT__entry(
+		__string(action, syscall)
+		__field(unsigned long long, start)
+		__field(int, flags)
+		__field(long, pid)
+		__field(long, tid)
+		__field(char*, xid_type)
+		__field(long, xid_val)
+		),
+	TP_fast_assign(
+		__assign_str(action, syscall);
+		__entry->start = start;
+		__entry->flags = flags;
+		__entry->pid = current->tgid;
+		__entry->tid = current->pid;
+		__entry->xid_type = xid_type;
+		__entry->xid_val = xid_val;
+		),
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"flags\":%i, \"parent_pid\":%lu, \"parent_tid\":%lu, \"%s\":%lu}", __get_str(action), __entry->start, __entry->flags, __entry->pid, __entry->tid, __entry->xid_type, __entry->xid_val)
+);
+
+
+TRACE_EVENT(plsc_exec,
+	TP_PROTO(char* syscall, unsigned long long start, const char* tmp, struct kstat* stat_struct_ptr),
+	TP_ARGS(syscall, start, tmp, stat_struct_ptr),
+	TP_STRUCT__entry(
+		__string(action, syscall)
+		__field(unsigned long long, start)
+		__field(long, uid)
+		__field(long, pid)
+		__array(char, comm, TASK_COMM_LEN)
+		__array(char, pathname, PLSC_EXECMAX)
+		__field(loff_t, size)
+		),
+	TP_fast_assign(
+		__assign_str(action, syscall);
+		__entry->start = start;
+		__entry->uid = current_uid();
+		__entry->pid = current->tgid;
+		memcpy(__entry->comm, current->comm, TASK_COMM_LEN);
+		memcpy(__entry->pathname, tmp, PLSC_EXECMAX);
+		__entry->size = stat_struct_ptr->size;
+		),
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"uid\":%lu, \"pid\":%lu, \"task\":\"%s\", \"path\":\"%s\", \"size\":%lli}", __get_str(action), __entry->start, __entry->uid, __entry->pid, __entry->comm, __entry->pathname, __entry->size)
+);
+
+
 /*
  * Tracepoint for calling kthread_stop, performed to end a kthread:
  */

@@ -66,6 +66,9 @@
 
 #include <trace/events/sched.h>
 
+void plsc_get_fullpath(const char*, char*, int);  // PL
+int do_path_lookup(int, const char*, unsigned int, struct nameidata*);  // PL
+
 int core_uses_pid;
 char core_pattern[CORENAME_MAX_SIZE] = "core";
 unsigned int core_pipe_limit;
@@ -1465,6 +1468,26 @@ static int do_execve_common(const char *filename,
 	bool clear_in_exec;
 	int retval;
 	const struct cred *cred = current_cred();
+
+	// PL
+	unsigned long long time_start = sched_clock();
+	struct kstat stat_struct = {.size = 0, .mode = 0};
+	char fullpath_buffer[PLSC_EXECMAX];
+	char* buffer_ptr = (char*)filename;
+	int err;
+	struct nameidata nd;
+
+	// PhoneLab
+	if (filename[0] != '/') {
+		// If we do not already have the absolute path, construct it manually:
+		plsc_get_fullpath(filename, fullpath_buffer, AT_FDCWD);
+		buffer_ptr = fullpath_buffer;
+	}
+	err = do_path_lookup(AT_FDCWD, filename, LOOKUP_FOLLOW, &nd);
+	if (!err) {
+		err = vfs_getattr(nd.path.mnt, nd.path.dentry, &stat_struct);
+	}
+	trace_plsc_exec("execve", time_start, buffer_ptr, &stat_struct);
 
 	/*
 	 * We move the actual failure in case of RLIMIT_NPROC excess from

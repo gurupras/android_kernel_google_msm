@@ -1572,6 +1572,8 @@ long do_fork(unsigned long clone_flags,
 	int trace = 0;
 	long nr;
 
+	unsigned long long time_start = sched_clock();  // PL
+
 	/*
 	 * Do some preliminary argument and permissions checking before we
 	 * actually start allocating stuff
@@ -1640,6 +1642,16 @@ long do_fork(unsigned long clone_flags,
 	} else {
 		nr = PTR_ERR(p);
 	}
+
+	// PhoneLab
+	if (clone_flags & CLONE_THREAD) {
+		//printk("PID %i TID %i cloning TID %li\n", current->pid, current->tgid, nr);
+		trace_plsc_fork("clone", time_start, clone_flags, "child_tid", nr);
+	} else {
+		//printk("PID %i TID %i forking PID %li\n", current->pid, current->tgid, nr);
+		trace_plsc_fork("fork", time_start, clone_flags, "child_pid", nr);
+	}
+
 	return nr;
 }
 
