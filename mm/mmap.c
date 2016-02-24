@@ -1146,6 +1146,7 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	} else if (flags & MAP_HUGETLB) {
 		struct user_struct *user = NULL;
 		/*
+    assig
 		 * VM_NORESERVE is used because the reservations will be
 		 * taken when vm_ops->mmap() is called
 		 * A dummy user value is used because we are not locking
@@ -1177,7 +1178,6 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	if (f_logging) {
 		trace_plsc_mmap("mmap_pgoff", time_start, sched_clock() - time_start, retval, session_id, fd, addr, len, prot, flags, pgoff);
 	}
-
 
 out:
 	return retval;
