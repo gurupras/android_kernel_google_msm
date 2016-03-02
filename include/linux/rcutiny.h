@@ -163,9 +163,25 @@ static inline void rcu_cpu_stall_reset(void)
 extern int rcu_scheduler_active __read_mostly;
 extern void rcu_scheduler_starting(void);
 #else /* #ifdef CONFIG_DEBUG_LOCK_ALLOC */
+
 static inline void rcu_scheduler_starting(void)
 {
 }
 #endif /* #else #ifdef CONFIG_DEBUG_LOCK_ALLOC */
+
+#if defined(CONFIG_DEBUG_LOCK_ALLOC) || defined(CONFIG_RCU_TRACE)
+
+static inline bool rcu_is_watching(void)
+{
+	return __rcu_is_watching();
+}
+
+#else /* defined(CONFIG_DEBUG_LOCK_ALLOC) || defined(CONFIG_RCU_TRACE) */
+
+static inline bool rcu_is_watching(void)
+{
+	return true;
+}
+
 
 #endif /* __LINUX_RCUTINY_H */

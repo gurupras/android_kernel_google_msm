@@ -172,6 +172,19 @@ void rcu_irq_enter(void)
 	local_irq_restore(flags);
 }
 
+#if defined(CONFIG_DEBUG_LOCK_ALLOC) || defined(CONFIG_RCU_TRACE)
+
+/*
+ * Test whether RCU thinks that the current CPU is idle.
+ */
+bool notrace __rcu_is_watching(void)
+{
+	return rcu_dynticks_nesting;
+}
+EXPORT_SYMBOL(__rcu_is_watching);
+
+#endif /* defined(CONFIG_DEBUG_LOCK_ALLOC) || defined(CONFIG_RCU_TRACE) */
+
 #ifdef CONFIG_PROVE_RCU
 
 /*

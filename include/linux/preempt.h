@@ -25,6 +25,11 @@
 
 #ifdef CONFIG_PREEMPT
 
+static __always_inline bool test_preempt_need_resched(void)
+{
+	return false;
+}
+
 asmlinkage void preempt_schedule(void);
 
 #define preempt_check_resched() \

@@ -32,7 +32,6 @@ extern void ftrace_call_old(void);
 
 #ifndef __ASSEMBLY__
 
-#if defined(CONFIG_FRAME_POINTER) && !defined(CONFIG_ARM_UNWIND)
 /*
  * return_address uses walk_stackframe to do it's work.  If both
  * CONFIG_FRAME_POINTER=y and CONFIG_ARM_UNWIND=y walk_stackframe uses unwind
@@ -43,24 +42,7 @@ extern void ftrace_call_old(void);
 
 void *return_address(unsigned int);
 
-#else
-
-extern inline void *return_address(unsigned int level)
-{
-	return NULL;
-}
-
-#endif
-
-#define HAVE_ARCH_CALLER_ADDR
-
-#define CALLER_ADDR0 ((unsigned long)__builtin_return_address(0))
-#define CALLER_ADDR1 ((unsigned long)return_address(1))
-#define CALLER_ADDR2 ((unsigned long)return_address(2))
-#define CALLER_ADDR3 ((unsigned long)return_address(3))
-#define CALLER_ADDR4 ((unsigned long)return_address(4))
-#define CALLER_ADDR5 ((unsigned long)return_address(5))
-#define CALLER_ADDR6 ((unsigned long)return_address(6))
+#define ftrace_return_address(n) return_address(n)
 
 #endif /* ifndef __ASSEMBLY__ */
 
