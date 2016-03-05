@@ -171,6 +171,25 @@ TRACE_EVENT(phonelab_num_online_cpus,
 	TP_printk("num_online_cpus=%d", __entry->ncpus)
 );
 
+TRACE_EVENT(phonelab_periodic_warning_cpu,
+
+	TP_PROTO(char *message, int cpu),
+
+	TP_ARGS(message, cpu),
+
+	TP_STRUCT__entry(
+		__string(	message,	message	)
+		__field(	int,		cpu	)
+	),
+
+	TP_fast_assign(
+		__assign_str(message, message);
+		__entry->cpu		= cpu;
+	),
+
+	TP_printk("warning=%s cpu=%d", __get_str(message), __entry->cpu)
+);
+
 #endif	/* _TRACE_PHONELAB_H */
 
 /* This part must be outside protection */
