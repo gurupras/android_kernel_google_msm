@@ -67,12 +67,8 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		goto out;
 	}
 	local_irq_save(flags);
-		spinlock = &per_cpu(ctx_switch_info_lock, cpu);
-		spin_lock(spinlock);
-
 		atomic_set(&per_cpu(test_field, cpu), 1);
 		trace_phonelab_periodic_ctx_switch_marker(cpu, 1);
-		barrier();
 		lim = per_cpu(ctx_switch_info_idx, cpu);
 
 //		printk(KERN_DEBUG "periodic: cpu=%d lim=%d\n", cpu, lim);
@@ -97,10 +93,7 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		}
 		clear_cpu_ctx_switch_info(cpu);
 		atomic_set(&per_cpu(test_field, cpu), 0);
-		barrier();
 		trace_phonelab_periodic_ctx_switch_marker(cpu, 0);
-
-		spin_unlock(spinlock);
 	local_irq_restore(flags);
 out:
 	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
