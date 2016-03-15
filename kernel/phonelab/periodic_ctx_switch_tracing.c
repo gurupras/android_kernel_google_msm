@@ -124,24 +124,22 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	struct delayed_work *work;
 
 	switch (action) {
-	case CPU_UP_PREPARE:
-	case CPU_UP_PREPARE_FROZEN:
+	case CPU_ONLINE:
+	case CPU_ONLINE_FROZEN:
+	case CPU_DOWN_FAILED:
+	case CPU_DOWN_FAILED_FROZEN:
 //		printk(KERN_DEBUG "periodic: scheduling work for CPU: %ld\n", cpu);
 		clear_cpu_ctx_switch_info(cpu);
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 		schedule_delayed_work(work, msecs_to_jiffies(100));
 		break;
-#ifdef CONFIG_HOTPLUG_CPU
-	case CPU_UP_CANCELED:
-	case CPU_UP_CANCELED_FROZEN:
-	case CPU_DEAD:
-	case CPU_DEAD_FROZEN:
+	case CPU_DOWN_PREPARE:
+	case CPU_DOWN_PREPARE_FROZEN:
 //		printk(KERN_DEBUG "periodic: cancelling work for CPU: %ld\n", cpu);
 		clear_cpu_ctx_switch_info(cpu);
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 		cancel_delayed_work(work);
 		break;
-#endif
 	};
 	return NOTIFY_OK;
 }
