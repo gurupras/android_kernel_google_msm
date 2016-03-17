@@ -48,7 +48,9 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	pwork = container_of(dwork, struct periodic_work, dwork);
 	wcpu = pwork->cpu;
 	if(unlikely(cpu != wcpu)) {
-		printk(KERN_DEBUG "periodic: wrong cpu (%d != %d)..restarting\n", cpu, wcpu);
+		char buf[64];
+		snprintf(buf, 64, "wrong cpu (%d != %d)..restarting", cpu, wcpu);
+		trace_phonelab_periodic_warning_cpu(buf, cpu);
 		cpu = wcpu;
 		goto out;
 	}
