@@ -190,6 +190,27 @@ TRACE_EVENT(phonelab_periodic_warning_cpu,
 	TP_printk("warning=%s cpu=%d", __get_str(message), __entry->cpu)
 );
 
+TRACE_EVENT(phonelab_timing,
+
+	TP_PROTO(const char *func, int cpu, u64 time_ns),
+
+	TP_ARGS(func, cpu, time_ns),
+
+	TP_STRUCT__entry(
+		__string(	func,	func	)
+		__field(	int,		cpu	)
+		__field(	u64,		time_ns	)
+	),
+
+	TP_fast_assign(
+		__assign_str(func, func);
+		__entry->time_ns	= time_ns;
+		__entry->cpu		= cpu;
+	),
+
+	TP_printk("func=%s time=%lluns cpu=%d", __get_str(func), __entry->time_ns, __entry->cpu)
+);
+
 #endif	/* _TRACE_PHONELAB_H */
 
 /* This part must be outside protection */

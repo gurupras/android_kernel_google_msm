@@ -41,8 +41,13 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	spinlock_t *spinlock;
 	unsigned long utime, stime, flags;
 	int DELAY=100;
-
-	cpu = smp_processor_id();
+#ifdef TIMING
+	u64 ns;
+#endif
+	cpu = get_cpu();
+#ifdef TIMING
+	ns = sched_clock_cpu(cpu);
+#endif
 
 	dwork = container_of(w, struct delayed_work, work);
 	pwork = container_of(dwork, struct periodic_work, dwork);
@@ -68,7 +73,7 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		DELAY=10;
 		goto out;
 	}
-	local_irq_save(flags);
+//	local_irq_save(flags);
 		atomic_set(&per_cpu(test_field, cpu), 1);
 		trace_phonelab_periodic_ctx_switch_marker(cpu, 1);
 		lim = per_cpu(ctx_switch_info_idx, cpu);
@@ -96,10 +101,14 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		clear_cpu_ctx_switch_info(cpu);
 		atomic_set(&per_cpu(test_field, cpu), 0);
 		trace_phonelab_periodic_ctx_switch_marker(cpu, 0);
-	local_irq_restore(flags);
+//	local_irq_restore(flags);
 out:
 	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 	schedule_delayed_work_on(cpu, work, msecs_to_jiffies(DELAY));
+#ifdef TIMING
+	trace_phonelab_timing(__func__, cpu, sched_clock_cpu(cpu) - ns);
+#endif
+	put_cpu();
 }
 
 static void
