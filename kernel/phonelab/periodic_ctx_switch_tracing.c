@@ -142,7 +142,7 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 //		printk(KERN_DEBUG "periodic: scheduling work for CPU: %ld\n", cpu);
 		clear_cpu_ctx_switch_info(cpu);
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
-		schedule_delayed_work(work, msecs_to_jiffies(100));
+		schedule_delayed_work_on(cpu, work, msecs_to_jiffies(100));
 		break;
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
