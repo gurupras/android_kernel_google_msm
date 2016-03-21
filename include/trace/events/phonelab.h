@@ -232,6 +232,25 @@ TRACE_EVENT(phonelab_info,
 	TP_printk("func=%s cpu=%d msg=%s", __get_str(func), __entry->cpu, __get_str(msg))
 );
 
+TRACE_EVENT(phonelab_instruction_count,
+
+	TP_PROTO(int cpu, u32 count),
+
+	TP_ARGS(cpu, count),
+
+	TP_STRUCT__entry(
+		__field(	int,		cpu	)
+		__field(	u32,		count	)
+	),
+
+	TP_fast_assign(
+		__entry->cpu		= cpu;
+		__entry->count		= count;
+	),
+
+	TP_printk("cpu=%d instructions=%u", __entry->cpu, __entry->count)
+);
+
 #endif	/* _TRACE_PHONELAB_H */
 
 /* This part must be outside protection */
