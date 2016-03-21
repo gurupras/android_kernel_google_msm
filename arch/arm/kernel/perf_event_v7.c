@@ -17,6 +17,7 @@
  */
 
 #include <linux/phonelab.h>
+#include <trace/events/phonelab.h>
 
 #ifdef CONFIG_CPU_V7
 
@@ -847,6 +848,7 @@ inline int armv7_pmnc_select_counter(int idx)
 inline u32 armv7pmu_read_counter(int idx)
 {
 	u32 value = 0;
+	char buf[32];
 
 	if (!armv7_pmnc_counter_valid(idx))
 		pr_err("CPU%u reading wrong counter %d\n",
@@ -855,12 +857,18 @@ inline u32 armv7pmu_read_counter(int idx)
 		asm volatile("mrc p15, 0, %0, c9, c13, 0" : "=r" (value));
 	else if (armv7_pmnc_select_counter(idx) == idx)
 		asm volatile("mrc p15, 0, %0, c9, c13, 2" : "=r" (value));
+	sprintf(buf, "idx=%d", idx);
+	trace_phonelab_info(__func__, -1, buf);
 
 	return value;
 }
 
 inline void armv7pmu_write_counter(int idx, u32 value)
 {
+	char buf[32];
+	sprintf(buf, "idx=%d val=%u", idx, value);
+	trace_phonelab_info(__func__, -1, buf);
+
 	if (!armv7_pmnc_counter_valid(idx))
 		pr_err("CPU%u writing wrong counter %d\n",
 			smp_processor_id(), idx);
@@ -872,8 +880,15 @@ inline void armv7pmu_write_counter(int idx, u32 value)
 
 inline void armv7_pmnc_write_evtsel(int idx, u32 val)
 {
+	char buf[32];
+	sprintf(buf, "idx=%d, val=%d", idx, val);
+	trace_phonelab_info(__func__, -1, buf);
+
 	if (armv7_pmnc_select_counter(idx) == idx) {
 		val &= ARMV7_EVTYPE_MASK;
+		memset(buf, 0, sizeof buf);
+		sprintf(buf, "val=0x%X ARMV7_EVTYPE_MASK=0x%X", val, (unsigned int) ARMV7_EVTYPE_MASK);
+		trace_phonelab_info(__func__, -1, buf);
 		asm volatile("mcr p15, 0, %0, c9, c13, 1" : : "r" (val));
 	}
 }
@@ -881,6 +896,7 @@ inline void armv7_pmnc_write_evtsel(int idx, u32 val)
 inline int armv7_pmnc_enable_counter(int idx)
 {
 	u32 counter;
+	char buf[32];
 
 	if (!armv7_pmnc_counter_valid(idx)) {
 		pr_err("CPU%u enabling wrong PMNC counter %d\n",
@@ -889,6 +905,8 @@ inline int armv7_pmnc_enable_counter(int idx)
 	}
 
 	counter = ARMV7_IDX_TO_COUNTER(idx);
+	sprintf(buf, "idx=%d counter=%u", idx, counter);
+	trace_phonelab_info(__func__, -1, buf);
 	asm volatile("mcr p15, 0, %0, c9, c12, 1" : : "r" (BIT(counter)));
 	return idx;
 }
@@ -896,6 +914,7 @@ inline int armv7_pmnc_enable_counter(int idx)
 inline int armv7_pmnc_disable_counter(int idx)
 {
 	u32 counter;
+	char buf[32];
 
 	if (!armv7_pmnc_counter_valid(idx)) {
 		pr_err("CPU%u disabling wrong PMNC counter %d\n",
@@ -904,6 +923,8 @@ inline int armv7_pmnc_disable_counter(int idx)
 	}
 
 	counter = ARMV7_IDX_TO_COUNTER(idx);
+	sprintf(buf, "idx=%d counter=%u", idx, counter);
+	trace_phonelab_info(__func__, -1, buf);
 	asm volatile("mcr p15, 0, %0, c9, c12, 2" : : "r" (BIT(counter)));
 	return idx;
 }

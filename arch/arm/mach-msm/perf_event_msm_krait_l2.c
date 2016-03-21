@@ -11,6 +11,8 @@
  * GNU General Public License for more details.
  */
 
+#ifdef CONFIG_PERF_EVENTS
+
 #include <linux/irq.h>
 #include <asm/pmu.h>
 #include <linux/platform_device.h>
@@ -589,3 +591,4 @@ static int __init register_krait_l2_pmu_driver(void)
 	return platform_driver_register(&krait_l2_pmu_driver);
 }
 device_initcall(register_krait_l2_pmu_driver);
+#endif

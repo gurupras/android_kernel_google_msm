@@ -15,6 +15,8 @@
 #include <asm/vfp.h>
 #include "../vfp/vfpinstr.h"
 
+#include <trace/events/phonelab.h>
+
 #ifdef CONFIG_CPU_V7
 #define KRAIT_EVT_PREFIX 1
 #define KRAIT_VENUMEVT_PREFIX 2
@@ -242,52 +244,72 @@ static unsigned int get_krait_evtinfo(unsigned int krait_evt_type,
 static u32 krait_read_pmresr0(void)
 {
 	u32 val;
-
+	char buf[32];
 	asm volatile("mrc p15, 1, %0, c9, c15, 0" : "=r" (val));
+	sprintf(buf, "val=%u", val);
+	trace_phonelab_info(__func__, smp_processor_id(), buf);
 	return val;
 }
 
 static void krait_write_pmresr0(u32 val)
 {
+	char buf[32];
+	sprintf(buf, "val=%u", val);
+	trace_phonelab_info(__func__, smp_processor_id(), buf);
 	asm volatile("mcr p15, 1, %0, c9, c15, 0" : : "r" (val));
 }
 
 static u32 krait_read_pmresr1(void)
 {
 	u32 val;
-
+	char buf[32];
 	asm volatile("mrc p15, 1, %0, c9, c15, 1" : "=r" (val));
+	sprintf(buf, "val=%u", val);
+	trace_phonelab_info(__func__, smp_processor_id(), buf);
 	return val;
 }
 
 static void krait_write_pmresr1(u32 val)
 {
+	char buf[32];
+	sprintf(buf, "val=%u", val);
+	trace_phonelab_info(__func__, smp_processor_id(), buf);
 	asm volatile("mcr p15, 1, %0, c9, c15, 1" : : "r" (val));
 }
 
 static u32 krait_read_pmresr2(void)
 {
 	u32 val;
-
+	char buf[32];
 	asm volatile("mrc p15, 1, %0, c9, c15, 2" : "=r" (val));
+	sprintf(buf, "val=%u", val);
+	trace_phonelab_info(__func__, smp_processor_id(), buf);
 	return val;
 }
 
 static void krait_write_pmresr2(u32 val)
 {
+	char buf[32];
+	sprintf(buf, "val=%u", val);
+	trace_phonelab_info(__func__, smp_processor_id(), buf);
 	asm volatile("mcr p15, 1, %0, c9, c15, 2" : : "r" (val));
 }
 
 static u32 krait_read_vmresr0(void)
 {
 	u32 val;
-
+	char buf[32];
 	asm volatile ("mrc p10, 7, %0, c11, c0, 0" : "=r" (val));
+	sprintf(buf, "val=%u", val);
+	trace_phonelab_info(__func__, smp_processor_id(), buf);
 	return val;
 }
 
 static void krait_write_vmresr0(u32 val)
 {
+	char buf[32];
+	sprintf(buf, "val=%u", val);
+	trace_phonelab_info(__func__, smp_processor_id(), buf);
 	asm volatile ("mcr p10, 7, %0, c11, c0, 0" : : "r" (val));
 }
 
@@ -445,6 +467,7 @@ static void krait_pmu_enable_event(struct hw_perf_event *hwc, int idx, int cpu)
 	unsigned long long prev_count = local64_read(&hwc->prev_count);
 	struct pmu_hw_events *events = cpu_pmu->get_hw_events();
 
+	char buf[64];
 	/*
 	 * Enable counter and interrupt, and set the counter to count
 	 * the event that we're interested in.
@@ -462,6 +485,12 @@ static void krait_pmu_enable_event(struct hw_perf_event *hwc, int idx, int cpu)
 		val = hwc->config_base;
 		val &= KRAIT_EVENT_MASK;
 
+		sprintf(buf, "event=%d perf-cpu=%d val=%d", idx, cpu, val);
+		trace_phonelab_info(__func__, cpu, buf);
+		memset(buf, 0, sizeof buf);
+		sprintf(buf, "hwc->config_base=0x%X KRAIT_MODE_EXCL_MASK=0x%X", (unsigned int) hwc->config_base, (unsigned int) KRAIT_MODE_EXCL_MASK);
+		trace_phonelab_info(__func__, cpu, buf);
+
 		if (val < 0x40) {
 			armv7_pmnc_write_evtsel(idx, hwc->config_base);
 		} else {
@@ -469,6 +498,10 @@ static void krait_pmu_enable_event(struct hw_perf_event *hwc, int idx, int cpu)
 
 			if (event == -EINVAL)
 				goto krait_out;
+
+			memset(buf, 0, sizeof buf);
+			sprintf(buf, "event=%u", (unsigned int) event);
+			trace_phonelab_info(__func__, cpu, buf);
 
 			/* Restore Mode-exclusion bits */
 			event |= (hwc->config_base & KRAIT_MODE_EXCL_MASK);
