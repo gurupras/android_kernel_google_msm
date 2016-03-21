@@ -36,4 +36,14 @@ void alog_i(char *tag, const char *fmt, ...);
 void alog_w(char *tag, const char *fmt, ...);
 void alog_e(char *tag, const char *fmt, ...);
 
+int armv7_pmnc_select_counter(int idx);
+u32 armv7pmu_read_counter(int idx);
+void armv7pmu_write_counter(int idx, u32 value);
+void armv7_pmnc_write_evtsel(int idx, u32 val);
+int armv7_pmnc_enable_counter(int idx);
+int armv7_pmnc_disable_counter(int idx);
+u32 __init armv7_read_num_pmnc_events(void);
+void armv7_pmnc_write(u32 val);
+u32 armv7_pmnc_read(void);
+
 #endif	/* __PHONELAB__H_ */
