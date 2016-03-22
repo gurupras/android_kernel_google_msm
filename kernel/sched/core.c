@@ -92,6 +92,8 @@
 #include <trace/events/sched.h>
 #include <trace/events/phonelab.h>
 
+#include <linux/cgroup.h>
+
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
 
 void start_bandwidth_timer(struct hrtimer *period_timer, ktime_t period)
@@ -2064,25 +2066,24 @@ asmlinkage void schedule_tail(struct task_struct *prev)
 
 static inline int is_background_task(struct task_struct *task)
 {
-	int i;
-	char buf[256];
+#ifdef CONFIG_CGROUPS
 	int bg_task = 0;
+	struct css_set *css;
 
-	if(task->cgroups) {
-		for(i = 0; i < CGROUP_SUBSYS_COUNT; i++) {
-			if(task->cgroups->subsys[i]) {
-				if(task->cgroups->subsys[i]->cgroup) {
-					cgroup_path(task->cgroups->subsys[i]->cgroup, buf, 256);
-					if(strcmp("/bg_non_interactive", buf) == 0) {
-						bg_task = 1;
-						break;
-					}
-					memset(buf, 0, 256);
-				}
-			}
+	// task->cgroups is RCU protected
+	rcu_read_lock();
+	css = rcu_dereference(task->cgroups);
+
+	if (likely(css)) {
+		if(likely(css->subsys[cpu_cgroup_subsys_id]->cgroup)) {
+			bg_task = cgroup_is_bg_task(css->subsys[cpu_cgroup_subsys_id]->cgroup);
 		}
 	}
+
+	rcu_read_unlock();
 	return bg_task;
+#endif
+	return 0;
 }
 
 /*
