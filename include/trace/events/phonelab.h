@@ -154,9 +154,9 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info2,
 		__entry->stime	= (unsigned long long)(stats->agg_time.stime);
 		__entry->runtime	= stats->agg_time.sum_exec_runtime;
 
-		__entry->utime	= (unsigned long long)stats->agg_bg_time.utime;
-		__entry->stime	= (unsigned long long)stats->agg_bg_time.stime;
-		__entry->runtime	= stats->agg_bg_time.sum_exec_runtime;
+		__entry->bg_utime	= (unsigned long long)stats->agg_bg_time.utime;
+		__entry->bg_stime	= (unsigned long long)stats->agg_bg_time.stime;
+		__entry->bg_runtime	= stats->agg_bg_time.sum_exec_runtime;
 
 		__entry->status_running = stats->dequeue_reasons[0];
 		__entry->status_interruptible = stats->dequeue_reasons[1];
