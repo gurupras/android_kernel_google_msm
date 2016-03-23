@@ -211,6 +211,8 @@ do_trace_periodic_ctx_switch(int cpu)
 	struct hlist_node *node;
 	struct hlist_head *bucket;
 
+	periodic_ctx_switch_update(current, current);
+
 	for (i = 0; i < HT_SIZE; i++) {
 		bucket = &per_cpu(ctx_switch_ht[i], cpu);
 		hlist_for_each_entry(stats, node, bucket, hlist) {
@@ -237,6 +239,14 @@ clear_cpu_ctx_switch_info(int cpu)
 			if (stats->pid != current->pid) {
 				hlist_del(&stats->hlist);
 				kfree(stats);
+			} else {
+				stats->count_as_bg = 0;
+				memset(&stats->agg_time, 0, sizeof(struct task_cputime));
+				memset(&stats->agg_bg_time, 0, sizeof(struct task_cputime));
+				stats->dequeue_reasons[0] = 0;
+				stats->dequeue_reasons[1] = 0;
+				stats->dequeue_reasons[2] = 0;
+				stats->dequeue_reasons[3] = 0;
 			}
 		}
 	}
