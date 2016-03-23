@@ -219,6 +219,7 @@ do_trace_periodic_ctx_switch(int cpu)
 	}
 
 	// Clear the hashtable
+	clear_cpu_ctx_switch_info(cpu);
 }
 
 static
