@@ -2079,12 +2079,13 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	prepare_task_switch(rq, prev, next);
 	cpu = smp_processor_id();
 
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
 	if(likely(periodic_ctx_switch_info_ready)) {
 		if(atomic_read(&per_cpu(test_field, cpu))) {
 			trace_phonelab_periodic_warning_cpu("context switch happening during local_irq_disabled()", cpu);
 			goto end;
 		}
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 		lim = per_cpu(ctx_switch_info_idx, cpu);
 
 		if(lim < CTX_SWITCH_INFO_LIM) {
@@ -2095,6 +2096,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 			trace_phonelab_periodic_lim_exceeded(cpu);
 			per_cpu(ctx_switch_info_idx, cpu) = 0;
 		}
+#endif
 	}
 end:
 #endif

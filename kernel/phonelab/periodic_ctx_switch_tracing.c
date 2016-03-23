@@ -153,6 +153,7 @@ void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *ne
 	struct hlist_head *bucket;
 	struct periodic_task_stats *stats;
 	struct task_cputime time_diff, cur_time;
+	char buf[128];
 
 	if(unlikely(!periodic_ctx_switch_info_ready))
 		return;
@@ -183,7 +184,8 @@ void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *ne
 			stats->dequeue_reasons[3]++;
 		}
 	} else {
-		printk(KERN_INFO "periodic_stats: could not find pid %d (%s) cpu: %d\n", prev->pid, prev->comm, cpu);
+		sprintf(buf, "periodic_stats: could not find pid %d (%s) cpu: %d\n", prev->pid, prev->comm, cpu);
+		trace_phonelab_periodic_warning_cpu(buf, cpu);
 	}
 
 	// Account for the new task
@@ -222,7 +224,7 @@ do_trace_periodic_ctx_switch(int cpu)
 	clear_cpu_ctx_switch_info(cpu);
 }
 
-static
+static inline
 void
 clear_cpu_ctx_switch_info(int cpu)
 {
@@ -252,7 +254,6 @@ do_trace_periodic_ctx_switch(int cpu)
 	struct task_struct *task;
 
 	atomic_set(&per_cpu(test_field, cpu), 1);
-	trace_phonelab_periodic_ctx_switch_marker(cpu, 1);
 	lim = per_cpu(ctx_switch_info_idx, cpu);
 
 //		printk(KERN_DEBUG "periodic: cpu=%d lim=%d\n", cpu, lim);
@@ -277,10 +278,10 @@ do_trace_periodic_ctx_switch(int cpu)
 	}
 	clear_cpu_ctx_switch_info(cpu);
 	atomic_set(&per_cpu(test_field, cpu), 0);
-	trace_phonelab_periodic_ctx_switch_marker(cpu, 0);
 }
 
-static void
+static inline
+void
 clear_cpu_ctx_switch_info(int cpu)
 {
 	int i;
@@ -336,7 +337,9 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		goto out;
 	}
 
+	trace_phonelab_periodic_ctx_switch_marker(cpu, 1);
 	do_trace_periodic_ctx_switch(cpu);
+	trace_phonelab_periodic_ctx_switch_marker(cpu, 0);
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	val = read_instruction_counter();

@@ -10,10 +10,10 @@
 #define CTX_SWITCH_INFO_LIM	4096
 DECLARE_PER_CPU(struct task_struct *[CTX_SWITCH_INFO_LIM], ctx_switch_info);
 DECLARE_PER_CPU(int, ctx_switch_info_idx);
-DECLARE_PER_CPU(atomic_t, test_field);
 #endif
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+DECLARE_PER_CPU(atomic_t, test_field);
 extern int periodic_ctx_switch_info_ready;
 #endif
 
