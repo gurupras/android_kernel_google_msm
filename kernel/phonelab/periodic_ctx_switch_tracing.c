@@ -33,6 +33,7 @@ DEFINE_PER_CPU(int, ctx_switch_info_idx);
 DEFINE_PER_CPU(spinlock_t, ctx_switch_info_lock);
 DEFINE_PER_CPU(atomic_t, test_field);
 DEFINE_PER_CPU(struct periodic_work, periodic_ctx_switch_info_work);
+static struct work_struct setup_periodic_work_cpu;
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
 #define HASH_BITS 8
@@ -364,7 +365,7 @@ out:
 #ifdef TIMING
 	trace_phonelab_timing(__func__, cpu, sched_clock_cpu(cpu) - ns);
 #endif
-	put_cpu();
+	preempt_enable_no_resched();
 }
 
 static int
@@ -391,16 +392,22 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	return NOTIFY_OK;
 }
 
-static inline void setup_periodic_work(int cpu)
+void init_periodic_work_on_cpu(struct work_struct *w)
 {
 	struct delayed_work *work;
+	int cpu = smp_processor_id();
+	clear_cpu_ctx_switch_info(cpu);
+	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
+	schedule_delayed_work(work, msecs_to_jiffies(100));
+}
+
+static inline void setup_periodic_work(int cpu)
+{
 	trace_phonelab_periodic_warning_cpu("setup_periodic_work", cpu);
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	schedule_work_on(cpu, &start_perf_work);
 #endif
-	clear_cpu_ctx_switch_info(cpu);
-	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
-	schedule_delayed_work_on(cpu, work, msecs_to_jiffies(100));
+	schedule_work_on(cpu, &setup_periodic_work_cpu);
 }
 
 static inline void destroy_periodic_work(int cpu)
@@ -410,7 +417,6 @@ static inline void destroy_periodic_work(int cpu)
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	schedule_work_on(cpu, &stop_perf_work);
 #endif
-	clear_cpu_ctx_switch_info(cpu);
 	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 	cancel_delayed_work(work);
 }
@@ -556,6 +562,8 @@ static int __init init_periodic_ctx_switch_info(void) {
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 		schedule_delayed_work_on(cpu, work, msecs_to_jiffies(100));
 	}
+
+	INIT_WORK(&setup_periodic_work_cpu, init_periodic_work_on_cpu);
 
 	(void) hotplug_notifier;
 	register_cpu_notifier(&hotplug_notifier);
