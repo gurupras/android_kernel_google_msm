@@ -184,7 +184,7 @@ void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *ne
 			stats->dequeue_reasons[3]++;
 		}
 	} else {
-		sprintf(buf, "periodic_stats: could not find pid %d (%s) cpu: %d\n", prev->pid, prev->comm, cpu);
+		snprintf(buf, 128, "periodic_stats: could not find pid %d (%s) cpu: %d\n", prev->pid, prev->comm, cpu);
 		trace_phonelab_periodic_warning_cpu(buf, cpu);
 	}
 
@@ -377,10 +377,14 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	case CPU_ONLINE_FROZEN:
 	case CPU_DOWN_FAILED:
 	case CPU_DOWN_FAILED_FROZEN:
+		trace_phonelab_periodic_warning_cpu("notify_up", smp_processor_id());
+		printk(KERN_DEBUG "periodic: notify_up: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
 		setup_periodic_work(cpu);
 		break;
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
+		trace_phonelab_periodic_warning_cpu("notify_down", smp_processor_id());
+		printk(KERN_DEBUG "periodic: notify_down: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
 		destroy_periodic_work(cpu);
 		break;
 	};
@@ -390,6 +394,7 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 static inline void setup_periodic_work(int cpu)
 {
 	struct delayed_work *work;
+	trace_phonelab_periodic_warning_cpu("setup_periodic_work", cpu);
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	schedule_work_on(cpu, &start_perf_work);
 #endif
@@ -401,6 +406,7 @@ static inline void setup_periodic_work(int cpu)
 static inline void destroy_periodic_work(int cpu)
 {
 	struct delayed_work *work;
+	trace_phonelab_periodic_warning_cpu("destroy_periodic_work", cpu);
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	schedule_work_on(cpu, &stop_perf_work);
 #endif
