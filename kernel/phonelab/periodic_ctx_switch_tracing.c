@@ -1,9 +1,12 @@
 #include <linux/sched.h>
 #include <linux/kernel_stat.h>
+#include <linux/hash.h>
 #include <linux/pid.h>
 #include <linux/types.h>
 #include <linux/cpu.h>
 #include <linux/spinlock_types.h>
+#include <linux/slab.h>
+#include <linux/cgroup.h>
 
 #include <linux/atomic.h>
 
@@ -28,6 +31,10 @@ DEFINE_PER_CPU(spinlock_t, ctx_switch_info_lock);
 DEFINE_PER_CPU(atomic_t, test_field);
 DEFINE_PER_CPU(struct periodic_work, periodic_ctx_switch_info_work);
 
+#define HASH_BITS 8
+#define HT_SIZE 1 << HASH_BITS
+DEFINE_PER_CPU(struct hlist_head[HT_SIZE], ctx_switch_ht);
+
 int periodic_ctx_switch_info_ready;
 
 static void clear_cpu_ctx_switch_info(int cpu);
@@ -42,16 +49,219 @@ static inline void disable_instruction_counter(void);
 static inline u32 read_instruction_counter(void);
 static inline void write_instruction_counter(u32 val);
 
+//struct hlist_head ctx_switch_ht[NR_CPUS][HT_SIZE];
+
+// Get the hash bucket from the per-cpu hash table.
+// We hash the task pointer, but could also try the pid.
+static inline
+struct hlist_head *
+get_hash_bucket(int cpu, struct task_struct *task)
+{
+	int index = (int)hash_ptr(task, HASH_BITS);
+	return &per_cpu(ctx_switch_ht[index], cpu);
+}
+
+// Find the stats struct for task in the hash bucket, or NULL if it's not there.
+static inline
+struct periodic_task_stats *
+find_task_stats(struct task_struct *task, struct hlist_head *bucket)
+{
+	struct periodic_task_stats *stats;
+	struct hlist_node *node;
+
+	hlist_for_each_entry(stats, node, bucket, hlist) {
+		if (stats->pid == task->pid) {
+			return stats;
+		}
+	}
+	return NULL;
+}
+
+// Create a periodic_task_stats object from a task
+static
+struct periodic_task_stats *
+stats_from_task(struct task_struct *task)
+{
+	struct periodic_task_stats *stats;
+	stats = kzalloc(sizeof(*stats), GFP_KERNEL);
+
+	stats->pid = task->pid;
+	stats->tgid = task->tgid;
+	stats->nice = task_nice(task);
+	memcpy(stats->comm, task->comm, TASK_COMM_LEN);
+	INIT_HLIST_NODE(&stats->hlist);
+
+	return stats;
+}
+
+static inline
+void
+diff_task_cputime(struct task_cputime *old, struct task_cputime *new, struct task_cputime *res)
+{
+	res->utime = new->utime - old->utime;
+	res->stime = new->stime - old->stime;
+	res->sum_exec_runtime = new->sum_exec_runtime - old->sum_exec_runtime;
+}
+
+static inline
+void
+add_task_cputime(struct task_cputime *old, struct task_cputime *delta, struct task_cputime *res)
+{
+	res->utime = old->utime + delta->utime;
+	res->stime = old->stime + delta->stime;
+	res->sum_exec_runtime = old->sum_exec_runtime + delta->sum_exec_runtime;
+}
+
+static inline
+int
+is_background_task(struct task_struct *task)
+{
+#ifdef CONFIG_CGROUPS
+	int bg_task = 0;
+	struct css_set *css;
+
+	// task->cgroups is RCU protected
+	rcu_read_lock();
+	css = rcu_dereference(task->cgroups);
+
+	if (likely(css)) {
+		if(likely(css->subsys[cpu_cgroup_subsys_id]->cgroup)) {
+			bg_task = cgroup_is_bg_task(css->subsys[cpu_cgroup_subsys_id]->cgroup);
+		}
+	}
+
+	rcu_read_unlock();
+	return bg_task;
+#endif
+	return 0;
+}
+
+// Called on context_switch to update statistics for the task that just ran,
+// and initialize state for the task that's about to run.
+void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *next)
+{
+	int cpu;
+	struct hlist_head *bucket;
+	struct periodic_task_stats *stats;
+	struct task_cputime time_diff, cur_time;
+
+	if(unlikely(!periodic_ctx_switch_info_ready))
+		return;
+
+	cpu = get_cpu();
+
+	// Account for the task that just finished
+	stats = find_task_stats(prev, get_hash_bucket(cpu, prev));
+
+	if (likely(stats)) {
+		// Update time stats
+		task_times(prev, &cur_time.utime, &cur_time.stime);
+		cur_time.sum_exec_runtime = prev->se.sum_exec_runtime;
+		diff_task_cputime(&stats->prev_time, &cur_time, &time_diff);
+		add_task_cputime(&stats->agg_time, &time_diff, &stats->agg_time);
+		if (stats->count_as_bg) {
+			add_task_cputime(&stats->agg_bg_time, &time_diff, &stats->agg_bg_time);
+		}
+
+		// Update reason for being taken off the CPU
+		if (prev->state == TASK_RUNNING || prev->state == TASK_WAKING) {
+			stats->dequeue_reasons[0]++;
+		} else if (prev->state == TASK_INTERRUPTIBLE) {
+			stats->dequeue_reasons[1]++;
+		} else if (prev->state == TASK_UNINTERRUPTIBLE) {
+			stats->dequeue_reasons[2]++;
+		} else {
+			stats->dequeue_reasons[3]++;
+		}
+	} else {
+		printk(KERN_INFO "periodic_stats: could not find pid %d (%s) cpu: %d\n", prev->pid, prev->comm, cpu);
+	}
+
+	// Account for the new task
+	bucket = get_hash_bucket(cpu, next);
+	stats = find_task_stats(next, bucket);
+	if (stats == NULL) {
+		stats = stats_from_task(next);
+		hlist_add_head(&stats->hlist, bucket);
+	}
+
+	// Set prev times for diffs when is context switched out
+	task_times(next, &stats->prev_time.utime, &stats->prev_time.stime);
+	stats->prev_time.sum_exec_runtime = next->se.sum_exec_runtime;
+	stats->count_as_bg = is_background_task(next);
+
+	preempt_enable_no_resched();
+}
+
+static
+void
+do_trace_periodic_ctx_switch(int cpu)
+{
+	int i;
+	struct periodic_task_stats *stats;
+	struct hlist_node *node, *other;
+	struct hlist_head *bucket;
+
+	for (i = 0; i < HT_SIZE; i++) {
+		bucket = &per_cpu(ctx_switch_ht[i], cpu);
+		hlist_for_each_entry(stats, node, bucket, hlist) {
+			trace_phonelab_periodic_ctx_switch_info2(stats, cpu);
+		}
+	}
+
+	// Clear the hashtable
+	for (i = 0; i < HT_SIZE; i++) {
+		bucket = &per_cpu(ctx_switch_ht[i], cpu);
+		hlist_for_each_entry_safe(stats, node, other, bucket, hlist) {
+			if (stats->pid != current->pid) {
+				hlist_del(&stats->hlist);
+				kfree(stats);
+			}
+		}
+	}
+}
+
+static
+void
+do_trace_periodic_ctx_switch_orig(int cpu)
+{
+	int i, lim;
+	struct task_struct *task;
+
+	atomic_set(&per_cpu(test_field, cpu), 1);
+	trace_phonelab_periodic_ctx_switch_marker(cpu, 1);
+	lim = per_cpu(ctx_switch_info_idx, cpu);
+
+//		printk(KERN_DEBUG "periodic: cpu=%d lim=%d\n", cpu, lim);
+	for(i = 0; i < lim; i++) {
+		task = per_cpu(ctx_switch_info[i], cpu);
+		if(task == NULL)
+			continue;
+		task_lock(task);
+		if(!task->is_logged[cpu]) {
+//				task_times(task, &utime, &stime);
+//				printk(KERN_DEBUG "periodic: cpu=%d pid=%d tgid=%d comm=%s utime_t=%lu stime_t=%lu cutime=%lu cstime=%lu"
+//					"cutime_t=%lu cstime_t=%lu cutime=%lu cstime=%lu",
+//					cpu, task->pid, task->tgid, task->comm,
+//					task->utime, task->stime,
+//					cputime_to_clock_t(utime), cputime_to_clock_t(stime),
+//					task->signal->cutime, task->signal->cstime,
+//					cputime_to_clock_t(task->signal->cutime), cputime_to_clock_t(task->signal->cstime));
+			trace_phonelab_periodic_ctx_switch_info(task, cpu);
+			task->is_logged[cpu] = 1;
+		}
+		task_unlock(task);
+	}
+	clear_cpu_ctx_switch_info(cpu);
+	atomic_set(&per_cpu(test_field, cpu), 0);
+	trace_phonelab_periodic_ctx_switch_marker(cpu, 0);
+}
 
 void periodic_ctx_switch_info(struct work_struct *w) {
 
 	int cpu, wcpu;
-	int i, lim;
-	struct task_struct *task;
 	struct delayed_work *work, *dwork;
 	struct periodic_work *pwork;
-	spinlock_t *spinlock;
-	unsigned long utime, stime, flags;
 	int DELAY=100;
 	u32 val;
 #ifdef TIMING
@@ -73,11 +283,6 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		goto out;
 	}
 
-	(void) utime;
-	(void) stime;
-	(void) spinlock;
-	(void) flags;
-
 	if(unlikely(!periodic_ctx_switch_info_ready))
 		goto out;
 	if(unlikely(atomic_read(&per_cpu(test_field, cpu)) == 1)) {
@@ -86,35 +291,10 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		DELAY=10;
 		goto out;
 	}
-//	local_irq_save(flags);
-		atomic_set(&per_cpu(test_field, cpu), 1);
-		trace_phonelab_periodic_ctx_switch_marker(cpu, 1);
-		lim = per_cpu(ctx_switch_info_idx, cpu);
 
-//		printk(KERN_DEBUG "periodic: cpu=%d lim=%d\n", cpu, lim);
-		for(i = 0; i < lim; i++) {
-			task = per_cpu(ctx_switch_info[i], cpu);
-			if(task == NULL)
-				continue;
-			task_lock(task);
-			if(!task->is_logged[cpu]) {
-//				task_times(task, &utime, &stime);
-//				printk(KERN_DEBUG "periodic: cpu=%d pid=%d tgid=%d comm=%s utime_t=%lu stime_t=%lu cutime=%lu cstime=%lu"
-//					"cutime_t=%lu cstime_t=%lu cutime=%lu cstime=%lu",
-//					cpu, task->pid, task->tgid, task->comm,
-//					task->utime, task->stime,
-//					cputime_to_clock_t(utime), cputime_to_clock_t(stime),
-//					task->signal->cutime, task->signal->cstime,
-//					cputime_to_clock_t(task->signal->cutime), cputime_to_clock_t(task->signal->cstime));
-				trace_phonelab_periodic_ctx_switch_info(task, cpu);
-				task->is_logged[cpu] = 1;
-			}
-			task_unlock(task);
-		}
-		clear_cpu_ctx_switch_info(cpu);
-		atomic_set(&per_cpu(test_field, cpu), 0);
-		trace_phonelab_periodic_ctx_switch_marker(cpu, 0);
-//	local_irq_restore(flags);
+	(void)do_trace_periodic_ctx_switch_orig;
+	do_trace_periodic_ctx_switch(cpu);
+
 	val = read_instruction_counter();
 	trace_phonelab_instruction_count(cpu, val);
 	disable_instruction_counter();
@@ -338,14 +518,18 @@ module_init(init_periodic_ctx_switch_info);
 
 
 static int __init init_per_cpu_data(void) {
-	int i;
+	int i, j;
+
 	for_each_possible_cpu(i) {
 		per_cpu(ctx_switch_info_idx, i) = 0;
 		spin_lock_init(&per_cpu(ctx_switch_info_lock, i));
 		atomic_set(&per_cpu(test_field, i), 0);
+
+		// Init per-cpu hash table
+		for (j = 0; j < HT_SIZE; j++)
+			INIT_HLIST_HEAD(&per_cpu(ctx_switch_ht[j], i));
 	}
 	periodic_ctx_switch_info_ready = 0;
 	return 0;
 }
 early_initcall(init_per_cpu_data);
-

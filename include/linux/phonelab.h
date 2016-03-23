@@ -2,6 +2,7 @@
 #define __PHONELAB__H_
 
 #include <linux/types.h>
+#include <linux/sched.h>
 
 #define PHONELAB_MAGIC "<PhoneLab>"
 
@@ -13,7 +14,35 @@ DECLARE_PER_CPU(atomic_t, test_field);
 
 extern int periodic_ctx_switch_info_ready;
 
+// Per-cpu stats
+struct periodic_task_stats {
+	// From task_struct
+	pid_t pid;
+	pid_t tgid;
+	int nice;
+	char comm[TASK_COMM_LEN];
+
+	// Hash list
+	struct hlist_node hlist;
+
+	// Previous values for caluclating aggregates	
+	struct task_cputime prev_time;
+
+	// Should the current time count as BG or not?
+	int count_as_bg;
+
+	// Aggregate run times
+	struct task_cputime agg_time;
+
+	// Aggregate run times as bg task
+	struct task_cputime agg_bg_time;
+
+	// Why the process is being context switched out
+	uint32_t dequeue_reasons[4];
+};
+
 void periodic_ctx_switch_info(struct work_struct *w);
+void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *next);
 
 #endif
 

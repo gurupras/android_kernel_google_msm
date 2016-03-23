@@ -7,6 +7,7 @@
 #include <linux/sched.h>
 #include <linux/tracepoint.h>
 #include <linux/binfmts.h>
+#include <linux/phonelab.h>
 
 DECLARE_EVENT_CLASS(phonelab_foreground_switch,
 
@@ -117,6 +118,62 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 		__entry->cutime_t, __entry->cstime_t,
 		__entry->cutime, __entry->cstime)
 );
+
+TRACE_EVENT(phonelab_periodic_ctx_switch_info2,
+
+	TP_PROTO(struct periodic_task_stats *stats, u32 cpu),
+
+	TP_ARGS(stats, cpu),
+
+	TP_STRUCT__entry(
+		__field(int, cpu)
+		__field(pid_t, pid)
+		__field(pid_t, tgid)
+		__array(char, comm, TASK_COMM_LEN)
+		__field(int, nice)
+		__field(unsigned long long, utime)
+		__field(unsigned long long, stime)
+		__field(unsigned long long, runtime)
+		__field(unsigned long long, bg_utime)
+		__field(unsigned long long, bg_stime)
+		__field(unsigned long long, bg_runtime)
+		__field(int, status_running)
+		__field(int, status_interruptible)
+		__field(int, status_uninterruptible)
+		__field(int, status_other)
+	),
+
+	TP_fast_assign(
+		__entry->cpu	= cpu;
+		__entry->pid	= stats->pid;
+		__entry->tgid	= stats->tgid;
+		__entry->nice	= stats->nice;
+		memcpy(__entry->comm, stats->comm, TASK_COMM_LEN);
+
+		__entry->utime	= (unsigned long long)stats->agg_time.utime;
+		__entry->stime	= (unsigned long long)(stats->agg_time.stime);
+		__entry->runtime	= stats->agg_time.sum_exec_runtime;
+
+		__entry->utime	= (unsigned long long)stats->agg_bg_time.utime;
+		__entry->stime	= (unsigned long long)stats->agg_bg_time.stime;
+		__entry->runtime	= stats->agg_bg_time.sum_exec_runtime;
+
+		__entry->status_running = stats->dequeue_reasons[0];
+		__entry->status_interruptible = stats->dequeue_reasons[1];
+		__entry->status_uninterruptible = stats->dequeue_reasons[2];
+		__entry->status_other = stats->dequeue_reasons[3];
+	),
+
+	TP_printk("cpu=%d pid=%d tgid=%d nice=%d comm=%s utime=%llu stime=%llu rtime=%llu bg_utime=%llu "
+		"bg_stime=%llu bg_rtime=%llu running=%d interruptible=%d uninterruptible=%d other=%d",
+		__entry->cpu,
+		__entry->pid, __entry->tgid, __entry->nice, __entry->comm,
+		__entry->utime, __entry->stime, __entry->runtime,
+		__entry->bg_utime, __entry->bg_stime, __entry->bg_runtime,
+		__entry->status_running, __entry->status_interruptible,
+		__entry->status_uninterruptible, __entry->status_other)
+);
+
 
 TRACE_EVENT(phonelab_proc_foreground,
 

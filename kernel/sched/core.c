@@ -92,8 +92,6 @@
 #include <trace/events/sched.h>
 #include <trace/events/phonelab.h>
 
-#include <linux/cgroup.h>
-
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
 
 void start_bandwidth_timer(struct hrtimer *period_timer, ktime_t period)
@@ -2064,28 +2062,6 @@ asmlinkage void schedule_tail(struct task_struct *prev)
 		put_user(task_pid_vnr(current), current->set_child_tid);
 }
 
-static inline int is_background_task(struct task_struct *task)
-{
-#ifdef CONFIG_CGROUPS
-	int bg_task = 0;
-	struct css_set *css;
-
-	// task->cgroups is RCU protected
-	rcu_read_lock();
-	css = rcu_dereference(task->cgroups);
-
-	if (likely(css)) {
-		if(likely(css->subsys[cpu_cgroup_subsys_id]->cgroup)) {
-			bg_task = cgroup_is_bg_task(css->subsys[cpu_cgroup_subsys_id]->cgroup);
-		}
-	}
-
-	rcu_read_unlock();
-	return bg_task;
-#endif
-	return 0;
-}
-
 /*
  * context_switch - switch to the new MM and the new
  * thread's register state.
@@ -2152,16 +2128,6 @@ end:
 	spin_release(&rq->lock.dep_map, 1, _THIS_IP_);
 #endif
 
-	/*
-	 * Before we switch, check if process is in background cgroup.
-	 * If no, then it is foreground and needs to be logged.
-	 */
-	if(!is_background_task(prev)) {
-		trace_phonelab_foreground_switch_out(prev, next, cpu);
-	}
-//	if(!is_background_task(next)) {
-//		trace_phonelab_foreground_switch_in(prev, next, cpu);
-//	}
 	/* Here we just switch the register state and the stack. */
 	switch_to(prev, next, prev);
 
@@ -3315,6 +3281,9 @@ need_resched:
 		rq->curr = next;
 		++*switch_count;
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+	periodic_ctx_switch_update(prev, next);
+#endif
 		context_switch(rq, prev, next); /* unlocks the rq */
 		/*
 		 * The context switch have flipped the stack from under us
