@@ -59,7 +59,7 @@
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 #include <linux/phonelab.h>
 #include <trace/events/phonelab.h>
 #endif
@@ -909,7 +909,7 @@ void do_exit(long code)
 	struct task_struct *tsk = current;
 	int group_dead;
 
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	// Make sure it is 0 so it gets added and logged if necessary
 	int cpu, i;
 	cpu = smp_processor_id();

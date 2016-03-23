@@ -71,6 +71,7 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_marker,
 			"END: PERIODIC_CTX_SWITCH_INFO  ")
 );
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 
 	TP_PROTO(struct task_struct *task, u32 cpu),
@@ -118,8 +119,10 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 		__entry->cutime_t, __entry->cstime_t,
 		__entry->cutime, __entry->cstime)
 );
+#endif
 
-TRACE_EVENT(phonelab_periodic_ctx_switch_info2,
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
+TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 
 	TP_PROTO(struct periodic_task_stats *stats, u32 cpu),
 
@@ -173,7 +176,7 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info2,
 		__entry->status_running, __entry->status_interruptible,
 		__entry->status_uninterruptible, __entry->status_other)
 );
-
+#endif
 
 TRACE_EVENT(phonelab_proc_foreground,
 

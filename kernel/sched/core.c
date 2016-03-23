@@ -2070,7 +2070,7 @@ static inline void
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next)
 {
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	int lim;
 #endif
 	int cpu;
@@ -2079,7 +2079,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	prepare_task_switch(rq, prev, next);
 	cpu = smp_processor_id();
 
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	if(likely(periodic_ctx_switch_info_ready)) {
 		if(atomic_read(&per_cpu(test_field, cpu))) {
 			trace_phonelab_periodic_warning_cpu("context switch happening during local_irq_disabled()", cpu);
@@ -3082,9 +3082,6 @@ void scheduler_tick(void)
 	rq->idle_balance = idle_cpu(cpu);
 	trigger_load_balance(rq, cpu);
 #endif
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-//	periodic_ctx_switch_info(NULL);
-#endif
 }
 
 notrace unsigned long get_parent_ip(unsigned long addr)
@@ -3281,7 +3278,7 @@ need_resched:
 		rq->curr = next;
 		++*switch_count;
 
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
 	periodic_ctx_switch_update(prev, next);
 #endif
 		context_switch(rq, prev, next); /* unlocks the rq */

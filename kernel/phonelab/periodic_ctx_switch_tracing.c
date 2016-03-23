@@ -23,17 +23,22 @@ struct periodic_work {
 	int cpu;
 };
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 static struct work_struct start_perf_work, stop_perf_work;
 
 DEFINE_PER_CPU(struct task_struct *[CTX_SWITCH_INFO_LIM], ctx_switch_info);
 DEFINE_PER_CPU(int, ctx_switch_info_idx);
+#endif
+
 DEFINE_PER_CPU(spinlock_t, ctx_switch_info_lock);
 DEFINE_PER_CPU(atomic_t, test_field);
 DEFINE_PER_CPU(struct periodic_work, periodic_ctx_switch_info_work);
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
 #define HASH_BITS 8
 #define HT_SIZE 1 << HASH_BITS
 DEFINE_PER_CPU(struct hlist_head[HT_SIZE], ctx_switch_ht);
+#endif
 
 int periodic_ctx_switch_info_ready;
 
@@ -41,6 +46,7 @@ static void clear_cpu_ctx_switch_info(int cpu);
 static inline void setup_periodic_work(int cpu);
 static inline void destroy_periodic_work(int cpu);
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 static void start_instruction_counter(struct work_struct *work);
 static void stop_instruction_counter(struct work_struct *work);
 static inline void select_counter(int idx);
@@ -48,6 +54,9 @@ static inline void enable_instruction_counter(void);
 static inline void disable_instruction_counter(void);
 static inline u32 read_instruction_counter(void);
 static inline void write_instruction_counter(u32 val);
+#endif
+
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
 
 //struct hlist_head ctx_switch_ht[NR_CPUS][HT_SIZE];
 
@@ -199,17 +208,28 @@ do_trace_periodic_ctx_switch(int cpu)
 {
 	int i;
 	struct periodic_task_stats *stats;
-	struct hlist_node *node, *other;
+	struct hlist_node *node;
 	struct hlist_head *bucket;
 
 	for (i = 0; i < HT_SIZE; i++) {
 		bucket = &per_cpu(ctx_switch_ht[i], cpu);
 		hlist_for_each_entry(stats, node, bucket, hlist) {
-			trace_phonelab_periodic_ctx_switch_info2(stats, cpu);
+			trace_phonelab_periodic_ctx_switch_info(stats, cpu);
 		}
 	}
 
 	// Clear the hashtable
+}
+
+static
+void
+clear_cpu_ctx_switch_info(int cpu)
+{
+	int i;
+	struct periodic_task_stats *stats;
+	struct hlist_node *node, *other;
+	struct hlist_head *bucket;
+
 	for (i = 0; i < HT_SIZE; i++) {
 		bucket = &per_cpu(ctx_switch_ht[i], cpu);
 		hlist_for_each_entry_safe(stats, node, other, bucket, hlist) {
@@ -220,10 +240,12 @@ do_trace_periodic_ctx_switch(int cpu)
 		}
 	}
 }
+#endif	/* CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG */
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 static
 void
-do_trace_periodic_ctx_switch_orig(int cpu)
+do_trace_periodic_ctx_switch(int cpu)
 {
 	int i, lim;
 	struct task_struct *task;
@@ -257,13 +279,34 @@ do_trace_periodic_ctx_switch_orig(int cpu)
 	trace_phonelab_periodic_ctx_switch_marker(cpu, 0);
 }
 
+static void
+clear_cpu_ctx_switch_info(int cpu)
+{
+	int i;
+	struct task_struct *task;
+	for(i = 0; i < CTX_SWITCH_INFO_LIM; i++) {
+		task = per_cpu(ctx_switch_info[i], cpu);
+		if(task == NULL)
+			continue;
+		task_lock(task);
+		task->is_logged[cpu] = 0;
+		task_unlock(task);
+		per_cpu(ctx_switch_info[i], cpu) = NULL;
+	}
+	per_cpu(ctx_switch_info_idx, cpu) = 0;
+}
+#endif
+
 void periodic_ctx_switch_info(struct work_struct *w) {
 
 	int cpu, wcpu;
 	struct delayed_work *work, *dwork;
 	struct periodic_work *pwork;
 	int DELAY=100;
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	u32 val;
+#endif
+
 #ifdef TIMING
 	u64 ns;
 #endif
@@ -292,14 +335,15 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		goto out;
 	}
 
-	(void)do_trace_periodic_ctx_switch_orig;
 	do_trace_periodic_ctx_switch(cpu);
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	val = read_instruction_counter();
 	trace_phonelab_instruction_count(cpu, val);
 	disable_instruction_counter();
 	write_instruction_counter(0);
 	enable_instruction_counter();
+#endif
 out:
 	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 	schedule_delayed_work_on(cpu, work, msecs_to_jiffies(DELAY));
@@ -307,23 +351,6 @@ out:
 	trace_phonelab_timing(__func__, cpu, sched_clock_cpu(cpu) - ns);
 #endif
 	put_cpu();
-}
-
-static void
-clear_cpu_ctx_switch_info(int cpu)
-{
-	int i;
-	struct task_struct *task;
-	for(i = 0; i < CTX_SWITCH_INFO_LIM; i++) {
-		task = per_cpu(ctx_switch_info[i], cpu);
-		if(task == NULL)
-			continue;
-		task_lock(task);
-		task->is_logged[cpu] = 0;
-		task_unlock(task);
-		per_cpu(ctx_switch_info[i], cpu) = NULL;
-	}
-	per_cpu(ctx_switch_info_idx, cpu) = 0;
 }
 
 static int
@@ -349,7 +376,9 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 static inline void setup_periodic_work(int cpu)
 {
 	struct delayed_work *work;
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	schedule_work_on(cpu, &start_perf_work);
+#endif
 	clear_cpu_ctx_switch_info(cpu);
 	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 	schedule_delayed_work_on(cpu, work, msecs_to_jiffies(100));
@@ -358,7 +387,9 @@ static inline void setup_periodic_work(int cpu)
 static inline void destroy_periodic_work(int cpu)
 {
 	struct delayed_work *work;
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	schedule_work_on(cpu, &stop_perf_work);
+#endif
 	clear_cpu_ctx_switch_info(cpu);
 	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 	cancel_delayed_work(work);
@@ -367,7 +398,7 @@ static struct notifier_block __cpuinitdata hotplug_notifier = {
 	.notifier_call		= hotplug_handler,
 };
 
-
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 static u32 num_events;
 #define	ARMV7_IDX_CYCLE_COUNTER	0
 #define	ARMV7_IDX_COUNTER0	1
@@ -480,6 +511,7 @@ static inline void write_instruction_counter(u32 val)
 	// Write
 	asm volatile("mcr p15, 0, %0, c9, c13, 2" : : "r" (val));
 }
+#endif	/* CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG */
 
 static int __init init_periodic_ctx_switch_info(void) {
 
@@ -487,9 +519,10 @@ static int __init init_periodic_ctx_switch_info(void) {
 	struct delayed_work *work;
 	struct periodic_work *pwork;
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	INIT_WORK(&start_perf_work, start_instruction_counter);
 	INIT_WORK(&stop_perf_work, stop_instruction_counter);
-
+#endif
 	for_each_possible_cpu(cpu) {
 		pwork = &per_cpu(periodic_ctx_switch_info_work, cpu);
 		work = &pwork->dwork;
@@ -497,7 +530,9 @@ static int __init init_periodic_ctx_switch_info(void) {
 		pwork->cpu = cpu;
 	}
 	for_each_online_cpu(cpu) {
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 		schedule_work_on(cpu, &start_perf_work);
+#endif
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
 		schedule_delayed_work_on(cpu, work, msecs_to_jiffies(100));
 	}
@@ -507,8 +542,10 @@ static int __init init_periodic_ctx_switch_info(void) {
 
 	periodic_ctx_switch_info_ready = 1;
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	num_events = armv7_read_num_pmnc_events();
 	printk(KERN_DEBUG "periodic: num_events: %u\n", num_events);
+#endif
 
 	printk(KERN_DEBUG "periodic: init done\n");
 
@@ -518,16 +555,23 @@ module_init(init_periodic_ctx_switch_info);
 
 
 static int __init init_per_cpu_data(void) {
-	int i, j;
+	int i;
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
+	int j;
+#endif
 
 	for_each_possible_cpu(i) {
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 		per_cpu(ctx_switch_info_idx, i) = 0;
 		spin_lock_init(&per_cpu(ctx_switch_info_lock, i));
 		atomic_set(&per_cpu(test_field, i), 0);
+#endif
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
 		// Init per-cpu hash table
 		for (j = 0; j < HT_SIZE; j++)
 			INIT_HLIST_HEAD(&per_cpu(ctx_switch_ht[j], i));
+#endif
 	}
 	periodic_ctx_switch_info_ready = 0;
 	return 0;

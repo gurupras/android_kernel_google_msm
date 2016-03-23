@@ -4,12 +4,36 @@ config PHONELAB
 	  Hidden open that includes the Makefile located at
 	  kernel/phonelab/Makefile.
 
-config PERIODIC_CTX_SWITCH_TRACING
-	select PHONELAB
-	bool "Periodic context switch tracing"
+choice
+	prompt "Periodic Context Switch Tracing"
+	default PERIODIC_CTX_SWITCH_TRACING_NONE
 	help
 	  Enable periodic event tracing of context switches.
-	  These events are logged every scheduler_tick().
+	  These events are logged every 100ms.
+
+config PERIODIC_CTX_SWITCH_TRACING_NONE
+	bool "No Periodic Tracing"
+	help
+	  No tracing.
+
+config PERIODIC_CTX_SWITCH_TRACING_ORIG
+	select PERIODIC_CTX_SWITCH_TRACING
+	bool "Original Tracing"
+	help
+	  Uses a fixed-size array per CPU.
+
+config PERIODIC_CTX_SWITCH_TRACING_HASH
+	select PERIODIC_CTX_SWITCH_TRACING
+	bool "Hash based tracing"
+	help
+	  Uses a hash table implementation.
+
+endchoice
+
+config PERIODIC_CTX_SWITCH_TRACING
+	bool
+	help
+	  Hidden option
 
 config POST_FOREGROUND_PID
 	select PHONELAB

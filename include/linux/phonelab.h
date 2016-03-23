@@ -6,14 +6,18 @@
 
 #define PHONELAB_MAGIC "<PhoneLab>"
 
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 #define CTX_SWITCH_INFO_LIM	4096
 DECLARE_PER_CPU(struct task_struct *[CTX_SWITCH_INFO_LIM], ctx_switch_info);
 DECLARE_PER_CPU(int, ctx_switch_info_idx);
 DECLARE_PER_CPU(atomic_t, test_field);
+#endif
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
 extern int periodic_ctx_switch_info_ready;
+#endif
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
 // Per-cpu stats
 struct periodic_task_stats {
 	// From task_struct
@@ -25,7 +29,7 @@ struct periodic_task_stats {
 	// Hash list
 	struct hlist_node hlist;
 
-	// Previous values for caluclating aggregates	
+	// Previous values for caluclating aggregates
 	struct task_cputime prev_time;
 
 	// Should the current time count as BG or not?
@@ -43,8 +47,7 @@ struct periodic_task_stats {
 
 void periodic_ctx_switch_info(struct work_struct *w);
 void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *next);
-
-#endif
+#endif	/* CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH */
 
 /* This whole enum is borrowed from system/core/include/android/log.h */
 typedef enum {
