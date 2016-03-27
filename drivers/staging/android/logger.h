@@ -28,6 +28,8 @@
  * @tid:	The generating process' thread ID
  * @sec:	The number of seconds that have elapsed since the Epoch
  * @nsec:	The number of nanoseconds that have elapsed since @sec
+ * @logline:	The logline ID (unique up to reboot)
+ * @tracens:	Trace timestamp in ns
  * @msg:	The message that is to be logged
  *
  * The userspace structure for version 1 of the logger_entry ABI.
@@ -41,8 +43,10 @@ struct user_logger_entry_compat {
 	__s32		tid;
 	__s32		sec;
 	__s32		nsec;
+	__u64		logline;
+	__u64		tracens;
 	char		msg[0];
-};
+}__attribute__((__packed__));
 
 /**
  * struct logger_entry - defines a single entry that is given to a logger
@@ -52,6 +56,8 @@ struct user_logger_entry_compat {
  * @tid:	The generating process' thread ID
  * @sec:	The number of seconds that have elapsed since the Epoch
  * @nsec:	The number of nanoseconds that have elapsed since @sec
+ * @logline:	The logline ID (unique up to reboot)
+ * @tracens:	Trace timestamp in ns
  * @euid:	Effective UID of logger
  * @msg:	The message that is to be logged
  *
@@ -66,9 +72,11 @@ struct logger_entry {
 	__s32		tid;
 	__s32		sec;
 	__s32		nsec;
+	__u64		logline;
+	__u64		tracens;
 	kuid_t		euid;
 	char		msg[0];
-};
+}__attribute__((__packed__));
 
 #define LOGGER_LOG_RADIO	"log_radio"	/* radio-related messages */
 #define LOGGER_LOG_EVENTS	"log_events"	/* system/hardware events */

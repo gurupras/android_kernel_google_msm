@@ -159,6 +159,7 @@ enum {
 	CGRP_CPUSET_CLONE_CHILDREN,
 	/* see the comment above CGRP_ROOT_SANE_BEHAVIOR for details */
 	CGRP_SANE_BEHAVIOR,
+	CGRP_IS_BG_TASK,
 };
 
 struct cgroup_name {
@@ -869,6 +870,11 @@ unsigned short css_id(struct cgroup_subsys_state *css);
 unsigned short css_depth(struct cgroup_subsys_state *css);
 struct cgroup_subsys_state *cgroup_css_from_dir(struct file *f, int id);
 
+static inline int cgroup_is_bg_task(struct cgroup *cgp) {
+	return test_bit(CGRP_IS_BG_TASK, &cgp->flags);
+}
+
+
 #else /* !CONFIG_CGROUPS */
 
 static inline int cgroup_init_early(void) { return 0; }
@@ -891,6 +897,11 @@ static inline int cgroup_attach_task_all(struct task_struct *from,
 {
 	return 0;
 }
+
+static inline int cgroup_is_bg_task(struct cgroup *cgp) {
+	return 0;
+}
+
 
 #endif /* !CONFIG_CGROUPS */
 
