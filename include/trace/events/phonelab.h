@@ -74,9 +74,9 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_marker,
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 
-	TP_PROTO(struct task_struct *task, u32 cpu),
+	TP_PROTO(struct task_struct *task, u32 cpu, u64 log_idx),
 
-	TP_ARGS(task, cpu),
+	TP_ARGS(task, cpu, log_idx),
 
 	TP_STRUCT__entry(
 		__field( int,	cpu				)
@@ -91,6 +91,7 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 		__field( unsigned long,		cstime_t	)
 		__field( unsigned long,		cutime		)
 		__field( unsigned long,		cstime		)
+		__field( u64, 			log_idx		)
 	),
 
 	TP_fast_assign(
@@ -108,25 +109,26 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 		__entry->cstime_t	= task->signal->cstime;
 		__entry->cutime	= cputime_to_clock_t(task->signal->cutime);
 		__entry->cstime	= cputime_to_clock_t(task->signal->cstime);
+		__entry->log_idx	= stats->log_idx;
 	),
 
 	TP_printk("cpu=%d pid=%d tgid=%d comm=%s utime_t=%lu stime_t=%lu utime=%lu stime=%lu "
-		"cutime_t=%lu cstime_t=%lu cutime=%lu cstime=%lu",
+		"cutime_t=%lu cstime_t=%lu cutime=%lu cstime=%lu log_idx=%llu",
 		__entry->cpu,
 		__entry->pid, __entry->tgid, __entry->comm,
 		__entry->utime_t, __entry->stime_t,
 		__entry->utime, __entry->stime,
 		__entry->cutime_t, __entry->cstime_t,
-		__entry->cutime, __entry->cstime)
+		__entry->cutime, __entry->cstime, __entry->log_idx)
 );
 #endif
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
 TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 
-	TP_PROTO(struct periodic_task_stats *stats, u32 cpu),
+	TP_PROTO(struct periodic_task_stats *stats, u32 cpu, u64 log_idx),
 
-	TP_ARGS(stats, cpu),
+	TP_ARGS(stats, cpu, log_idx),
 
 	TP_STRUCT__entry(
 		__field(int, cpu)
@@ -144,6 +146,7 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 		__field(int, status_interruptible)
 		__field(int, status_uninterruptible)
 		__field(int, status_other)
+		__field(u64 , log_idx)
 	),
 
 	TP_fast_assign(
@@ -165,16 +168,17 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 		__entry->status_interruptible = stats->dequeue_reasons[1];
 		__entry->status_uninterruptible = stats->dequeue_reasons[2];
 		__entry->status_other = stats->dequeue_reasons[3];
+		__entry->log_idx	= log_idx;
 	),
 
 	TP_printk("cpu=%d pid=%d tgid=%d nice=%d comm=%s utime=%llu stime=%llu rtime=%llu bg_utime=%llu "
-		"bg_stime=%llu bg_rtime=%llu running=%d interruptible=%d uninterruptible=%d other=%d",
+		"bg_stime=%llu bg_rtime=%llu running=%d interruptible=%d uninterruptible=%d other=%d log_idx=%llu",
 		__entry->cpu,
 		__entry->pid, __entry->tgid, __entry->nice, __entry->comm,
 		__entry->utime, __entry->stime, __entry->runtime,
 		__entry->bg_utime, __entry->bg_stime, __entry->bg_runtime,
 		__entry->status_running, __entry->status_interruptible,
-		__entry->status_uninterruptible, __entry->status_other)
+		__entry->status_uninterruptible, __entry->status_other, __entry->log_idx)
 );
 #endif
 

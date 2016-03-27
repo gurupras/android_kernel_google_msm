@@ -31,6 +31,7 @@ DEFINE_PER_CPU(int, ctx_switch_info_idx);
 #endif
 
 DEFINE_PER_CPU(spinlock_t, ctx_switch_info_lock);
+DEFINE_PER_CPU(atomic64_t, periodic_log_idx);
 DEFINE_PER_CPU(atomic_t, test_field);
 DEFINE_PER_CPU(struct periodic_work, periodic_ctx_switch_info_work);
 static struct work_struct setup_periodic_work_cpu;
@@ -207,7 +208,7 @@ void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *ne
 
 static
 void
-do_trace_periodic_ctx_switch(int cpu)
+do_trace_periodic_ctx_switch(int cpu, u64 periodic_log_idx)
 {
 	int i;
 	struct periodic_task_stats *stats;
@@ -219,7 +220,7 @@ do_trace_periodic_ctx_switch(int cpu)
 	for (i = 0; i < HT_SIZE; i++) {
 		bucket = &per_cpu(ctx_switch_ht[i], cpu);
 		hlist_for_each_entry(stats, node, bucket, hlist) {
-			trace_phonelab_periodic_ctx_switch_info(stats, cpu);
+			trace_phonelab_periodic_ctx_switch_info(stats, cpu, periodic_log_idx);
 		}
 	}
 
@@ -259,7 +260,7 @@ clear_cpu_ctx_switch_info(int cpu)
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 static
 void
-do_trace_periodic_ctx_switch(int cpu)
+do_trace_periodic_ctx_switch(int cpu, u64 periodic_log_idx)
 {
 	int i, lim;
 	struct task_struct *task;
@@ -282,7 +283,7 @@ do_trace_periodic_ctx_switch(int cpu)
 //					cputime_to_clock_t(utime), cputime_to_clock_t(stime),
 //					task->signal->cutime, task->signal->cstime,
 //					cputime_to_clock_t(task->signal->cutime), cputime_to_clock_t(task->signal->cstime));
-			trace_phonelab_periodic_ctx_switch_info(task, cpu);
+			trace_phonelab_periodic_ctx_switch_info(task, cpu, periodic_log_idx);
 			task->is_logged[cpu] = 1;
 		}
 		task_unlock(task);
@@ -316,6 +317,7 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	struct delayed_work *work, *dwork;
 	struct periodic_work *pwork;
 	int DELAY=100;
+	u64 log_idx;
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	u32 val;
 #endif
@@ -348,8 +350,10 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 		goto out;
 	}
 
+	// Get the periodic log index
+	log_idx = atomic64_inc_return(&per_cpu(periodic_log_idx, cpu));
 	trace_phonelab_periodic_ctx_switch_marker(cpu, 1);
-	do_trace_periodic_ctx_switch(cpu);
+	do_trace_periodic_ctx_switch(cpu, log_idx);
 	trace_phonelab_periodic_ctx_switch_marker(cpu, 0);
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
@@ -593,6 +597,7 @@ static int __init init_per_cpu_data(void) {
 		per_cpu(ctx_switch_info_idx, i) = 0;
 		spin_lock_init(&per_cpu(ctx_switch_info_lock, i));
 		atomic_set(&per_cpu(test_field, i), 0);
+		atomic64_set(&per_cpu(periodic_log_idx, i), 0);
 #endif
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH
