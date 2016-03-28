@@ -26,6 +26,7 @@ static struct task_struct *pick_next_task_idle(struct rq *rq)
 {
 	schedstat_inc(rq, sched_goidle);
 	calc_load_account_idle(rq);
+	rq->idle->se.exec_start = rq->clock_task;
 	return rq->idle;
 }
 
@@ -44,6 +45,12 @@ dequeue_task_idle(struct rq *rq, struct task_struct *p, int flags)
 
 static void put_prev_task_idle(struct rq *rq, struct task_struct *prev)
 {
+	u64 now = rq->clock_task;
+	unsigned long delta_exec;
+
+	delta_exec = (unsigned long)(now - prev->se.exec_start);
+	prev->se.sum_exec_runtime += delta_exec;
+	prev->se.exec_start = now;
 }
 
 static void task_tick_idle(struct rq *rq, struct task_struct *curr, int queued)
