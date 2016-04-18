@@ -50,25 +50,27 @@ DEFINE_EVENT(phonelab_foreground_switch, phonelab_foreground_switch_out,
 
 TRACE_EVENT(phonelab_periodic_ctx_switch_marker,
 
-	TP_PROTO(int cpu, int begin),
+	TP_PROTO(int cpu, int begin, unsigned count),
 
-	TP_ARGS(cpu, begin),
+	TP_ARGS(cpu, begin, count),
 
 	TP_STRUCT__entry(
 		__field( int,	cpu				)
 		__field( int,	begin				)
+		__field( unsigned,	count				)
 	),
 
 	TP_fast_assign(
 		__entry->cpu = cpu;
 		__entry->begin = begin;
+		__entry->count = count;
 	),
 
-	TP_printk("===================== CPU-%d %s =====================",
-		__entry->cpu,
+	TP_printk("%s cpu=%d count=%u",
 		__entry->begin == 1 ?
-			"BEGIN: PERIODIC_CTX_SWITCH_INFO" :
-			"END: PERIODIC_CTX_SWITCH_INFO  ")
+			"BEGIN" :
+			"END",
+			__entry->cpu, __entry->count)
 );
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
@@ -172,7 +174,7 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 	),
 
 	TP_printk("cpu=%d pid=%d tgid=%d nice=%d comm=%s utime=%llu stime=%llu rtime=%llu bg_utime=%llu "
-		"bg_stime=%llu bg_rtime=%llu running=%d interruptible=%d uninterruptible=%d other=%d log_idx=%llu",
+		"bg_stime=%llu bg_rtime=%llu s_run=%d s_int=%d s_unint=%d s_oth=%d log_idx=%llu",
 		__entry->cpu,
 		__entry->pid, __entry->tgid, __entry->nice, __entry->comm,
 		__entry->utime, __entry->stime, __entry->runtime,

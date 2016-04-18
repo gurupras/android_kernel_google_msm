@@ -207,25 +207,28 @@ void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *ne
 }
 
 static
-void
+unsigned
 do_trace_periodic_ctx_switch(int cpu, u64 periodic_log_idx)
 {
 	int i;
+	unsigned count;
 	struct periodic_task_stats *stats;
 	struct hlist_node *node;
 	struct hlist_head *bucket;
 
 	periodic_ctx_switch_update(current, current);
-
+	count = 0;
 	for (i = 0; i < HT_SIZE; i++) {
 		bucket = &per_cpu(ctx_switch_ht[i], cpu);
 		hlist_for_each_entry(stats, node, bucket, hlist) {
 			trace_phonelab_periodic_ctx_switch_info(stats, cpu, periodic_log_idx);
+			count++;
 		}
 	}
 
 	// Clear the hashtable
 	clear_cpu_ctx_switch_info(cpu);
+	return count;
 }
 
 static inline
@@ -259,14 +262,16 @@ clear_cpu_ctx_switch_info(int cpu)
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 static
-void
+unsigned
 do_trace_periodic_ctx_switch(int cpu, u64 periodic_log_idx)
 {
 	int i, lim;
 	struct task_struct *task;
+	unsigned count;
 
 	atomic_set(&per_cpu(test_field, cpu), 1);
 	lim = per_cpu(ctx_switch_info_idx, cpu);
+	count = 0;
 
 //		printk(KERN_DEBUG "periodic: cpu=%d lim=%d\n", cpu, lim);
 	for(i = 0; i < lim; i++) {
@@ -285,11 +290,13 @@ do_trace_periodic_ctx_switch(int cpu, u64 periodic_log_idx)
 //					cputime_to_clock_t(task->signal->cutime), cputime_to_clock_t(task->signal->cstime));
 			trace_phonelab_periodic_ctx_switch_info(task, cpu, periodic_log_idx);
 			task->is_logged[cpu] = 1;
+			count++;
 		}
 		task_unlock(task);
 	}
 	clear_cpu_ctx_switch_info(cpu);
 	atomic_set(&per_cpu(test_field, cpu), 0);
+	return count;
 }
 
 static inline
@@ -318,6 +325,7 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	struct periodic_work *pwork;
 	int DELAY=100;
 	u64 log_idx;
+	unsigned count;
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	u32 val;
 #endif
@@ -352,9 +360,9 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 
 	// Get the periodic log index
 	log_idx = atomic64_inc_return(&per_cpu(periodic_log_idx, cpu));
-	trace_phonelab_periodic_ctx_switch_marker(cpu, 1);
-	do_trace_periodic_ctx_switch(cpu, log_idx);
-	trace_phonelab_periodic_ctx_switch_marker(cpu, 0);
+	trace_phonelab_periodic_ctx_switch_marker(cpu, 1, 0);
+	count = do_trace_periodic_ctx_switch(cpu, log_idx);
+	trace_phonelab_periodic_ctx_switch_marker(cpu, 0, count);
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	val = read_instruction_counter();
