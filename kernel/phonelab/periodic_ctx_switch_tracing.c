@@ -360,9 +360,9 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 
 	// Get the periodic log index
 	log_idx = atomic64_inc_return(&per_cpu(periodic_log_idx, cpu));
-	trace_phonelab_periodic_ctx_switch_marker(cpu, 1, 0);
+	trace_phonelab_periodic_ctx_switch_marker(cpu, 1, 0, log_idx);
 	count = do_trace_periodic_ctx_switch(cpu, log_idx);
-	trace_phonelab_periodic_ctx_switch_marker(cpu, 0, count);
+	trace_phonelab_periodic_ctx_switch_marker(cpu, 0, count, log_idx);
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	val = read_instruction_counter();

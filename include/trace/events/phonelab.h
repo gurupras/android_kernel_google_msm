@@ -50,27 +50,29 @@ DEFINE_EVENT(phonelab_foreground_switch, phonelab_foreground_switch_out,
 
 TRACE_EVENT(phonelab_periodic_ctx_switch_marker,
 
-	TP_PROTO(int cpu, int begin, unsigned count),
+	TP_PROTO(int cpu, int begin, unsigned count, u64 log_idx),
 
-	TP_ARGS(cpu, begin, count),
+	TP_ARGS(cpu, begin, count, log_idx),
 
 	TP_STRUCT__entry(
 		__field( int,	cpu				)
 		__field( int,	begin				)
 		__field( unsigned,	count				)
+		__field( u64, 			log_idx		)
 	),
 
 	TP_fast_assign(
 		__entry->cpu = cpu;
 		__entry->begin = begin;
 		__entry->count = count;
+		__entry->log_idx = log_idx;
 	),
 
-	TP_printk("%s cpu=%d count=%u",
+	TP_printk("%s cpu=%d count=%u log_idx=%llu",
 		__entry->begin == 1 ?
 			"BEGIN" :
 			"END",
-			__entry->cpu, __entry->count)
+			__entry->cpu, __entry->count, __entry->log_idx)
 );
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
