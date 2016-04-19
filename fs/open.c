@@ -1021,6 +1021,10 @@ void plsc_get_fullpath(const char* pathname, char* fullpath, int directory_fd) {
 	if (directory_fd == AT_FDCWD) {
 		// ... (1) that of the CWD, or ...
 		error = kern_getcwd(fullpath, PLSC_PATHMAX - 1);
+		// N.b. non error retval = len of string _including_ nullterm.  Adjust:
+		if (error > 0) {
+			error--;
+		}
 	} else {
 		// ... (2) a specified directory fd:
 		snprintf(link_buffer, LINK_BUFFER_LEN, "/proc/self/fd/%i", directory_fd);
