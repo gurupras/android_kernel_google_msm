@@ -1315,4 +1315,8 @@ static inline void __init trace_event_init(void) { }
 
 extern struct trace_iterator *tracepoint_print_iter;
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+int create_phonelab_options(struct dentry *);
+#endif
+
 #endif /* _LINUX_KERNEL_TRACE_H */

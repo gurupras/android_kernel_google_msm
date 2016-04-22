@@ -17,6 +17,8 @@
 
 #include <trace/events/phonelab.h>
 
+unsigned int periodic_ctx_switch_info_freq = 1000;
+
 struct periodic_work {
 	struct work_struct work;
 	struct delayed_work dwork;
@@ -323,7 +325,7 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	int cpu, wcpu;
 	struct delayed_work *work, *dwork;
 	struct periodic_work *pwork;
-	int DELAY=100;
+	unsigned DELAY=periodic_ctx_switch_info_freq;
 	u64 log_idx;
 	unsigned count;
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
@@ -410,7 +412,7 @@ void init_periodic_work_on_cpu(struct work_struct *w)
 	int cpu = smp_processor_id();
 	clear_cpu_ctx_switch_info(cpu);
 	work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
-	schedule_delayed_work(work, msecs_to_jiffies(100));
+	schedule_delayed_work(work, msecs_to_jiffies(periodic_ctx_switch_info_freq));
 }
 
 static inline void setup_periodic_work(int cpu)
@@ -572,7 +574,7 @@ static int __init init_periodic_ctx_switch_info(void) {
 		schedule_work_on(cpu, &start_perf_work);
 #endif
 		work = &per_cpu(periodic_ctx_switch_info_work.dwork, cpu);
-		schedule_delayed_work_on(cpu, work, msecs_to_jiffies(100));
+		schedule_delayed_work_on(cpu, work, msecs_to_jiffies(periodic_ctx_switch_info_freq));
 	}
 
 	INIT_WORK(&setup_periodic_work_cpu, init_periodic_work_on_cpu);

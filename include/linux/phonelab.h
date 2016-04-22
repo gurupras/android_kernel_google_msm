@@ -15,6 +15,7 @@ DECLARE_PER_CPU(int, ctx_switch_info_idx);
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
 DECLARE_PER_CPU(atomic_t, test_field);
 extern int periodic_ctx_switch_info_ready;
+extern unsigned periodic_ctx_switch_info_freq;
 #endif
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_HASH

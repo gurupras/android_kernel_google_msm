@@ -67,4 +67,6 @@ obj-$(CONFIG_UPROBE_EVENT) += trace_uprobe.o
 
 obj-$(CONFIG_TRACEPOINT_BENCHMARK) += trace_benchmark.o
 
+obj-$(CONFIG_PERIODIC_CTX_SWITCH_TRACING) += trace_phonelab.o
+
 libftrace-y := ftrace.o
