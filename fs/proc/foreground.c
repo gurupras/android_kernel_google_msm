@@ -59,11 +59,16 @@ static ssize_t write_file(struct file *file, const char __user *buf, size_t coun
 	if(err)
 		goto out;
 
-	task = pid_task(find_vpid(android_foreground_pid), PIDTYPE_PID);
-	if(!task) {
-		printk(KERN_DEBUG "/proc/foreground: Could not find task struct for PID: %05d\n", android_foreground_pid);
-		err = -EINVAL;
-		goto out;
+	if(android_foreground_pid == 0) {
+		task = &init_task;
+	}
+	else {
+		task = pid_task(find_vpid(android_foreground_pid), PIDTYPE_PID);
+		if(!task) {
+			printk(KERN_DEBUG "/proc/foreground: Could not find task struct for PID: %05d\n", android_foreground_pid);
+			err = -EINVAL;
+			goto out;
+		}
 	}
 	trace_phonelab_proc_foreground(task);
 out:
