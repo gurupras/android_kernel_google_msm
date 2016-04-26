@@ -20,25 +20,38 @@
 // For tid = task_pid_vnr(current);
 // For struct kstat:  loff_t size, umode_t mode
 // For task name:  strictly, should use get_task_comm() for atomic results; still safe w/o though -- buffer guaranteed to always have NULLTERM
+// N.b. -- other traces:  in .../trace/events/sched.h -- fork and exec
 
 
+/*
+inline pid_t plsc_getpid(void);
+
+inline pid_t plsc_getpid() {
+
+	return current->tgid;
+//	return task_tgid_vnr(current);
+
+}
+*/
 
 TRACE_EVENT(plsc_ioprio,
 	TP_PROTO(char* syscall, int which, int who, int ioprio),
 	TP_ARGS(syscall, which, who, ioprio),
 	TP_STRUCT__entry(
 		__string(action, syscall)
+		__field(long, pid)
 		__field(int, which)
 		__field(int, who)
 		__field(int, ioprio)
 		),
 	TP_fast_assign(
 		__assign_str(action, syscall);
+		__entry->pid = current->tgid;
 		__entry->which = which;
 		__entry->who = who;
 		__entry->ioprio = ioprio;
 		),
-	TP_printk("{\"action\":\"%s\", \"which\":%i, \"who\":%i, \"ioprio\":%i}", __get_str(action), __entry->which, __entry->who, __entry->ioprio)
+	TP_printk("{\"action\":\"%s\", \"pid\":%lu, \"which\":%i, \"who\":%i, \"ioprio\":%i}", __get_str(action), __entry->pid, __entry->which, __entry->who, __entry->ioprio)
 );
 
 
@@ -51,9 +64,9 @@ TRACE_EVENT(plsc_open,
 		__field(unsigned long long, start)
 		__field(unsigned long long, delta)
 		__field(long, uid)
-		__field(long, pid)
 		__array(char, comm, TASK_COMM_LEN)
 		__array(char, pathname, PLSC_PATHMAX)
+		__field(long, pid)
 		__field(int, retval)
 		__field(int, session)
 		__field(loff_t, size)
@@ -66,9 +79,9 @@ TRACE_EVENT(plsc_open,
 		__entry->start = start;
 		__entry->delta = delta;
 		__entry->uid = current_uid();
-		__entry->pid = current->tgid;
 		memcpy(__entry->comm, current->comm, TASK_COMM_LEN);
 		memcpy(__entry->pathname, tmp, PLSC_PATHMAX);
+		__entry->pid = current->tgid;
 		__entry->retval = fd;
 		__entry->session = session;
 		__entry->size = stat_struct_ptr->size;
@@ -76,7 +89,7 @@ TRACE_EVENT(plsc_open,
 		__entry->flags = flags;
 		__entry->mode = mode;
 		),
-	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"uid\":%lu, \"pid\":%lu, \"task\":\"%s\", \"path\":\"%s\", \"retval\":%i, \"session\":%i, \"size\":%lli, \"type\": %i, \"flags\":%i, \"mode\":%i}", __get_str(action), __entry->start, __entry->delta, __entry->uid, __entry->pid, __entry->comm, __entry->pathname, __entry->retval, __entry->session, __entry->size, __entry->type, __entry->flags, __entry->mode)
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"uid\":%lu, \"task\":\"%s\", \"path\":\"%s\", \"pid\":%lu, \"retval\":%i, \"session\":%i, \"size\":%lli, \"type\": %i, \"flags\":%i, \"mode\":%i}", __get_str(action), __entry->start, __entry->delta, __entry->uid, __entry->comm, __entry->pathname, __entry->pid, __entry->retval, __entry->session, __entry->size, __entry->type, __entry->flags, __entry->mode)
 );
 
 
@@ -88,6 +101,7 @@ TRACE_EVENT(plsc_rw,
 		__string(action, syscall)
 		__field(unsigned long long, start)
 		__field(unsigned long long, delta)
+		__field(long, pid)
 		__field(ssize_t, retval)
 		__field(int, session)
 		__field(unsigned int, fd)
@@ -98,13 +112,14 @@ TRACE_EVENT(plsc_rw,
 		__assign_str(action, syscall);
 		__entry->start = start;
 		__entry->delta = delta;
+		__entry->pid = current->tgid;
 		__entry->retval = retval;
 		__entry->session = session;
 		__entry->fd = fd;
 		__entry->bytes = count;
 		__entry->offset = pos_old;
 		),
-	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"bytes\":%i, \"offset\":%llu}", __get_str(action), __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd, __entry->bytes, __entry->offset)
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"pid\":%lu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"bytes\":%i, \"offset\":%llu}", __get_str(action), __entry->start, __entry->delta, __entry->pid, __entry->retval, __entry->session, __entry->fd, __entry->bytes, __entry->offset)
 );
 
 
@@ -116,6 +131,7 @@ TRACE_EVENT(plsc_mmap,
 		__string(action, syscall)
 		__field(unsigned long long, start)
 		__field(unsigned long long, delta)
+		__field(long, pid)
 		__field(unsigned long, retval)
 		__field(int, session)
 		__field(unsigned int, fd)
@@ -129,6 +145,7 @@ TRACE_EVENT(plsc_mmap,
 		__assign_str(action, syscall);
 		__entry->start = start;
 		__entry->delta = delta;
+		__entry->pid = current->tgid;
 		__entry->retval = retval;
 		__entry->session = session;
 		__entry->fd = fd;
@@ -138,7 +155,7 @@ TRACE_EVENT(plsc_mmap,
 		__entry->flags = flags;
 		__entry->pgoff = pgoff;
 		),
-	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"retval\":%lu, \"session\":%i, \"fd\":%i, \"addr\":%lu, \"len\":%lu, \"prot\":%lu, \"flags\":%lu, \"pgoff\":%lu}", __get_str(action), __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd, __entry->addr, __entry->len, __entry->prot, __entry->flags, __entry->pgoff)
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"pid\":%lu, \"retval\":%lu, \"session\":%i, \"fd\":%i, \"addr\":%lu, \"len\":%lu, \"prot\":%lu, \"flags\":%lu, \"pgoff\":%lu}", __get_str(action), __entry->start, __entry->delta, __entry->pid, __entry->retval, __entry->session, __entry->fd, __entry->addr, __entry->len, __entry->prot, __entry->flags, __entry->pgoff)
 );
 
 
@@ -149,6 +166,7 @@ TRACE_EVENT(plsc_close,
 	TP_STRUCT__entry(
 		__field(unsigned long long, start)
 		__field(unsigned long long, delta)
+		__field(long, pid)
 		__field(ssize_t, retval)
 		__field(int, session)
 		__field(unsigned int, fd)
@@ -157,12 +175,13 @@ TRACE_EVENT(plsc_close,
 	TP_fast_assign(
 		__entry->start = start;
 		__entry->delta = delta;
+		__entry->pid = current->tgid;
 		__entry->retval = retval;
 		__entry->session = session;
 		__entry->fd = fd;
 		__entry->size = stat_struct_ptr->size;
 		),
-	TP_printk("{\"action\":\"close\", \"start\":%llu, \"delta\":%llu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"size\":%llu}", __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd, __entry->size)
+	TP_printk("{\"action\":\"close\", \"start\":%llu, \"delta\":%llu, \"pid\":%lu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"size\":%llu}", __entry->start, __entry->delta, __entry->pid, __entry->retval, __entry->session, __entry->fd, __entry->size)
 );
 
 
@@ -174,6 +193,7 @@ TRACE_EVENT(plsc_lseek,
 		__string(action, syscall)
 		__field(unsigned long long, start)
 		__field(unsigned long long, delta)
+		__field(long, pid)
 		__field(ssize_t, retval)
 		__field(int, session)
 		__field(unsigned int, fd)
@@ -184,13 +204,14 @@ TRACE_EVENT(plsc_lseek,
 		__assign_str(action, syscall)
 		__entry->start = start;
 		__entry->delta = delta;
+		__entry->pid = current->tgid;
 		__entry->retval = retval;
 		__entry->session = session;
 		__entry->fd = fd;
 		__entry->offset = offset;
 		__entry->origin = origin;
 		),
-	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"offset\":%llu, \"origin\":%u}", __get_str(action), __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd, __entry->offset, __entry->origin)
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"pid\":%lu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"offset\":%llu, \"origin\":%u}", __get_str(action), __entry->start, __entry->delta, __entry->pid, __entry->retval, __entry->session, __entry->fd, __entry->offset, __entry->origin)
 );
 
 
@@ -202,6 +223,7 @@ TRACE_EVENT(plsc_sync,
 		__string(action, syscall)
 		__field(unsigned long long, start)
 		__field(unsigned long long, delta)
+		__field(long, pid)
 		__field(ssize_t, retval)
 		__field(int, session)
 		__field(unsigned int, fd)
@@ -210,31 +232,38 @@ TRACE_EVENT(plsc_sync,
 		__assign_str(action, syscall);
 		__entry->start = start;
 		__entry->delta = delta;
+		__entry->pid = current->tgid;
 		__entry->retval = retval;
 		__entry->session = session;
 		__entry->fd = fd;
 		),
-	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"retval\":%i, \"session\":%i, \"fd\":%i}", __get_str(action), __entry->start, __entry->delta, __entry->retval, __entry->session, __entry->fd)
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"pid\":%lu, \"retval\":%i, \"session\":%i, \"fd\":%i}", __get_str(action), __entry->start, __entry->delta, __entry->pid, __entry->retval, __entry->session, __entry->fd)
 );
 
 
 
 TRACE_EVENT(plsc_dup,
-	TP_PROTO(char* syscall, unsigned int oldfd, unsigned int newfd, int flags),
-	TP_ARGS(syscall, oldfd, newfd, flags),
+	TP_PROTO(char* syscall, int retval, int session, unsigned int oldfd, unsigned int newfd, int flags),
+	TP_ARGS(syscall, retval, session, oldfd, newfd, flags),
 	TP_STRUCT__entry(
 		__string(action, syscall)
+		__field(long, pid)
+		__field(int, retval)
+		__field(int, session)
 		__field(unsigned int, oldfd)
 		__field(unsigned int, newfd)
 		__field(int, flags)
 		),
 	TP_fast_assign(
 		__assign_str(action, syscall);
+		__entry->pid = current->tgid;
+		__entry->retval = retval;
+		__entry->session = session;
 		__entry->oldfd = oldfd;
 		__entry->newfd = newfd;
 		__entry->flags = flags;
 		),
-	TP_printk("{\"action\":\"%s\", \"oldfd\":%i, \"newfd\":%i, \"flags\":%i}", __get_str(action), __entry->oldfd, __entry->newfd, __entry->flags)
+	TP_printk("{\"action\":\"%s\", \"pid\":%lu, \"retval\":%i, \"session\":%i, \"oldfd\":%i, \"newfd\":%i, \"flags\":%i}", __get_str(action), __entry->pid, __entry->retval, __entry->session, __entry->oldfd, __entry->newfd, __entry->flags)
 );
 
 
@@ -247,9 +276,9 @@ TRACE_EVENT(plsc_delete,
 		__field(unsigned long long, start)
 		__field(unsigned long long, delta)
 		__field(long, uid)
-		__field(long, pid)
 		__array(char, comm, TASK_COMM_LEN)
 		__array(char, pathname, PLSC_PATHMAX)
+		__field(long, pid)
 		__field(int, retval)
 		__field(loff_t, size)
 		__field(umode_t, type)
@@ -259,14 +288,14 @@ TRACE_EVENT(plsc_delete,
 		__entry->start = start;
 		__entry->delta = delta;
 		__entry->uid = current_uid();
-		__entry->pid = task_tgid_vnr(current);
 		memcpy(__entry->comm, current->comm, TASK_COMM_LEN);
 		memcpy(__entry->pathname, name, PLSC_PATHMAX);
+		__entry->pid = task_tgid_vnr(current);
 		__entry->retval = error;
 		__entry->size = stat_struct_ptr->size;
 		__entry->type = stat_struct_ptr->mode & S_IFMT;
 		),
-	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"uid\":%lu, \"pid\":%lu, \"task\":\"%s\", \"path\":\"%s\", \"retval\":%i, \"size\":%lli, \"type\": %i}", __get_str(action), __entry->start, __entry->delta, __entry->uid, __entry->pid, __entry->comm, __entry->pathname, __entry->retval, __entry->size, __entry->type)
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"delta\":%llu, \"uid\":%lu, \"task\":\"%s\", \"path\":\"%s\", \"pid\":%lu, \"retval\":%i, \"size\":%lli, \"type\": %i}", __get_str(action), __entry->start, __entry->delta, __entry->uid, __entry->comm, __entry->pathname, __entry->pid, __entry->retval, __entry->size, __entry->type)
 );
 
 
