@@ -72,6 +72,10 @@
 #include <linux/crypto.h>
 #include <linux/scatterlist.h>
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#include <linux/phonelab.h>
+#endif
+
 static void	tcp_v6_send_reset(struct sock *sk, struct sk_buff *skb);
 static void	tcp_v6_reqsk_send_ack(struct sock *sk, struct sk_buff *skb,
 				      struct request_sock *req);
@@ -1645,6 +1649,11 @@ process:
 
 	if (sk_filter(sk, skb))
 		goto discard_and_relse;
+
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+	if (sk->sk_owner_pid)
+		phonelab_update_task_net_stats(sk->sk_owner_pid, skb->len, 0);
+#endif
 
 	skb->dev = NULL;
 

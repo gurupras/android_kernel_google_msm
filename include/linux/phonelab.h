@@ -3,6 +3,7 @@
 
 #include <linux/types.h>
 #include <linux/sched.h>
+#include <linux/pid.h>
 
 #define PHONELAB_MAGIC "<PhoneLab>"
 
@@ -44,6 +45,9 @@ struct periodic_task_stats {
 
 	// Why the process is being context switched out
 	uint32_t dequeue_reasons[4];
+
+	// Network
+	u64 rx_bytes, tx_bytes;
 };
 
 void periodic_ctx_switch_info(struct work_struct *w);
@@ -78,5 +82,9 @@ int armv7_pmnc_disable_counter(int idx);
 u32 __init armv7_read_num_pmnc_events(void);
 void armv7_pmnc_write(u32 val);
 u32 armv7_pmnc_read(void);
+
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+void phonelab_update_task_net_stats(struct pid *pid, u32 rx, u32 tx);
+#endif
 
 #endif	/* __PHONELAB__H_ */

@@ -138,6 +138,10 @@
 
 #include "net-sysfs.h"
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+#include <linux/phonelab.h>
+#endif
+
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 
@@ -2527,7 +2531,12 @@ int dev_queue_xmit(struct sk_buff *skb)
 #endif
 	trace_net_dev_queue(skb);
 	if (q->enqueue) {
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+		if (skb->sk && skb->sk->sk_owner_pid)
+			phonelab_update_task_net_stats(skb->sk->sk_owner_pid, 0, skb->len);
+#endif
 		rc = __dev_xmit_skb(skb, q, dev, txq);
+
 		goto out;
 	}
 
