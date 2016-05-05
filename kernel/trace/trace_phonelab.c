@@ -1,9 +1,10 @@
 #include <linux/debugfs.h>
-#include <trace.h>
 #include <linux/fs.h>
 #include <linux/phonelab.h>
 #include <linux/dcache.h>
 #include <linux/uaccess.h>
+
+#include "trace.h"
 
 #define FREQ_BUFFER 32
 
