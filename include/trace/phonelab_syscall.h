@@ -20,6 +20,16 @@
 // For task name:  strictly, should use get_task_comm() for atomic results; still safe w/o though -- buffer guaranteed to always have NULLTERM
 // N.b. -- other traces:  in .../trace/events/sched.h -- fork and exec
 
+/*
+inline pid_t plsc_getpid(void);
+
+inline pid_t plsc_getpid() {
+
+	return current->tgid;
+//	return task_tgid_vnr(current);
+
+}
+*/
 
 TRACE_EVENT(plsc_ioprio,
 	TP_PROTO(char* syscall, int which, int who, int ioprio),
