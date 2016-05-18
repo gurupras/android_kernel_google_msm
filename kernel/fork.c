@@ -89,6 +89,8 @@ int nr_threads;			/* The idle threads do not count.. */
 
 int max_threads;		/* tunable limit on nr_threads */
 
+static atomic_t unique_pid_next = ATOMIC_INIT(0);	/* PhoneLab -- unique (no rollover) pid */
+
 DEFINE_PER_CPU(unsigned long, process_counts) = 0;
 
 __cacheline_aligned DEFINE_RWLOCK(tasklist_lock);  /* outer */
@@ -1344,8 +1346,13 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 
 	p->pid = pid_nr(pid);
 	p->tgid = p->pid;
-	if (clone_flags & CLONE_THREAD)
+	if (clone_flags & CLONE_THREAD) {
 		p->tgid = current->tgid;
+		/* PhoneLab */
+		p->upid = current->upid;
+	} else {
+		p->upid = atomic_inc_return(&unique_pid_next); 
+	}
 
 	p->set_child_tid = (clone_flags & CLONE_CHILD_SETTID) ? child_tidptr : NULL;
 	/*

@@ -46,21 +46,21 @@ TRACE_EVENT(plsc_exec,
 		__string(action, syscall)
 		__field(unsigned long long, start)
 		__field(long, uid)
-		__field(long, pid)
 		__array(char, comm, TASK_COMM_LEN)
 		__array(char, pathname, PLSC_EXECMAX)
+		__field(long, pid)
 		__field(loff_t, size)
 		),
 	TP_fast_assign(
 		__assign_str(action, syscall);
 		__entry->start = start;
 		__entry->uid = current_uid();
-		__entry->pid = current->tgid;
 		memcpy(__entry->comm, current->comm, TASK_COMM_LEN);
 		memcpy(__entry->pathname, tmp, PLSC_EXECMAX);
+		__entry->pid = current->tgid;
 		__entry->size = stat_struct_ptr->size;
 		),
-	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"uid\":%lu, \"pid\":%lu, \"task\":\"%s\", \"path\":\"%s\", \"size\":%lli}", __get_str(action), __entry->start, __entry->uid, __entry->pid, __entry->comm, __entry->pathname, __entry->size)
+	TP_printk("{\"action\":\"%s\", \"start\":%llu, \"uid\":%lu, \"task\":\"%s\", \"path\":\"%s\", \"pid\":%lu, \"size\":%lli}", __get_str(action), __entry->start, __entry->uid, __entry->comm, __entry->pathname, __entry->pid, __entry->size)
 );
 
 
