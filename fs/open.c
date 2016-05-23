@@ -985,6 +985,11 @@ int plsc_pathname_filter(const char* path) {
 
 	// Path blacklists (i.e., any file in these directories):
 	//char logpath[] = "/dev/log/";
+	char *whitelist[] = {
+		"/sys/devices/system/cpu",
+		NULL
+	};
+
 	char catpath[] = "/data/data/edu.buffalo.cse.phonelab.conductor/app_LogcatTask/";
 	char devpath[] = "/dev/";
 	char syspath[] = "/sys/";
@@ -995,6 +1000,14 @@ int plsc_pathname_filter(const char* path) {
 	char devdir[] = "/dev";
 	char sysdir[] = "/sys";
 	char procdir[] = "/proc";
+
+	int i = 0;
+	while(whitelist[i] != NULL) {
+		if(strncmp(path, whitelist[i], strlen(whitelist[i])) == 0) {
+			return 1;
+		}
+		i++;
+	}
 
 	// Edit / comment out to adjust path filtering:
 	return (strncmp(path, devpath, strlen(devpath)) && \
@@ -1099,7 +1112,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 		}
 
 		putname(tmp);
-	
+
 		// PL:  (Possibly) log the open():
 		if (f_logging) {
 			if (pathname_buffer[0] != '/') {
