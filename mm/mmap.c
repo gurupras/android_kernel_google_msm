@@ -1134,7 +1134,7 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
 	bool f_logging = false;
-	int session_id = 0;
+	int f_session = 0;
 
 	if (!(flags & MAP_ANONYMOUS)) {
 		audit_mmap_fd(fd, flags);
@@ -1162,7 +1162,7 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	// PL
 	if (file) {
 		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_session = file->f_session;
 	}
 
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
@@ -1176,7 +1176,7 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 
 	// PL
 	if (f_logging) {
-		trace_plsc_mmap("mmap_pgoff", time_start, sched_clock() - time_start, retval, session_id, fd, addr, len, prot, flags, pgoff);
+		trace_plsc_mmap("mmap_pgoff", time_start, sched_clock() - time_start, retval, f_session, fd, addr, len, prot, flags, pgoff);
 	}
 
 out:

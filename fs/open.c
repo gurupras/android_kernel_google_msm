@@ -981,7 +981,7 @@ EXPORT_SYMBOL(file_open_root);
 
 
 // PL:  Filepath filtering:  Return ==0 if on blacklist; !=0 if not
-int plsc_pathname_filter(const char* path) {
+inline int plsc_pathname_filter(const char* path) {
 
 	// Path blacklists (i.e., any file in these directories):
 	//char logpath[] = "/dev/log/";
@@ -1005,6 +1005,16 @@ int plsc_pathname_filter(const char* path) {
 		strcmp(path, devdir) && \
 		strcmp(path, sysdir) && \
 		strcmp(path, procdir) );
+
+}
+
+
+// PL:  Session logging type:  Return ==0 to greylist file (log summary at close rather than every r/w event); !=0 for full logging (log all session events)
+static inline int plsc_logtype_filter(const char* path) {
+
+	char dbpath[] = "/data/data/com.google.android.gms/databases/";
+
+	return ((bool)strncmp(path, dbpath, strlen(dbpath)) );
 
 }
 
@@ -1046,6 +1056,10 @@ void plsc_get_fullpath(const char* pathname, char* fullpath, int directory_fd) {
 
 
 
+int open_count = 0;
+unsigned long get_overrun(long);
+
+
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 
@@ -1058,13 +1072,14 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 
 	// PhoneLab
 	bool f_logging;
-	int session_id = 0;
+	int f_session = 0;
 	char pathname_buffer[PLSC_PATHMAX];
 	char fullpath_buffer[PLSC_PATHMAX];
 	char* buffer_ptr = pathname_buffer;  // huge kludge
 	struct kstat stat_struct = {.size = 0, .mode = 0};
 
 	if (!IS_ERR(tmp)) {
+
 		fd = get_unused_fd_flags(flags);
 
 		// PL:  Filter whether to log file activity by filetype:
@@ -1088,26 +1103,31 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 				f->f_logging = f_logging;
 				// (2)  Conditionally, if we are also logging:
 				if (f_logging) {
-					// (2a) Assign a unique ID to this session:
-					session_id = atomic_inc_return(&current->files->next_session);
-					f->session_id = session_id;
-					// (2b) grab file stats for this event.  N.b., must use fstat() --
-					// at boot, stat() has a race condition against the newly recorded pathname
+					// Initialize session logging info:
+					f->f_session = atomic_inc_return(&current->files->next_session);  // unique session ID
+					f->f_logrw = plsc_logtype_filter(tmp);  // Greylist filter 
+					f->f_rcalls = 0;
+					f->f_rbytes = 0;
+					f->f_wcalls = 0;
+					f->f_wbytes = 0;
+					f_session = f->f_session;  // local copy
+					// Grab file stats -- must use fstat(), as at boot, stat() has a race condition against the new pathname
 					vfs_fstat(fd, &stat_struct);
 				}
+
 			}
 		}
 
 		putname(tmp);
 	
-		// PL:  (Possibly) log the open():
+		// PL:  (Possibly) log the open() -- note this also logs open() errors that resultingly do not have file structs
 		if (f_logging) {
 			if (pathname_buffer[0] != '/') {
 				// If we do not already have the absolute path, construct it manually:
 				plsc_get_fullpath(pathname_buffer, fullpath_buffer, dfd);
 				buffer_ptr = fullpath_buffer;
 			}
-			trace_plsc_open("open", time_start, sched_clock() - time_start, buffer_ptr, fd, session_id, &stat_struct, flags, mode);
+			trace_plsc_open("open", time_start, sched_clock() - time_start, buffer_ptr, fd, f_session, &stat_struct, flags, mode);
 		}
 
 	}
@@ -1195,8 +1215,12 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
 	bool f_logging = false;
-	int session_id = 0;
+	int f_session = 0;
 	struct kstat stat_struct = {.size = 0};
+	unsigned rcalls;
+	unsigned rbytes;
+	unsigned wcalls;
+	unsigned wbytes;
 
 	spin_lock(&files->file_lock);
 	fdt = files_fdtable(files);
@@ -1212,10 +1236,14 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 
 	// PL:  After dropping lock, but while "file" is in scope, save out values...
 	f_logging = filp->f_logging;
-	session_id = filp->session_id;
-	// ...and possibly stat info (if logging):
+	f_session = filp->f_session;
+	// ...and possibly stat info and other info (if logging):
 	if (f_logging) {
 		vfs_fstat(fd, &stat_struct);
+		rcalls = filp->f_rcalls;
+		rbytes = filp->f_rbytes;
+		wcalls = filp->f_wcalls;
+		wbytes = filp->f_wbytes;
 	}
 
 	retval = filp_close(filp, files);
@@ -1229,7 +1257,7 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 
 	// PL:  (Possibly) log the call():
 	if (f_logging) {
-		trace_plsc_close(time_start, sched_clock() - time_start, retval, session_id, fd, &stat_struct);
+		trace_plsc_close(time_start, sched_clock() - time_start, retval, f_session, fd, &stat_struct, rcalls, rbytes, wcalls, wbytes);
 		// need:  type
 	}
 

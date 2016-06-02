@@ -238,7 +238,7 @@ SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, origin)
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
 	bool f_logging = false;
-	int session_id = 0;
+	int f_session = 0;
 
 	retval = -EBADF;
 	file = fget_light(fd, &fput_needed);
@@ -247,7 +247,7 @@ SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, origin)
 
 	// PL:  Save out values while file is in scope:
 	f_logging = file->f_logging;
-	session_id = file->session_id;
+	f_session = file->f_session;
 
 	retval = -EINVAL;
 	if (origin <= SEEK_MAX) {
@@ -260,7 +260,7 @@ SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, origin)
 
 	// PL:  (Possibly) log the call():
 	if (f_logging) {
-		trace_plsc_lseek("lseek", time_start, sched_clock() - time_start, retval, session_id, fd, offset, origin);
+		trace_plsc_lseek("lseek", time_start, sched_clock() - time_start, retval, f_session, fd, offset, origin);
 	}
 
 bad:
@@ -280,7 +280,7 @@ SYSCALL_DEFINE5(llseek, unsigned int, fd, unsigned long, offset_high,
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
 	bool f_logging = false;
-	int session_id = 0;
+	int f_session = 0;
 
 	retval = -EBADF;
 	file = fget_light(fd, &fput_needed);
@@ -289,7 +289,7 @@ SYSCALL_DEFINE5(llseek, unsigned int, fd, unsigned long, offset_high,
 
 	// PL:  Save out values while file is in scope:
 	f_logging = file->f_logging;
-	session_id = file->session_id;
+	f_session = file->f_session;
 
 	retval = -EINVAL;
 	if (origin > SEEK_MAX)
@@ -309,7 +309,7 @@ out_putf:
 	
 	// PL:  (Possibly) log the call():
 	if (f_logging) {
-		trace_plsc_lseek("llseek", time_start, sched_clock() - time_start, retval, session_id, fd, ((loff_t) offset_high << 32) | offset_low, origin);
+		trace_plsc_lseek("llseek", time_start, sched_clock() - time_start, retval, f_session, fd, ((loff_t) offset_high << 32) | offset_low, origin);
 	}
 
 bad:
@@ -499,8 +499,8 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
-	bool f_logging = false;
-	int session_id = 0;
+	bool f_logrw = false;
+	int f_session = 0;
 	loff_t pos_old = 0;
 
 	file = fget_light(fd, &fput_needed);
@@ -508,17 +508,20 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		loff_t pos = file_pos_read(file);
 
 		// PL:  Save out values after getting current "pos" and while "file" is in scope:
-		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_logrw = file->f_logrw;
+		f_session = file->f_session;
 		pos_old = pos;
+		// Update totals:
+		file->f_rcalls++;
+		file->f_rbytes += count;
 
 		ret = vfs_read(file, buf, count, &pos);
 		file_pos_write(file, pos);
 		fput_light(file, fput_needed);
 
 		// PL:  (Possibly) log the call():
-		if (f_logging) {
-			trace_plsc_rw("read", time_start, sched_clock() - time_start, ret, session_id, fd, count, pos_old);
+		if (f_logrw) {
+			trace_plsc_rw("read", time_start, sched_clock() - time_start, ret, f_session, fd, count, pos_old);
 		}
 
 	}
@@ -535,8 +538,8 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
-	bool f_logging = false;
-	int session_id = 0;
+	bool f_logrw = false;
+	int f_session = 0;
 	loff_t pos_old = 0;
 
 	file = fget_light(fd, &fput_needed);
@@ -544,17 +547,20 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 		loff_t pos = file_pos_read(file);
 
 		// PL:  Save out values after getting current "pos" and while "file" is in scope:
-		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_logrw = file->f_logrw;
+		f_session = file->f_session;
 		pos_old = pos;
+		// Update totals:
+		file->f_wcalls++;
+		file->f_wbytes += count;
 
 		ret = vfs_write(file, buf, count, &pos);
 		file_pos_write(file, pos);
 		fput_light(file, fput_needed);
 
 		// PL:  (Possibly) log the call():
-		if (f_logging) {
-			trace_plsc_rw("write", time_start, sched_clock() - time_start, ret, session_id, fd, count, pos_old);
+		if (f_logrw) {
+			trace_plsc_rw("write", time_start, sched_clock() - time_start, ret, f_session, fd, count, pos_old);
 		}
 
 	}
@@ -571,8 +577,8 @@ SYSCALL_DEFINE(pread64)(unsigned int fd, char __user *buf,
 
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
-	bool f_logging = false;
-	int session_id = 0;
+	bool f_logrw = false;
+	int f_session = 0;
 	loff_t pos_old = 0;
 
 	if (pos < 0)
@@ -582,9 +588,12 @@ SYSCALL_DEFINE(pread64)(unsigned int fd, char __user *buf,
 	if (file) {
 
 		// PL:  Save out values after getting current "pos" and while "file" is in scope:
-		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_logrw = file->f_logrw;
+		f_session = file->f_session;
 		pos_old = pos;
+		// Update totals:
+		file->f_rcalls++;
+		file->f_rbytes += count;
 
 		ret = -ESPIPE;
 		if (file->f_mode & FMODE_PREAD)
@@ -592,8 +601,8 @@ SYSCALL_DEFINE(pread64)(unsigned int fd, char __user *buf,
 		fput_light(file, fput_needed);
 
 		// PL:  (Possibly) log the call():
-		if (f_logging) {
-			trace_plsc_rw("pread64", time_start, sched_clock() - time_start, ret, session_id, fd, count, pos_old);
+		if (f_logrw) {
+			trace_plsc_rw("pread64", time_start, sched_clock() - time_start, ret, f_session, fd, count, pos_old);
 		}
 
 	}
@@ -618,8 +627,8 @@ SYSCALL_DEFINE(pwrite64)(unsigned int fd, const char __user *buf,
 
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
-	bool f_logging = false;
-	int session_id = 0;
+	bool f_logrw = false;
+	int f_session = 0;
 	loff_t pos_old = 0;
 
 	if (pos < 0)
@@ -629,9 +638,12 @@ SYSCALL_DEFINE(pwrite64)(unsigned int fd, const char __user *buf,
 	if (file) {
 
 		// PL:  Save out values after getting current "pos" and while "file" is in scope:
-		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_logrw = file->f_logrw;
+		f_session = file->f_session;
 		pos_old = pos;
+		// Update totals:
+		file->f_wcalls++;
+		file->f_wbytes += count;
 
 		ret = -ESPIPE;
 		if (file->f_mode & FMODE_PWRITE)  
@@ -639,8 +651,8 @@ SYSCALL_DEFINE(pwrite64)(unsigned int fd, const char __user *buf,
 		fput_light(file, fput_needed);
 
 		// PL:  (Possibly) log the call():
-		if (f_logging) {
-			trace_plsc_rw("pwrite64", time_start, sched_clock() - time_start, ret, session_id, fd, count, pos_old);
+		if (f_logrw) {
+			trace_plsc_rw("pwrite64", time_start, sched_clock() - time_start, ret, f_session, fd, count, pos_old);
 		}
 
 	}
@@ -900,8 +912,8 @@ SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
-	bool f_logging = false;
-	int session_id = 0;
+	bool f_logrw = false;
+	int f_session = 0;
 	loff_t pos_old = 0;
 
 	file = fget_light(fd, &fput_needed);
@@ -909,17 +921,19 @@ SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 		loff_t pos = file_pos_read(file);
 
 		// PL:  Save out values after getting current "pos" and while "file" is in scope:
-		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_logrw = file->f_logrw;
+		f_session = file->f_session;
 		pos_old = pos;
+		// Update totals:
+		file->f_rcalls++;
 
 		ret = vfs_readv(file, vec, vlen, &pos);
 		file_pos_write(file, pos);
 		fput_light(file, fput_needed);
  
 		// PL:  (Possibly) log the call():
-		if (f_logging) {
-			trace_plsc_rw("readv", time_start, sched_clock() - time_start, ret, session_id, fd, 0, pos_old);
+		if (f_logrw) {
+			trace_plsc_rw("readv", time_start, sched_clock() - time_start, ret, f_session, fd, 0, pos_old);
 		}
 
 	}
@@ -939,8 +953,8 @@ SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
 
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
-	bool f_logging = false;
-	int session_id = 0;
+	bool f_logrw = false;
+	int f_session = 0;
 	loff_t pos_old = 0;
 
 	file = fget_light(fd, &fput_needed);
@@ -948,17 +962,19 @@ SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
 		loff_t pos = file_pos_read(file);
 
 		// PL:  Save out values after getting current "pos" and while "file" is in scope:
-		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_logrw = file->f_logrw;
+		f_session = file->f_session;
 		pos_old = pos;
+		// Update totals:
+		file->f_wcalls++;
 
 		ret = vfs_writev(file, vec, vlen, &pos);
 		file_pos_write(file, pos);
 		fput_light(file, fput_needed);
  
 		// PL:  (Possibly) log the call():
-		if (f_logging) {
-			trace_plsc_rw("writev", time_start, sched_clock() - time_start, ret, session_id, fd, 0, pos_old);
+		if (f_logrw) {
+			trace_plsc_rw("writev", time_start, sched_clock() - time_start, ret, f_session, fd, 0, pos_old);
 		}
 
 	}
@@ -985,8 +1001,8 @@ SYSCALL_DEFINE5(preadv, unsigned long, fd, const struct iovec __user *, vec,
 
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
-	bool f_logging = false;
-	int session_id = 0;
+	bool f_logrw = false;
+	int f_session = 0;
 	loff_t pos_old = 0;
 
 	if (pos < 0)
@@ -996,9 +1012,11 @@ SYSCALL_DEFINE5(preadv, unsigned long, fd, const struct iovec __user *, vec,
 	if (file) {
 
 		// PL:  Save out values after getting current "pos" and while "file" is in scope:
-		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_logrw = file->f_logrw;
+		f_session = file->f_session;
 		pos_old = pos;
+		// Update totals:
+		file->f_rcalls++;
 
 		ret = -ESPIPE;
 		if (file->f_mode & FMODE_PREAD)
@@ -1006,8 +1024,8 @@ SYSCALL_DEFINE5(preadv, unsigned long, fd, const struct iovec __user *, vec,
 		fput_light(file, fput_needed);
 
 		// PL:  (Possibly) log the call():
-		if (f_logging) {
-			trace_plsc_rw("preadv", time_start, sched_clock() - time_start, ret, session_id, fd, 0, pos_old);
+		if (f_logrw) {
+			trace_plsc_rw("preadv", time_start, sched_clock() - time_start, ret, f_session, fd, 0, pos_old);
 		}
 
 	}
@@ -1028,8 +1046,8 @@ SYSCALL_DEFINE5(pwritev, unsigned long, fd, const struct iovec __user *, vec,
 
 	// PhoneLab
 	unsigned long long time_start = sched_clock();
-	bool f_logging = false;
-	int session_id = 0;
+	bool f_logrw = false;
+	int f_session = 0;
 	loff_t pos_old = 0;
 
 	if (pos < 0)
@@ -1039,9 +1057,11 @@ SYSCALL_DEFINE5(pwritev, unsigned long, fd, const struct iovec __user *, vec,
 	if (file) {
 
 		// PL:  Save out values after getting current "pos" and while "file" is in scope:
-		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_logrw = file->f_logrw;
+		f_session = file->f_session;
 		pos_old = pos;
+		// Update totals:
+		file->f_wcalls++;
 
 		ret = -ESPIPE;
 		if (file->f_mode & FMODE_PWRITE)
@@ -1049,8 +1069,8 @@ SYSCALL_DEFINE5(pwritev, unsigned long, fd, const struct iovec __user *, vec,
 		fput_light(file, fput_needed);
 
 		// PL:  (Possibly) log the call():
-		if (f_logging) {
-			trace_plsc_rw("pwritev", time_start, sched_clock() - time_start, ret, session_id, fd, 0, pos_old);
+		if (f_logrw) {
+			trace_plsc_rw("pwritev", time_start, sched_clock() - time_start, ret, f_session, fd, 0, pos_old);
 		}
 
 	}
