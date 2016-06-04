@@ -1022,8 +1022,15 @@ struct file {
 	unsigned long f_mnt_write_state;
 #endif
 
-	bool			f_logging;  // PhoneLab
-	int			session_id;  // PhoneLab
+	/* PhoneLab fields */
+	int			f_session;	// Unique (per process) logging session ID (fds get reused)
+	bool			f_logging;	// Whether this file is being logged
+	bool			f_logrw;	// If being logged, whether to log r/w events
+	// collected summary for terse logging:
+	unsigned		f_rcalls;
+	unsigned		f_rbytes;
+	unsigned		f_wcalls;
+	unsigned		f_wbytes;
 
 };
 

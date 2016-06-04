@@ -164,8 +164,8 @@ TRACE_EVENT(plsc_mmap,
 
 
 TRACE_EVENT(plsc_close,
-	TP_PROTO(unsigned long long start, unsigned long long delta, ssize_t retval, int session, unsigned int fd, struct kstat* stat_struct_ptr),
-	TP_ARGS(start, delta, retval, session, fd, stat_struct_ptr),
+	TP_PROTO(unsigned long long start, unsigned long long delta, ssize_t retval, int session, unsigned int fd, struct kstat* stat_struct_ptr, unsigned rcalls, unsigned rbytes, unsigned wcalls, unsigned wbytes),
+	TP_ARGS(start, delta, retval, session, fd, stat_struct_ptr, rcalls, rbytes, wcalls, wbytes),
 	TP_STRUCT__entry(
 		__field(unsigned long long, start)
 		__field(unsigned long long, delta)
@@ -175,6 +175,10 @@ TRACE_EVENT(plsc_close,
 		__field(int, session)
 		__field(unsigned int, fd)
 		__field(loff_t, size)
+		__field(unsigned, rcalls)
+		__field(unsigned, rbytes)
+		__field(unsigned, wcalls)
+		__field(unsigned, wbytes)
 		),
 	TP_fast_assign(
 		__entry->start = start;
@@ -185,8 +189,12 @@ TRACE_EVENT(plsc_close,
 		__entry->session = session;
 		__entry->fd = fd;
 		__entry->size = stat_struct_ptr->size;
+		__entry->rcalls = rcalls;
+		__entry->rbytes = rbytes;
+		__entry->wcalls = wcalls;
+		__entry->wbytes = wbytes;
 		),
-	TP_printk("{\"action\":\"close\", \"start\":%llu, \"delta\":%llu, \"pid\":%lu, \"upid\":%lu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"size\":%llu}", __entry->start, __entry->delta, __entry->pid, __entry->upid, __entry->retval, __entry->session, __entry->fd, __entry->size)
+	TP_printk("{\"action\":\"close\", \"start\":%llu, \"delta\":%llu, \"pid\":%lu, \"upid\":%lu, \"retval\":%i, \"session\":%i, \"fd\":%i, \"size\":%llu, \"rcalls\":%u, \"rbytes\":%u, \"wcalls\":%u, \"wbytes\":%u}", __entry->start, __entry->delta, __entry->pid, __entry->upid, __entry->retval, __entry->session, __entry->fd, __entry->size, __entry->rcalls, __entry->rbytes, __entry->wcalls, __entry->wbytes)
 );
 
 

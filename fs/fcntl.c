@@ -61,7 +61,7 @@ SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
 
 	// PhoneLab
 	bool f_logging = false;
-	int session_id = 0;
+	int f_session = 0;
 
 	if ((flags & ~O_CLOEXEC) != 0)
 		return -EINVAL;
@@ -108,13 +108,13 @@ SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
 
 	// PL -- save values while holding spinlock:
 	f_logging = file->f_logging;
-	session_id = file->session_id;
+	f_session = file->f_session;
 
 	spin_unlock(&files->file_lock);
 
 	// PL
 	if (f_logging) {
-		trace_plsc_dup("dup3", newfd, session_id, oldfd, newfd, flags);
+		trace_plsc_dup("dup3", newfd, f_session, oldfd, newfd, flags);
 	}
 
 	if (tofree)
@@ -150,7 +150,7 @@ SYSCALL_DEFINE1(dup, unsigned int, fildes)
 
 	// PhoneLab
 	bool f_logging = false;
-	int session_id = 0;
+	int f_session = 0;
 
 	struct file *file = fget_raw(fildes);
 
@@ -158,7 +158,7 @@ SYSCALL_DEFINE1(dup, unsigned int, fildes)
 
 		// PL:  Save values while "file" is in scope:
 		f_logging = file->f_logging;
-		session_id = file->session_id;
+		f_session = file->f_session;
 
 		ret = get_unused_fd();
 		if (ret >= 0)
@@ -168,7 +168,7 @@ SYSCALL_DEFINE1(dup, unsigned int, fildes)
 
 		// PL
 		if (f_logging) {
-			trace_plsc_dup("dup", ret, session_id, fildes, 0, 0);
+			trace_plsc_dup("dup", ret, f_session, fildes, 0, 0);
 		}
 
 	}
