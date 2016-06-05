@@ -1025,7 +1025,7 @@ inline int plsc_pathname_filter(const char* path) {
 // PL:  Session logging type:  Return ==0 to greylist file (log summary at close rather than every r/w event); !=0 for full logging (log all session events)
 static inline int plsc_logtype_filter(const char* path) {
 
-	char dbpath[] = "/data/data/com.google.android.gms/databases/";
+	char dbpath[] = "/sys/devices/system/cpu";
 
 	return ((bool)strncmp(path, dbpath, strlen(dbpath)) );
 
