@@ -85,10 +85,6 @@
 #include <linux/crypto.h>
 #include <linux/scatterlist.h>
 
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-#include <linux/phonelab.h>
-#endif
-
 int sysctl_tcp_tw_reuse __read_mostly;
 int sysctl_tcp_low_latency __read_mostly;
 EXPORT_SYMBOL(sysctl_tcp_low_latency);
@@ -1726,11 +1722,6 @@ process:
 
 	if (sk_filter(sk, skb))
 		goto discard_and_relse;
-
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	if (sk->sk_owner_pid)
-		phonelab_update_task_net_stats(sk->sk_owner_pid, skb->len, 0);
-#endif
 
 	skb->dev = NULL;
 

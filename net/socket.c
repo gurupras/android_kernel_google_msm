@@ -104,9 +104,6 @@
 #include <linux/route.h>
 #include <linux/sockios.h>
 #include <linux/atalk.h>
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-#include <linux/pid.h>
-#endif
 
 static int sock_no_open(struct inode *irrelevant, struct file *dontcare);
 static ssize_t sock_aio_read(struct kiocb *iocb, const struct iovec *iov,
@@ -514,11 +511,6 @@ const struct file_operations bad_sock_fops = {
 
 void sock_release(struct socket *sock)
 {
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	struct pid *sk_pid = NULL;
-	if (sock->sk)
-		sk_pid = sock->sk->sk_owner_pid;
-#endif
 	if (sock->ops) {
 		struct module *owner = sock->ops->owner;
 
@@ -526,9 +518,6 @@ void sock_release(struct socket *sock)
 		sock->ops = NULL;
 		module_put(owner);
 	}
-
-	if (sk_pid)
-		put_pid(sk_pid);
 
 	if (rcu_dereference_protected(sock->wq, 1)->fasync_list)
 		printk(KERN_ERR "sock_release: fasync list not empty!\n");
@@ -1300,11 +1289,6 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 	if (err)
 		goto out_sock_release;
 	*res = sock;
-
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	if (current && sock->sk)
-		sock->sk->sk_owner_pid = get_task_pid(current, PIDTYPE_PID);
-#endif
 
 	return 0;
 
