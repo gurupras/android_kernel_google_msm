@@ -634,4 +634,7 @@ static inline int cgroup_is_bg_task(struct cgroup *cgp) {
 
 #endif /* !CONFIG_CGROUPS */
 
+#ifdef CONFIG_PHONELAB
+int is_background_task(struct task_struct *task);
+#endif	/* CONFIG_PHONELAB */
 #endif /* _LINUX_CGROUP_H */

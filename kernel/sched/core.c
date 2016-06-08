@@ -8360,3 +8360,29 @@ struct cgroup_subsys cpuacct_subsys = {
 	.subsys_id = cpuacct_subsys_id,
 };
 #endif	/* CONFIG_CGROUP_CPUACCT */
+
+#ifdef CONFIG_PHONELAB
+inline
+int
+is_background_task(struct task_struct *task)
+{
+#ifdef CONFIG_CGROUPS
+	int bg_task = 0;
+	struct css_set *css;
+
+	// task->cgroups is RCU protected
+	rcu_read_lock();
+	css = rcu_dereference(task->cgroups);
+
+	if (likely(css)) {
+		if(likely(css->subsys[cpu_cgroup_subsys_id]->cgroup)) {
+			bg_task = cgroup_is_bg_task(css->subsys[cpu_cgroup_subsys_id]->cgroup);
+		}
+	}
+
+	rcu_read_unlock();
+	return bg_task;
+#endif
+	return 0;
+}
+#endif
