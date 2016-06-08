@@ -42,3 +42,8 @@ config POST_FOREGROUND_PID
 	  Enable /proc/foreground that Android publishes to to acquire
 	  PID of the task that is in the foreground.
 
+config PHONELAB_CPUFREQ_GOVERNOR_FIX
+	select PHONELAB
+	bool "Fix governor load calculation"
+	help
+	  Ignore BG tasks during governor load calculation

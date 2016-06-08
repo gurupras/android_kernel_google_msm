@@ -104,6 +104,23 @@ DEFINE_EVENT(ondemand_sysfs, powersave_bias,
 	TP_ARGS(old, new)
 );
 
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+DEFINE_EVENT(ondemand_sysfs, ignore_bg,
+
+	TP_PROTO(unsigned int old, unsigned int new),
+
+	TP_ARGS(old, new)
+);
+
+DEFINE_EVENT(ondemand_sysfs, bg_comparison,
+
+	TP_PROTO(unsigned int old, unsigned int new),
+
+	TP_ARGS(old, new)
+);
+
+#endif
+
 #endif
 
 /* This part must be outside protection */
