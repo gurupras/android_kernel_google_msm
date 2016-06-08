@@ -2688,6 +2688,11 @@ static inline void task_group_account_field(struct task_struct *p, int index,
 	 *
 	 */
 	__get_cpu_var(kernel_cpustat).cpustat[index] += tmp;
+#ifdef CONFIG_PHONELAB
+	if(is_background_task(p)) {
+		__get_cpu_var(kernel_cpustat).cpustat[CPUTIME_BUSY_BG] += tmp;
+	}
+#endif
 
 #ifdef CONFIG_CGROUP_CPUACCT
 	if (unlikely(!cpuacct_subsys.active))

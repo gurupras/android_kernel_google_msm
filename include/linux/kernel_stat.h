@@ -27,6 +27,9 @@ enum cpu_usage_stat {
 	CPUTIME_STEAL,
 	CPUTIME_GUEST,
 	CPUTIME_GUEST_NICE,
+#ifdef CONFIG_PHONELAB
+	CPUTIME_BUSY_BG,
+#endif
 	NR_STATS,
 };
 
