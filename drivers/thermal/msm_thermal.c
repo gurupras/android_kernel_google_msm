@@ -15,6 +15,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kthread.h>
+#include <linux/notifier.h>
 #include <linux/mutex.h>
 #include <linux/msm_tsens.h>
 #include <linux/workqueue.h>
@@ -43,6 +44,11 @@
 
 #define MAX_RAILS 5
 #define MAX_THRESHOLD 2
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+struct srcu_notifier_head thermal_notifier_list;
+static bool init_thermal_notifier_list_called;
+#endif
 
 static struct msm_thermal_data msm_thermal_info;
 static struct delayed_work check_temp_work;
@@ -997,7 +1003,9 @@ static void __ref check_temp(struct work_struct *work)
 	}
 
 	trace_thermal_temp(msm_thermal_info.sensor_id, temp);
-
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	srcu_notifier_call_chain(&thermal_notifier_list, 0, &temp);
+#endif
 	do_core_control(temp);
 	do_vdd_restriction();
 	do_psm();
@@ -2288,3 +2296,13 @@ int __init msm_thermal_late_init(void)
 }
 late_initcall(msm_thermal_late_init);
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+static int __init init_thermal_notifier_list(void)
+{
+	srcu_init_notifier_head(&thermal_notifier_list);
+	init_thermal_notifier_list_called = true;
+	printk(KERN_DEBUG "tempfreq: Initialized thermal notifier list\n");
+	return 0;
+}
+pure_initcall(init_thermal_notifier_list);
+#endif

@@ -171,7 +171,12 @@ int cpufreq_frequency_table_target(struct cpufreq_policy *policy,
 }
 EXPORT_SYMBOL_GPL(cpufreq_frequency_table_target);
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+DEFINE_PER_CPU(struct cpufreq_frequency_table *, cpufreq_show_table);
+EXPORT_PER_CPU_SYMBOL_GPL(cpufreq_show_table);
+#else
 static DEFINE_PER_CPU(struct cpufreq_frequency_table *, cpufreq_show_table);
+#endif
 /**
  * show_available_freqs - show available frequencies for the specified CPU
  */

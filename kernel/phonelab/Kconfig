@@ -47,3 +47,20 @@ config PHONELAB_CPUFREQ_GOVERNOR_FIX
 	bool "Fix governor load calculation"
 	help
 	  Ignore BG tasks during governor load calculation
+
+config PHONELAB_TEMPFREQ
+	select PHONELAB
+	bool "Enable tempfreq thermal governor"
+	help
+	  Enable the tempfreq module to control frequencies
+
+
+menu "TempFreq Features"
+depends on PHONELAB_TEMPFREQ
+
+config PHONELAB_TEMPFREQ_BINARY_MODE
+	bool "Enable increase/decrease by a factor of 2"
+	help
+	  The scaling logic to increase/decrease frequency is
+	  done by a factor of 2
+endmenu
