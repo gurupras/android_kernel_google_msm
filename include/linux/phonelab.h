@@ -87,4 +87,11 @@ u32 armv7_pmnc_read(void);
 void phonelab_update_task_net_stats(struct pid *pid, u32 rx, u32 tx);
 #endif
 
+// Enum for phonelab PM tracing
+enum {
+	PHONELAB_PM_SUSPEND_ENTRY,
+	PHONELAB_PM_SUSPEND_EXIT,
+};
+
+
 #endif	/* __PHONELAB__H_ */

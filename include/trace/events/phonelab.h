@@ -324,6 +324,47 @@ TRACE_EVENT(phonelab_instruction_count,
 	TP_printk("cpu=%d instructions=%u", __entry->cpu, __entry->count)
 );
 
+
+/* Suspend/Wakeup */
+TRACE_EVENT(phonelab_suspend,
+
+	TP_PROTO(char *state, struct timespec ts, struct rtc_time tm),
+
+	TP_ARGS(state, ts, tm),
+
+	TP_STRUCT__entry(
+		__string(	state,	state		)
+		__field(	long,	ts_sec		)
+		__field(	long,	ts_nsec		)
+		__field(	int,	tm_year		)
+		__field(	int,	tm_mon		)
+		__field(	int,	tm_mday		)
+		__field(	int,	tm_hour		)
+		__field(	int,	tm_min		)
+		__field(	int,	tm_sec		)
+	),
+
+	TP_fast_assign(
+		__assign_str(state, state);
+		__entry->ts_sec = ts.tv_sec;
+		__entry->ts_nsec = ts.tv_nsec;
+
+		__entry->tm_year = tm.tm_year;
+		__entry->tm_mon = tm.tm_mon;
+		__entry->tm_mday = tm.tm_mday;
+		__entry->tm_hour = tm.tm_hour;
+		__entry->tm_min = tm.tm_min;
+		__entry->tm_sec = tm.tm_sec;
+	),
+
+	TP_printk("state=%s epoch_time=%lums timestamp=%d-%02d-%02d %02d:%02d:%02d.%09lu UTC",
+		__get_str(state),
+		((__entry->ts_sec * 1000) + __entry->ts_nsec / 1000000),
+		__entry->tm_year + 1900, __entry->tm_mon + 1, __entry->tm_mday,
+		__entry->tm_hour, __entry->tm_min, __entry->tm_sec, __entry->ts_nsec)
+
+);
+
 #endif	/* _TRACE_PHONELAB_H */
 
 /* This part must be outside protection */
