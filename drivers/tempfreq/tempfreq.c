@@ -45,6 +45,7 @@ enum {
 	LOWER,
 };
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 enum {
 	REASON_SHORT_EPOCH_DIFF = 0,
 	REASON_LONG_EPOCH_DIFF,
@@ -59,6 +60,8 @@ static const char *reasons[] = {
 	"REASON_COOL",
 	NULL,
 };
+#endif
+
 static inline int get_cpu_with(int relation);
 static inline int get_frequency_index(int frequency);
 static inline int get_new_frequency(int cpu, int relation);
@@ -229,6 +232,10 @@ done:
 		cpufreq_cpu_put(policy);
 		cs->cur_max_idx = get_frequency_index(binary_freq);
 	}
+#else
+	(void) cs;
+	(void) policy;
+	cpu_state_string(NULL, NULL);
 #endif
 	return 0;
 }
@@ -373,6 +380,8 @@ static inline int get_next_frequency_index(int idx)
 
 static void cpu_state_string(struct cpu_state *cs, char *str)
 {
+	if(cs == NULL || str == NULL)
+		return;
 	sprintf(str, "cpuid=%u cur_freq=%u cur_idx=%u cur_max_idx=%u governor=%s enabled=%u",
 		cs->cpuid, cs->cur_freq, cs->cur_idx, cs->cur_max_idx, cs->governor, cs->enabled);
 }
