@@ -8,6 +8,7 @@
 #include <linux/tracepoint.h>
 #include <linux/binfmts.h>
 #include <linux/phonelab.h>
+#include <linux/rtc.h>
 
 DECLARE_EVENT_CLASS(phonelab_foreground_switch,
 
