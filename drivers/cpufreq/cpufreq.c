@@ -521,13 +521,13 @@ static ssize_t store_scaling_governor(struct cpufreq_policy *policy,
 	sysfs_notify(&policy->kobj, NULL, "scaling_governor");
 #ifdef CONFIG_PHONELAB_TEMPFREQ
 	if(strncmp(new_policy.governor->name, "ondemand", strlen("ondemand")) == 0) {
-		printk(KERN_DEBUG "tempfreq: %s: Enabling...\n", __func__);
+		printk(KERN_DEBUG "tempfreq: %s: Enabling... cpu=%d\n", __func__, new_policy.cpu);
 		if(phone_state != NULL && phone_state->cpu_states != NULL &&
 				phone_state->cpu_states[new_policy.cpu] != NULL) {
 			phone_state->cpu_states[new_policy.cpu]->enabled = 1;
 		}
 	} else {
-		printk(KERN_DEBUG "tempfreq: %s: Disabling...\n", __func__);
+		printk(KERN_DEBUG "tempfreq: %s: Disabling... cpu=%d\n", __func__, new_policy.cpu);
 		if(phone_state != NULL && phone_state->cpu_states != NULL &&
 				phone_state->cpu_states[new_policy.cpu] != NULL) {
 			phone_state->cpu_states[new_policy.cpu]->enabled = 0;

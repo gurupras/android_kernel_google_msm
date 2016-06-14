@@ -262,6 +262,27 @@ static int tempfreq_cpufreq_callback(struct notifier_block *nfb,
 EXPORT_SYMBOL_GPL(tempfreq_cpufreq_callback);
 
 
+static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
+{
+	int cpu = (int)hcpu;
+
+	switch (action) {
+	case CPU_ONLINE:
+	case CPU_ONLINE_FROZEN:
+	case CPU_DOWN_FAILED:
+	case CPU_DOWN_FAILED_FROZEN:
+		printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 1\n", __func__, cpu);
+		phone_state->cpu_states[cpu]->enabled = 1;
+		break;
+	case CPU_DOWN_PREPARE:
+	case CPU_DOWN_PREPARE_FROZEN:
+		printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 0\n", __func__, cpu);
+		phone_state->cpu_states[cpu]->enabled = 0;
+		break;
+	};
+	return NOTIFY_OK;
+}
+
 
 
 
@@ -334,6 +355,9 @@ static inline int get_cpu_with(int relation)
 	// we should be able to maintain this state in the phone state
 	for_each_online_cpu(cpu) {
 		cs = phone_state->cpu_states[cpu];
+		// Skip CPU if it is not enabled
+		if(!cs->enabled)
+			continue;
 		if(relation == HIGHEST) {
 			if(cs->cur_max_idx == num_frequencies - 1) {	// Max
 				return cpu;
@@ -461,6 +485,10 @@ static struct notifier_block __refdata tempfreq_cpufreq_notifier = {
     .notifier_call = tempfreq_cpufreq_callback,
 };
 
+static struct notifier_block __cpuinitdata tempfreq_hotplug_notifier = {
+    .notifier_call = tempfreq_hotplug_callback,
+};
+
 static int __init init_tempfreq_callbacks(void)
 {
 	int ret = srcu_notifier_chain_register(
@@ -480,6 +508,7 @@ static int __init init_tempfreq_callbacks(void)
 		printk(KERN_DEBUG "tempfreq: Registered notifier: %d\n", ret);
 	}
 
+	register_cpu_notifier(&tempfreq_hotplug_notifier);
 	return 0;
 }
 
