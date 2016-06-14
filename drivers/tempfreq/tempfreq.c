@@ -16,14 +16,16 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/tempfreq.h>
 
-#define TEMPFREQ_BINARY_THRESHOLD_TEMP		70
-#define TEMPFREQ_BINARY_UPPER_THRESHOLD		75
-#define TEMPFREQ_BINARY_LOWER_THRESHOLD		60
-#define TEMPFREQ_BINARY_SHORT_EPOCHS		2
-#define TEMPFREQ_BINARY_SHORT_DIFF_LIMIT	3
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
+int phonelab_tempfreq_binary_threshold_temp	= 70;
+int phonelab_tempfreq_binary_upper_threshold	= 75;
+int phonelab_tempfreq_binary_lower_threshold	= 60;
+int phonelab_tempfreq_binary_short_epochs	= 2;
+int phonelab_tempfreq_binary_short_diff_limit	= 3;
 
-#define TEMPFREQ_BINARY_LONG_EPOCHS		5
-#define TEMPFREQ_BINARY_LONG_DIFF_LIMIT		2
+int phonelab_tempfreq_binary_long_epochs		= 5;
+int phonelab_tempfreq_binary_long_diff_limit	= 2;
+#endif
 
 DECLARE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);
 DECLARE_PER_CPU(struct cpufreq_frequency_table *, cpufreq_show_table);
@@ -45,6 +47,7 @@ enum {
 	LOWER,
 };
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 enum {
 	REASON_SHORT_EPOCH_DIFF = 0,
 	REASON_LONG_EPOCH_DIFF,
@@ -59,6 +62,8 @@ static const char *reasons[] = {
 	"REASON_COOL",
 	NULL,
 };
+#endif
+
 static inline int get_cpu_with(int relation);
 static inline int get_frequency_index(int frequency);
 static inline int get_new_frequency(int cpu, int relation);
@@ -104,13 +109,13 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 	short_epochs_counted++;
 	long_epochs_counted++;
 
-	if(temp > TEMPFREQ_BINARY_THRESHOLD_TEMP) {
-		if(short_epochs_counted == TEMPFREQ_BINARY_SHORT_EPOCHS) {
-			// We're above the TEMPFREQ_BINARY_UPPER_THRESHOLD and
+	if(temp > phonelab_tempfreq_binary_threshold_temp) {
+		if(short_epochs_counted == phonelab_tempfreq_binary_short_epochs) {
+			// We're above the phonelab_tempfreq_binary_upper_threshold and
 			// if temperature increased by more than
-			// TEMPFREQ_BINARY_DIFF_LIMIT degrees in TEMPFREQ_BINARY_EPOCHS
+			// phonelab_tempfreq_binary_diff_limit degrees in phonelab_tempfreq_binary_epochs
 			// consecutive readings, we halve
-			if(temp - prev_short_epoch_temp > TEMPFREQ_BINARY_SHORT_DIFF_LIMIT) {
+			if(temp - prev_short_epoch_temp > phonelab_tempfreq_binary_short_diff_limit) {
 				cpu = get_cpu_with(HIGHEST);
 				op = LOWER;
 				is_increase = 0;
@@ -124,7 +129,7 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 	}
 
 	// Now check for the UPPER and LOWER thresholds
-	if(temp >= TEMPFREQ_BINARY_UPPER_THRESHOLD) {
+	if(temp >= phonelab_tempfreq_binary_upper_threshold) {
 		// This is the upper limit.
 		// We need to move frequency down
 		cpu = get_cpu_with(HIGHEST);
@@ -134,7 +139,7 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 		reason_int = REASON_CRITICAL;
 		goto done;
 	}
-	else if(temp <= TEMPFREQ_BINARY_LOWER_THRESHOLD) {
+	else if(temp <= phonelab_tempfreq_binary_lower_threshold) {
 		// We can now increase the limit on the lowest
 		cpu = get_cpu_with(LOWEST);
 		op = HIGHER;
@@ -145,11 +150,11 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 	}
 
 	// Now check for the stable long epoch
-	if(long_epochs_counted >= TEMPFREQ_BINARY_LONG_EPOCHS) {
+	if(long_epochs_counted >= phonelab_tempfreq_binary_long_epochs) {
 		// If we've remained stable for a long period
 		// Regardless of frequency
-		if(temp - prev_long_epoch_temp < TEMPFREQ_BINARY_LONG_DIFF_LIMIT) {
-			if(temp < TEMPFREQ_BINARY_THRESHOLD_TEMP) {
+		if(temp - prev_long_epoch_temp < phonelab_tempfreq_binary_long_diff_limit) {
+			if(temp < phonelab_tempfreq_binary_threshold_temp) {
 				cpu = get_cpu_with(LOWEST);
 				op = HIGHER;
 				is_increase = 1;
@@ -157,7 +162,7 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 				prev_temp = prev_long_epoch_temp;
 			}
 			else {
-				if(temp < TEMPFREQ_BINARY_UPPER_THRESHOLD - 2) {	//FIXME: Currently '2' is hard-coded
+				if(temp < phonelab_tempfreq_binary_upper_threshold - 2) {	//FIXME: Currently '2' is hard-coded
 					int next_idx;
 					// This does smaller boosts hoping to squeeze out the best performance we can get
 					cpu = get_cpu_with(LOWEST);
@@ -229,6 +234,10 @@ done:
 		cpufreq_cpu_put(policy);
 		cs->cur_max_idx = get_frequency_index(binary_freq);
 	}
+#else
+	(void) cs;
+	(void) policy;
+	cpu_state_string(NULL, NULL);
 #endif
 	return 0;
 }
@@ -397,6 +406,8 @@ static inline int get_next_frequency_index(int idx)
 
 static void cpu_state_string(struct cpu_state *cs, char *str)
 {
+	if(cs == NULL || str == NULL)
+		return;
 	sprintf(str, "cpuid=%u cur_freq=%u cur_idx=%u cur_max_idx=%u governor=%s enabled=%u",
 		cs->cpuid, cs->cur_freq, cs->cur_idx, cs->cur_max_idx, cs->governor, cs->enabled);
 }
