@@ -93,5 +93,14 @@ enum {
 	PHONELAB_PM_SUSPEND_EXIT,
 };
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
+extern int phonelab_tempfreq_binary_threshold_temp;
+extern int phonelab_tempfreq_binary_upper_threshold;
+extern int phonelab_tempfreq_binary_lower_threshold;
+extern int phonelab_tempfreq_binary_short_epochs;
+extern int phonelab_tempfreq_binary_short_diff_limit;
+extern int phonelab_tempfreq_binary_long_epochs;
+extern int phonelab_tempfreq_binary_long_diff_limit;
+#endif
 
 #endif	/* __PHONELAB__H_ */
