@@ -101,6 +101,7 @@ extern int phonelab_tempfreq_binary_short_epochs;
 extern int phonelab_tempfreq_binary_short_diff_limit;
 extern int phonelab_tempfreq_binary_long_epochs;
 extern int phonelab_tempfreq_binary_long_diff_limit;
+extern int phonelab_tempfreq_binary_jump_lower;
 #endif
 
 #endif	/* __PHONELAB__H_ */

@@ -17,13 +17,15 @@
 #include <trace/events/tempfreq.h>
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
-int phonelab_tempfreq_binary_threshold_temp	= 70;
-int phonelab_tempfreq_binary_upper_threshold	= 75;
-int phonelab_tempfreq_binary_lower_threshold	= 60;
+int phonelab_tempfreq_binary_threshold_temp	= 75;
+int phonelab_tempfreq_binary_upper_threshold	= 80;
+int phonelab_tempfreq_binary_lower_threshold	= 70;
+int phonelab_tempfreq_binary_jump_lower		= 1;
+
 int phonelab_tempfreq_binary_short_epochs	= 2;
 int phonelab_tempfreq_binary_short_diff_limit	= 3;
 
-int phonelab_tempfreq_binary_long_epochs		= 5;
+int phonelab_tempfreq_binary_long_epochs	= 5;
 int phonelab_tempfreq_binary_long_diff_limit	= 2;
 #endif
 
@@ -346,7 +348,7 @@ static inline int get_new_frequency(int cpu, int relation)
 			result_idx = (cur_idx + num_frequencies) / 2;	// FIXME: Change this to find ceiling
 			break;
 		case LOWER:
-			result_idx = (cur_idx - 2) >= 0 ? cur_idx - 2 : 0;
+			result_idx = (cur_idx - phonelab_tempfreq_binary_jump_lower) >= 0 ? cur_idx - 2 : 0;
 			break;
 	}
 	return FREQUENCIES[result_idx];

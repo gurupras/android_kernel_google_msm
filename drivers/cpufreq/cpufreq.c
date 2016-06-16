@@ -807,6 +807,27 @@ static ssize_t show_tempfreq_binary_long_diff_limit(struct cpufreq_policy *polic
 {
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_long_diff_limit);
 }
+
+static ssize_t store_tempfreq_binary_jump_lower(struct cpufreq_policy *policy,
+					const char *buf, size_t count)
+{
+	int val, err;
+	err = sscanf(buf, "%u", &val);
+	if (err != 1)
+		return -EINVAL;
+
+	if(val <= 0)
+		return -EINVAL;
+
+	phonelab_tempfreq_binary_jump_lower = val;
+
+	return count;
+}
+
+static ssize_t show_tempfreq_binary_jump_lower(struct cpufreq_policy *policy, char *buf)
+{
+	return sprintf(buf, "%d", phonelab_tempfreq_binary_jump_lower);
+}
 #endif
 
 cpufreq_freq_attr_ro_perm(cpuinfo_cur_freq, 0400);
@@ -832,6 +853,7 @@ cpufreq_freq_attr_rw(tempfreq_binary_short_epochs);
 cpufreq_freq_attr_rw(tempfreq_binary_short_diff_limit);
 cpufreq_freq_attr_rw(tempfreq_binary_long_epochs);
 cpufreq_freq_attr_rw(tempfreq_binary_long_diff_limit);
+cpufreq_freq_attr_rw(tempfreq_binary_jump_lower);
 #endif
 
 static struct attribute *default_attrs[] = {
@@ -855,6 +877,7 @@ static struct attribute *default_attrs[] = {
 	&tempfreq_binary_short_diff_limit.attr,
 	&tempfreq_binary_long_epochs.attr,
 	&tempfreq_binary_long_diff_limit.attr,
+	&tempfreq_binary_jump_lower.attr,
 #endif
 	NULL
 };
