@@ -95,7 +95,7 @@ enum {
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 extern int phonelab_tempfreq_binary_threshold_temp;
-extern int phonelab_tempfreq_binary_upper_threshold;
+extern int phonelab_tempfreq_binary_critical;
 extern int phonelab_tempfreq_binary_lower_threshold;
 extern int phonelab_tempfreq_binary_short_epochs;
 extern int phonelab_tempfreq_binary_short_diff_limit;

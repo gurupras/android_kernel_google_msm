@@ -679,7 +679,7 @@ static ssize_t show_tempfreq_binary_threshold_temp(struct cpufreq_policy *policy
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_threshold_temp);
 }
 
-static ssize_t store_tempfreq_binary_upper_threshold(struct cpufreq_policy *policy,
+static ssize_t store_tempfreq_binary_critical(struct cpufreq_policy *policy,
 					const char *buf, size_t count)
 {
 	int val, err;
@@ -690,14 +690,14 @@ static ssize_t store_tempfreq_binary_upper_threshold(struct cpufreq_policy *poli
 	if(val <= phonelab_tempfreq_binary_threshold_temp)
 		return -EINVAL;
 
-	phonelab_tempfreq_binary_upper_threshold = val;
+	phonelab_tempfreq_binary_critical = val;
 
 	return count;
 }
 
-static ssize_t show_tempfreq_binary_upper_threshold(struct cpufreq_policy *policy, char *buf)
+static ssize_t show_tempfreq_binary_critical(struct cpufreq_policy *policy, char *buf)
 {
-	return sprintf(buf, "%d", phonelab_tempfreq_binary_upper_threshold);
+	return sprintf(buf, "%d", phonelab_tempfreq_binary_critical);
 }
 
 static ssize_t store_tempfreq_binary_lower_threshold(struct cpufreq_policy *policy,
@@ -847,7 +847,7 @@ cpufreq_freq_attr_rw(scaling_governor);
 cpufreq_freq_attr_rw(scaling_setspeed);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 cpufreq_freq_attr_rw(tempfreq_binary_threshold_temp);
-cpufreq_freq_attr_rw(tempfreq_binary_upper_threshold);
+cpufreq_freq_attr_rw(tempfreq_binary_critical);
 cpufreq_freq_attr_rw(tempfreq_binary_lower_threshold);
 cpufreq_freq_attr_rw(tempfreq_binary_short_epochs);
 cpufreq_freq_attr_rw(tempfreq_binary_short_diff_limit);
@@ -871,7 +871,7 @@ static struct attribute *default_attrs[] = {
 	&scaling_setspeed.attr,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	&tempfreq_binary_threshold_temp.attr,
-	&tempfreq_binary_upper_threshold.attr,
+	&tempfreq_binary_critical.attr,
 	&tempfreq_binary_lower_threshold.attr,
 	&tempfreq_binary_short_epochs.attr,
 	&tempfreq_binary_short_diff_limit.attr,

@@ -17,10 +17,10 @@
 #include <trace/events/tempfreq.h>
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
-int phonelab_tempfreq_binary_threshold_temp	= 75;
-int phonelab_tempfreq_binary_upper_threshold	= 80;
+int phonelab_tempfreq_binary_threshold_temp	= 80;
+int phonelab_tempfreq_binary_critical		= 85;
 int phonelab_tempfreq_binary_lower_threshold	= 70;
-int phonelab_tempfreq_binary_jump_lower		= 1;
+int phonelab_tempfreq_binary_jump_lower		= 2;
 
 int phonelab_tempfreq_binary_short_epochs	= 2;
 int phonelab_tempfreq_binary_short_diff_limit	= 3;
@@ -113,7 +113,7 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 
 	if(temp > phonelab_tempfreq_binary_threshold_temp) {
 		if(short_epochs_counted == phonelab_tempfreq_binary_short_epochs) {
-			// We're above the phonelab_tempfreq_binary_upper_threshold and
+			// We're above the phonelab_tempfreq_binary_critical and
 			// if temperature increased by more than
 			// phonelab_tempfreq_binary_diff_limit degrees in phonelab_tempfreq_binary_epochs
 			// consecutive readings, we halve
@@ -131,7 +131,7 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 	}
 
 	// Now check for the UPPER and LOWER thresholds
-	if(temp >= phonelab_tempfreq_binary_upper_threshold) {
+	if(temp >= phonelab_tempfreq_binary_critical) {
 		// This is the upper limit.
 		// We need to move frequency down
 		cpu = get_cpu_with(HIGHEST);
@@ -164,7 +164,7 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 				prev_temp = prev_long_epoch_temp;
 			}
 			else {
-				if(temp < phonelab_tempfreq_binary_upper_threshold - 2) {	//FIXME: Currently '2' is hard-coded
+				if(temp < phonelab_tempfreq_binary_critical - 2) {	//FIXME: Currently '2' is hard-coded
 					int next_idx;
 					// This does smaller boosts hoping to squeeze out the best performance we can get
 					cpu = get_cpu_with(LOWEST);
@@ -329,6 +329,7 @@ static inline int get_new_frequency(int cpu, int relation)
 	struct cpufreq_policy *policy;
 	struct cpu_state *cs;
 	int cur_idx, result_idx;
+	int tmp;
 
 	cs = phone_state->cpu_states[cpu];
 	policy = cpufreq_cpu_get(cpu);
@@ -348,7 +349,8 @@ static inline int get_new_frequency(int cpu, int relation)
 			result_idx = (cur_idx + num_frequencies) / 2;	// FIXME: Change this to find ceiling
 			break;
 		case LOWER:
-			result_idx = (cur_idx - phonelab_tempfreq_binary_jump_lower) >= 0 ? cur_idx - 2 : 0;
+			tmp = cur_idx - phonelab_tempfreq_binary_jump_lower;
+			result_idx = tmp >= 0 ? tmp : 0;
 			break;
 	}
 	return FREQUENCIES[result_idx];
