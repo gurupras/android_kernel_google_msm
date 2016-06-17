@@ -59,6 +59,59 @@ TRACE_EVENT(tempfreq_binary_diff,
 );
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+TRACE_EVENT(tempfreq_thermal_bg_throttling,
+
+	TP_PROTO(int temp, int idx, int state),
+
+	TP_ARGS(temp, idx, state),
+
+	TP_STRUCT__entry(
+		__field(	int,		temp		)
+		__field(	int,		idx		)
+		__field(	int,		state		)
+	),
+
+	TP_fast_assign(
+		__entry->temp		= temp;
+		__entry->idx		= idx;
+		__entry->state		= state;
+	),
+
+	TP_printk("temp=%d idx=%d state=%s",
+			__entry->temp,
+			__entry->idx,
+			__entry->state == 0 ? "NORMAL" : "THROTTLED"
+	)
+);
+
+TRACE_EVENT(tempfreq_thermal_bg_throttling_proc,
+
+	TP_PROTO(struct task_struct *task, int state),
+
+	TP_ARGS(task, state),
+
+	TP_STRUCT__entry(
+		__field(	int,		pid			)
+		__array(	char,		comm,	TASK_COMM_LEN	)
+		__field(	int,		state			)
+	),
+
+	TP_fast_assign(
+		__entry->pid		= task->pid;
+		memcpy(__entry->comm, task->comm, TASK_COMM_LEN);
+		__entry->state		= state;
+	),
+
+	TP_printk("pid=%d comm=%s state=%s",
+			__entry->pid,
+			__entry->comm,
+			__entry->state == 0 ? "NORMAL" : "THROTTLED"
+	)
+);
+
+#endif
+
 #endif
 
 /* This part must be outside protection */

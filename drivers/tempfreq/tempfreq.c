@@ -29,6 +29,25 @@ int phonelab_tempfreq_binary_long_epochs	= 5;
 int phonelab_tempfreq_binary_long_diff_limit	= 2;
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+#define CGROUP_MAP_MAX		10
+enum {
+	CGROUP_STATE_NORMAL = 0,
+	CGROUP_STATE_THROTTLED,
+};
+struct cgroup_map {
+	int cur_idx;
+	struct cgroup *cgroups[CGROUP_MAP_MAX];
+	int throttling_temps[CGROUP_MAP_MAX];
+	int unthrottling_temps[CGROUP_MAP_MAX];
+	int states[CGROUP_MAP_MAX];
+};
+
+struct cgroup_map cgroup_map;
+
+static void thermal_bg_throttling_update_cgroup_map(int i, int temp);
+#endif
+
 DECLARE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);
 DECLARE_PER_CPU(struct cpufreq_frequency_table *, cpufreq_show_table);
 
@@ -73,7 +92,6 @@ static inline int get_next_frequency_index(int idx);
 
 static void cpu_state_string(struct cpu_state *cs, char *str);
 
-
 static int tempfreq_thermal_callback(struct notifier_block *nfb,
 					unsigned long action, void *temp_ptr)
 {
@@ -96,6 +114,7 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 #endif
 	int enabled = 0;
 	int i;
+	int ret = 0;
 
 	for(i = 0; i < phone_state->ncpus; i++) {
 		enabled |= phone_state->cpu_states[i]->enabled;
@@ -241,9 +260,78 @@ done:
 	(void) policy;
 	cpu_state_string(NULL, NULL);
 #endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+	for(i = 0; i < cgroup_map.cur_idx; i++) {
+		thermal_bg_throttling_update_cgroup_map(i, temp);
+	}
+#endif
+	(void) ret;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tempfreq_thermal_callback);
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+static void thermal_bg_throttling_update_cgroup_map(int i, int temp)
+{
+	int ret;
+	if(temp >= cgroup_map.throttling_temps[i]) {
+		int j;
+		struct cgroup *cgrp = cgroup_map.cgroups[i];
+		struct cgroup_pidlist *l;
+		struct task_struct *task;
+		ret = pidlist_array_load(cgrp, CGROUP_FILE_PROCS, &l);
+		if(ret) {
+			printk(KERN_ERR "tempfreq: %s: Could not load pidlist_array\n", __func__);
+			return;
+		}
+		for(j = 0; j < l->length; j++) {
+			task = find_task_by_vpid(l->list[j]);
+			if(task == NULL) {
+				continue;
+			}
+			task_lock(task);
+			if(task->throttle_state != CGROUP_STATE_THROTTLED) {
+				set_task_state(task, TASK_UNINTERRUPTIBLE);
+				task->throttle_state = CGROUP_STATE_THROTTLED;
+			}
+			task_unlock(task);
+			trace_tempfreq_thermal_bg_throttling_proc(task, CGROUP_STATE_THROTTLED);
+		}
+		cgroup_map.states[i] = CGROUP_STATE_THROTTLED;
+		trace_tempfreq_thermal_bg_throttling(temp, i, CGROUP_STATE_THROTTLED);
+		cgroup_release_pid_array(l);
+	} else if(temp < cgroup_map.unthrottling_temps[i] && cgroup_map.states[i] == CGROUP_STATE_THROTTLED) {
+		int j;
+		struct cgroup *cgrp = cgroup_map.cgroups[i];
+		struct cgroup_pidlist *l;
+		struct task_struct *task;
+		ret = pidlist_array_load(cgrp, CGROUP_FILE_PROCS, &l);
+		if(ret) {
+			printk(KERN_ERR "tempfreq: %s: Could not load pidlist_array\n", __func__);
+			return;
+		}
+		for(j = 0; j < l->length; j++) {
+			task = find_task_by_vpid(l->list[j]);
+			if(task == NULL) {
+				continue;
+			}
+			task_lock(task);
+			if(task->throttle_state == CGROUP_STATE_THROTTLED) {
+				if(task->state == TASK_UNINTERRUPTIBLE)
+					set_task_state(task, TASK_INTERRUPTIBLE);
+				task->throttle_state = CGROUP_STATE_NORMAL;
+			}
+			task_unlock(task);
+			trace_tempfreq_thermal_bg_throttling_proc(task, CGROUP_STATE_NORMAL);
+		}
+		cgroup_map.states[i] = CGROUP_STATE_NORMAL;
+		trace_tempfreq_thermal_bg_throttling(temp, i, CGROUP_STATE_NORMAL);
+		cgroup_release_pid_array(l);
+	}
+}
+#endif
+
 
 static int tempfreq_cpufreq_callback(struct notifier_block *nfb,
 					unsigned long action, void *temp_ptr)
@@ -296,6 +384,23 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 
 
 
+int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unthrottling_temp)
+{
+	int i;
+	for(i = 0; i < cgroup_map.cur_idx; i++) {
+		if(cgroup_map.cgroups[i] == cgrp) {
+			break;
+		}
+	}
+	cgroup_map.cgroups[i] = cgrp;
+	cgroup_map.throttling_temps[i] = throttling_temp;
+	cgroup_map.unthrottling_temps[i] = unthrottling_temp;
+	//FIXME: This could cause tasks to run when they're not supposed to
+	thermal_bg_throttling_update_cgroup_map(i, unthrottling_temp - 1);
+	if(i == cgroup_map.cur_idx)
+		cgroup_map.cur_idx++;
+	return 0;
+}
 
 
 static int __get_frequency_index(int frequency, int start, int end);
@@ -418,6 +523,24 @@ static void cpu_state_string(struct cpu_state *cs, char *str)
 
 
 
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+static int __init init_tempfreq_thermal_bg_throttling(void)
+{
+	int i;
+
+	cgroup_map.cur_idx = 0;
+	for(i = 0; i < CGROUP_MAP_MAX; i++) {
+		cgroup_map.cgroups[i] = NULL;
+		cgroup_map.throttling_temps[i] = 0;
+		cgroup_map.unthrottling_temps[i] = 0;
+		cgroup_map.states[i] = CGROUP_STATE_NORMAL;
+	}
+	return 0;
+}
+#endif
+
+
 /* Initcall stuff */
 
 /* Phone state initcall */
@@ -529,8 +652,12 @@ static int __init init_tempfreq_callbacks(void)
 
 static int __init init_tempfreq(void)
 {
-	init_tempfreq_callbacks();
+	// Initialize state before callbacks
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+	init_tempfreq_thermal_bg_throttling();
+#endif
 	init_phone_state();
+	init_tempfreq_callbacks();
 	return 0;
 }
 late_initcall(init_tempfreq);

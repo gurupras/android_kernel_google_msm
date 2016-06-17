@@ -637,4 +637,45 @@ static inline int cgroup_is_bg_task(struct cgroup *cgp) {
 #ifdef CONFIG_PHONELAB
 int is_background_task(struct task_struct *task);
 #endif	/* CONFIG_PHONELAB */
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+/* which pidlist file are we talking about? */
+enum cgroup_filetype {
+	CGROUP_FILE_PROCS,
+	CGROUP_FILE_TASKS,
+};
+
+/*
+ * A pidlist is a list of pids that virtually represents the contents of one
+ * of the cgroup files ("procs" or "tasks"). We keep a list of such pidlists,
+ * a pair (one each for procs, tasks) for each pid namespace that's relevant
+ * to the cgroup.
+ */
+struct cgroup_pidlist {
+	/*
+	 * used to find which pidlist is wanted. doesn't change as long as
+	 * this particular list stays in the list.
+	*/
+	struct { enum cgroup_filetype type; struct pid_namespace *ns; } key;
+	/* array of xids */
+	pid_t *list;
+	/* how many elements the above list has */
+	int length;
+	/* how many files are using the current array */
+	int use_count;
+	/* each of these stored in a list by its cgroup */
+	struct list_head links;
+	/* pointer to the cgroup we belong to, for list removal purposes */
+	struct cgroup *owner;
+	/* protects the other fields */
+	struct rw_semaphore mutex;
+};
+struct file;
+int pidlist_array_load(struct cgroup *cgrp, enum cgroup_filetype type,
+			      struct cgroup_pidlist **lp);
+void cgroup_release_pid_array(struct cgroup_pidlist *l);
+int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unthrottling_temp);
+
+#endif
+
 #endif /* _LINUX_CGROUP_H */

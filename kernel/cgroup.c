@@ -2988,6 +2988,7 @@ int cgroup_scan_tasks(struct cgroup_scanner *scan)
  *
  */
 
+#ifndef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
 /* which pidlist file are we talking about? */
 enum cgroup_filetype {
 	CGROUP_FILE_PROCS,
@@ -3019,7 +3020,7 @@ struct cgroup_pidlist {
 	/* protects the other fields */
 	struct rw_semaphore mutex;
 };
-
+#endif
 /*
  * The following two functions "fix" the issue where there are more pids
  * than kmalloc will give memory for; in such cases, we use vmalloc/vfree.
@@ -3156,7 +3157,11 @@ static struct cgroup_pidlist *cgroup_pidlist_find(struct cgroup *cgrp,
 /*
  * Load a cgroup's pidarray with either procs' tgids or tasks' pids
  */
-static int pidlist_array_load(struct cgroup *cgrp, enum cgroup_filetype type,
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+#else
+static
+#endif
+int pidlist_array_load(struct cgroup *cgrp, enum cgroup_filetype type,
 			      struct cgroup_pidlist **lp)
 {
 	pid_t *array;
@@ -3347,7 +3352,11 @@ static const struct seq_operations cgroup_pidlist_seq_operations = {
 	.show = cgroup_pidlist_show,
 };
 
-static void cgroup_release_pid_array(struct cgroup_pidlist *l)
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+#else
+static
+#endif
+void cgroup_release_pid_array(struct cgroup_pidlist *l)
 {
 	/*
 	 * the case where we're the last user of this particular pidlist will
