@@ -16,10 +16,12 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/tempfreq.h>
 
+#include <linux/phonelab.h>
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
-int phonelab_tempfreq_binary_threshold_temp	= 80;
-int phonelab_tempfreq_binary_critical		= 85;
-int phonelab_tempfreq_binary_lower_threshold	= 70;
+int phonelab_tempfreq_binary_threshold_temp	= 70;
+int phonelab_tempfreq_binary_critical		= 78;
+int phonelab_tempfreq_binary_lower_threshold	= 65;
 int phonelab_tempfreq_binary_jump_lower		= 2;
 
 int phonelab_tempfreq_binary_short_epochs	= 2;
@@ -30,22 +32,25 @@ int phonelab_tempfreq_binary_long_diff_limit	= 2;
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
-#define CGROUP_MAP_MAX		10
+//FIXME: This include is a hack
+#include <linux/../../kernel/sched/sched.h>
+
 enum {
+	CGROUP_STATE_UNKNOWN = -1,
 	CGROUP_STATE_NORMAL = 0,
 	CGROUP_STATE_THROTTLED,
 };
-struct cgroup_map {
-	int cur_idx;
-	struct cgroup *cgroups[CGROUP_MAP_MAX];
-	int throttling_temps[CGROUP_MAP_MAX];
-	int unthrottling_temps[CGROUP_MAP_MAX];
-	int states[CGROUP_MAP_MAX];
-};
-
 struct cgroup_map cgroup_map;
 
-static void thermal_bg_throttling_update_cgroup_map(int i, int temp);
+static void thermal_bg_throttling_update_cgroup_entry(struct cgroup_entry *entry, int temp);
+
+// This function is implemented in kern/sched/core.c
+// Borrowed since this would require header file change => long compilation
+static inline struct task_group *cgroup_tg(struct cgroup *cgrp)
+{
+	return container_of(cgroup_subsys_state(cgrp, cpu_cgroup_subsys_id),
+			    struct task_group, css);
+}
 #endif
 
 DECLARE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);
@@ -263,7 +268,8 @@ done:
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
 	for(i = 0; i < cgroup_map.cur_idx; i++) {
-		thermal_bg_throttling_update_cgroup_map(i, temp);
+		struct cgroup_entry *entry = &cgroup_map.entries[i];
+		thermal_bg_throttling_update_cgroup_entry(entry, temp);
 	}
 #endif
 	(void) ret;
@@ -272,62 +278,33 @@ done:
 EXPORT_SYMBOL_GPL(tempfreq_thermal_callback);
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
-static void thermal_bg_throttling_update_cgroup_map(int i, int temp)
+static void thermal_bg_throttling_update_cgroup_entry(struct cgroup_entry *entry, int temp)
 {
-	int ret;
-	if(temp >= cgroup_map.throttling_temps[i]) {
-		int j;
-		struct cgroup *cgrp = cgroup_map.cgroups[i];
-		struct cgroup_pidlist *l;
-		struct task_struct *task;
-		ret = pidlist_array_load(cgrp, CGROUP_FILE_PROCS, &l);
-		if(ret) {
-			printk(KERN_ERR "tempfreq: %s: Could not load pidlist_array\n", __func__);
-			return;
-		}
-		for(j = 0; j < l->length; j++) {
-			task = find_task_by_vpid(l->list[j]);
-			if(task == NULL) {
-				continue;
-			}
-			task_lock(task);
-			if(task->throttle_state != CGROUP_STATE_THROTTLED) {
-				set_task_state(task, TASK_UNINTERRUPTIBLE);
-				task->throttle_state = CGROUP_STATE_THROTTLED;
-			}
-			task_unlock(task);
-			trace_tempfreq_thermal_bg_throttling_proc(task, CGROUP_STATE_THROTTLED);
-		}
-		cgroup_map.states[i] = CGROUP_STATE_THROTTLED;
-		trace_tempfreq_thermal_bg_throttling(temp, i, CGROUP_STATE_THROTTLED);
-		cgroup_release_pid_array(l);
-	} else if(temp < cgroup_map.unthrottling_temps[i] && cgroup_map.states[i] == CGROUP_STATE_THROTTLED) {
-		int j;
-		struct cgroup *cgrp = cgroup_map.cgroups[i];
-		struct cgroup_pidlist *l;
-		struct task_struct *task;
-		ret = pidlist_array_load(cgrp, CGROUP_FILE_PROCS, &l);
-		if(ret) {
-			printk(KERN_ERR "tempfreq: %s: Could not load pidlist_array\n", __func__);
-			return;
-		}
-		for(j = 0; j < l->length; j++) {
-			task = find_task_by_vpid(l->list[j]);
-			if(task == NULL) {
-				continue;
-			}
-			task_lock(task);
-			if(task->throttle_state == CGROUP_STATE_THROTTLED) {
-				if(task->state == TASK_UNINTERRUPTIBLE)
-					set_task_state(task, TASK_INTERRUPTIBLE);
-				task->throttle_state = CGROUP_STATE_NORMAL;
-			}
-			task_unlock(task);
-			trace_tempfreq_thermal_bg_throttling_proc(task, CGROUP_STATE_NORMAL);
-		}
-		cgroup_map.states[i] = CGROUP_STATE_NORMAL;
-		trace_tempfreq_thermal_bg_throttling(temp, i, CGROUP_STATE_NORMAL);
-		cgroup_release_pid_array(l);
+	struct cgroup *cgrp = entry->cgroup;
+	u64 shares = entry->cpu_shares;
+	int state = entry->state;
+
+	if(temp == 0) {
+		// We just got an update from sysfs
+		return;
+	}
+
+	if(temp >= entry->throttling_temp && (entry->state == CGROUP_STATE_NORMAL || entry->state == CGROUP_STATE_UNKNOWN)) {
+		// First store the current CPU shares
+		entry->cpu_shares = scale_load_down(cgroup_tg(cgrp)->shares);
+		// Now set shares to 0
+		shares = 0;
+		state = CGROUP_STATE_THROTTLED;
+		sched_group_set_shares(cgroup_tg(cgrp), scale_load(shares));
+		trace_tempfreq_thermal_bg_throttling(temp, entry->cur_idx, state);
+		entry->state = state;
+	} else if(temp < entry->unthrottling_temp && (entry->state == CGROUP_STATE_THROTTLED || entry->state == CGROUP_STATE_UNKNOWN)) {
+		shares = entry->cpu_shares;
+		entry->cpu_shares = 0;
+		state = CGROUP_STATE_NORMAL;
+		sched_group_set_shares(cgroup_tg(cgrp), scale_load(shares));
+		trace_tempfreq_thermal_bg_throttling(temp, entry->cur_idx, state);
+		entry->state = state;
 	}
 }
 #endif
@@ -388,15 +365,15 @@ int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unt
 {
 	int i;
 	for(i = 0; i < cgroup_map.cur_idx; i++) {
-		if(cgroup_map.cgroups[i] == cgrp) {
+		if(cgroup_map.entries[i].cgroup == cgrp) {
 			break;
 		}
 	}
-	cgroup_map.cgroups[i] = cgrp;
-	cgroup_map.throttling_temps[i] = throttling_temp;
-	cgroup_map.unthrottling_temps[i] = unthrottling_temp;
+	cgroup_map.entries[i].cgroup = cgrp;
+	cgroup_map.entries[i].throttling_temp = throttling_temp;
+	cgroup_map.entries[i].unthrottling_temp = unthrottling_temp;
 	//FIXME: This could cause tasks to run when they're not supposed to
-	thermal_bg_throttling_update_cgroup_map(i, unthrottling_temp - 1);
+	thermal_bg_throttling_update_cgroup_entry(&cgroup_map.entries[i], 0);
 	if(i == cgroup_map.cur_idx)
 		cgroup_map.cur_idx++;
 	return 0;
@@ -531,10 +508,12 @@ static int __init init_tempfreq_thermal_bg_throttling(void)
 
 	cgroup_map.cur_idx = 0;
 	for(i = 0; i < CGROUP_MAP_MAX; i++) {
-		cgroup_map.cgroups[i] = NULL;
-		cgroup_map.throttling_temps[i] = 0;
-		cgroup_map.unthrottling_temps[i] = 0;
-		cgroup_map.states[i] = CGROUP_STATE_NORMAL;
+		cgroup_map.entries[i].cur_idx = i;
+		cgroup_map.entries[i].cgroup = NULL;
+		cgroup_map.entries[i].throttling_temp = 0;
+		cgroup_map.entries[i].unthrottling_temp = 0;
+		cgroup_map.entries[i].cpu_shares = 0;
+		cgroup_map.entries[i].state = CGROUP_STATE_UNKNOWN;
 	}
 	return 0;
 }
