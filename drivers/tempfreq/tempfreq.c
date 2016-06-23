@@ -563,14 +563,44 @@ static int __init init_tempfreq_thermal_bg_throttling(void)
 
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
-int phonelab_tempfreq_hotplug_delay_ms = 1000;
+int phonelab_tempfreq_hotplug_epoch_ms = 100;
 
 static struct delayed_work hotplug_work;
+
+int phonelab_tempfreq_hotplug_epochs_up = 2;
+int phonelab_tempfreq_hotplug_epochs_down = 5;
+
+enum {
+	HOTPLUG_UNKNOWN_NEXT = 0,
+	HOTPLUG_INCREASE_NEXT,
+	HOTPLUG_DECREASE_NEXT
+};
+
+struct hotplug_state {
+	int elapsed_epochs;
+	int rq_threshold;
+	int next_state;
+};
+
+static struct hotplug_state hotplug_state = {
+	0, 0, HOTPLUG_UNKNOWN_NEXT
+};
 
 // Borrowed from block/drbd/drbd_int.h
 #define div_ceil(A, B) ((A)/(B) + ((A)%(B) ? 1 : 0))
 
-void __ref hotplug_driver_fn(struct work_struct *w)
+/* The following functions are wrapper functions created so that
+ * we can avoid code duplication inside hotplug_driver_fn
+ */
+static inline int is_cpu_online(unsigned int cpu) {
+	return cpu_online(cpu);
+}
+
+static inline int is_cpu_offline(unsigned int cpu) {
+	return !cpu_online(cpu);
+}
+
+static void __ref hotplug_driver_fn(struct work_struct *w)
 {
 	int cpu;
 	int ncpus = num_possible_cpus() - 1;
@@ -582,6 +612,13 @@ void __ref hotplug_driver_fn(struct work_struct *w)
 	int change = abs(target_ncpus - online_ncpus);
 
 	int up_set = 0, down_set = 0, overall = 0;
+
+	int (*cpu_fn) (unsigned int) = NULL;
+	int *set_ptr = NULL;
+	int (*check_fn) (unsigned int) = NULL;
+	int expected_next_hotplug_state = HOTPLUG_UNKNOWN_NEXT;
+	int required_num_elapsed_epochs = 0;
+
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
@@ -591,28 +628,41 @@ void __ref hotplug_driver_fn(struct work_struct *w)
 	trace_tempfreq_hotplug_nr_running(rq_len);
 	trace_tempfreq_hotplug_target(online_ncpus, target_ncpus);
 
+	hotplug_state.elapsed_epochs++;
+
 	if(online_ncpus == target_ncpus) {
 		goto out;
 	} else if(online_ncpus < target_ncpus) {
-		// Increase number of cores
-		for(cpu = ncpus; cpu > 0 && change > 0; cpu--) {
-			if(!cpu_online(cpu)) {
-				cpu_up(cpu);
-				change--;
-				up_set |= (1 << cpu);
-			}
-		}
+		cpu_fn = cpu_up;
+		set_ptr = &up_set;
+		check_fn = is_cpu_offline;
+		expected_next_hotplug_state = HOTPLUG_INCREASE_NEXT;
+		required_num_elapsed_epochs = phonelab_tempfreq_hotplug_epochs_up;
 	} else {
-		// Reduce number of cores
-		for(cpu = ncpus; cpu > 0 && change > 0; cpu--) {
-			if(cpu_online(cpu)) {
-				cpu_down(cpu);
-				change--;
-				down_set |= (1 << cpu);
+		cpu_fn = cpu_down;
+		set_ptr = &down_set;
+		check_fn = is_cpu_online;
+		expected_next_hotplug_state = HOTPLUG_DECREASE_NEXT;
+		required_num_elapsed_epochs = phonelab_tempfreq_hotplug_epochs_down;
+	}
+	// Now check if everything matches and perform the operation
+	if(hotplug_state.next_state != expected_next_hotplug_state) {
+		hotplug_state.next_state = expected_next_hotplug_state;
+		hotplug_state.elapsed_epochs = 0;
+	}
+	else {
+		if(hotplug_state.elapsed_epochs == required_num_elapsed_epochs) {
+			// Alter number of cores
+			for(cpu = ncpus; cpu > 0 && change > 0; cpu--) {
+				if(!(*check_fn)(cpu)) {
+					(*cpu_fn)(cpu);
+					change--;
+					*(set_ptr) = (*set_ptr) | (1 << cpu);
+				}
 			}
+			hotplug_state.elapsed_epochs = 0;
 		}
 	}
-
 out:
 	for_each_possible_cpu(cpu) {
 		if(cpu_online(cpu)) {
@@ -625,7 +675,7 @@ out:
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
 	printk(KERN_DEBUG "tempfreq: %s: Rescheduling ...\n", __func__);
-	schedule_delayed_work(&hotplug_work, msecs_to_jiffies(phonelab_tempfreq_hotplug_delay_ms));
+	schedule_delayed_work(&hotplug_work, msecs_to_jiffies(phonelab_tempfreq_hotplug_epoch_ms));
 }
 
 static int __init init_hotplug_work(void)
