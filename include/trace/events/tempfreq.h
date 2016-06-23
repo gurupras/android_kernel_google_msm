@@ -132,6 +132,94 @@ TRACE_EVENT(tempfreq_timing,
 );
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+#ifndef __TEMPFREQ_HOTPLUG_TRACE_HELPERS__
+#define __TEMPFREQ_HOTPLUG_TRACE_HELPERS__
+static void set_to_string(int set, char buf[10])
+{
+	int i;
+	int offset = 0;
+	char tmpbuf[10];
+	offset += sprintf(tmpbuf + offset, "[");
+
+	for_each_possible_cpu(i) {
+		int is_online = set & (1 << i);
+		if(is_online) {
+			if(i != 0) {
+				offset += sprintf(tmpbuf + offset, ",%d", i);
+			} else {
+				offset += sprintf(tmpbuf + offset, "%d", i);
+			}
+		}
+	}
+	offset += sprintf(tmpbuf + offset, "]");
+	printk(KERN_DEBUG "tempfreq: %s: %s\n", __func__, tmpbuf);
+	sprintf(buf, "%s", tmpbuf);
+}
+#endif
+TRACE_EVENT(tempfreq_hotplug,
+
+	TP_PROTO(int up_set, int down_set, int overall_up),
+
+	TP_ARGS(up_set, down_set, overall_up),
+
+	TP_STRUCT__entry(
+		__array(	char,	up_buf,		10	)
+		__array(	char,	down_buf,	10	)
+		__array(	char,	overall_up_buf,	10	)
+	),
+
+	TP_fast_assign(
+		set_to_string(up_set, __entry->up_buf);
+		set_to_string(down_set, __entry->down_buf);
+		set_to_string(overall_up, __entry->overall_up_buf);
+	),
+
+	TP_printk("up=%s down=%s overall_up=%s",
+		__entry->up_buf,
+		__entry->down_buf,
+		__entry->overall_up_buf
+	)
+);
+
+TRACE_EVENT(tempfreq_hotplug_target,
+
+	TP_PROTO(int online, int target),
+
+	TP_ARGS(online, target),
+
+	TP_STRUCT__entry(
+		__field(	int,	online	)
+		__field(	int,	target	)
+	),
+
+	TP_fast_assign(
+		__entry->online = online;
+		__entry->target = target;
+	),
+
+	TP_printk("online=%d target=%d", __entry->online, __entry->target)
+);
+
+TRACE_EVENT(tempfreq_hotplug_nr_running,
+
+	TP_PROTO(int nr_running),
+
+	TP_ARGS(nr_running),
+
+	TP_STRUCT__entry(
+		__field(	int,	nr_running	)
+	),
+
+	TP_fast_assign(
+		__entry->nr_running = nr_running;
+	),
+
+	TP_printk("nr_running=%d", __entry->nr_running)
+);
+
+#endif
+
 #endif
 
 /* This part must be outside protection */

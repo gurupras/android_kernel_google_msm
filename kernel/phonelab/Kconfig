@@ -70,4 +70,9 @@ config PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
 	  Background work is throttled based on temperature. This temperature
           is configurable via sysfs.
 
+config PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+	bool "Enable tempfreq hotplug driver"
+	help
+	  Enable custom hotplug driver based on number of runnable tasks
+	  in the system.
 endmenu

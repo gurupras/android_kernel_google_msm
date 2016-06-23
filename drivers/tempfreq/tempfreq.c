@@ -18,6 +18,11 @@
 
 #include <linux/phonelab.h>
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+#include <linux/rq_stats.h>
+#endif
+
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 int phonelab_tempfreq_binary_threshold_temp	= 70;
 int phonelab_tempfreq_binary_critical		= 78;
@@ -554,6 +559,84 @@ static int __init init_tempfreq_thermal_bg_throttling(void)
 	return 0;
 }
 #endif
+
+
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+int phonelab_tempfreq_hotplug_delay_ms = 1000;
+
+static struct delayed_work hotplug_work;
+
+// Borrowed from block/drbd/drbd_int.h
+#define div_ceil(A, B) ((A)/(B) + ((A)%(B) ? 1 : 0))
+
+void __ref hotplug_driver_fn(struct work_struct *w)
+{
+	int cpu;
+	int ncpus = num_possible_cpus() - 1;
+	int rq_len = nr_running();
+	// We try and use the same logic as msm_rq_stats
+	int target_ncpus = rq_len > num_possible_cpus() ? num_possible_cpus() : rq_len;
+
+	int online_ncpus = num_online_cpus();
+	int change = abs(target_ncpus - online_ncpus);
+
+	int up_set = 0, down_set = 0, overall = 0;
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
+
+	printk(KERN_DEBUG "tempfreq: %s: Running\n", __func__);
+
+	trace_tempfreq_hotplug_nr_running(rq_len);
+	trace_tempfreq_hotplug_target(online_ncpus, target_ncpus);
+
+	if(online_ncpus == target_ncpus) {
+		goto out;
+	} else if(online_ncpus < target_ncpus) {
+		// Increase number of cores
+		for(cpu = ncpus; cpu > 0 && change > 0; cpu--) {
+			if(!cpu_online(cpu)) {
+				cpu_up(cpu);
+				change--;
+				up_set |= (1 << cpu);
+			}
+		}
+	} else {
+		// Reduce number of cores
+		for(cpu = ncpus; cpu > 0 && change > 0; cpu--) {
+			if(cpu_online(cpu)) {
+				cpu_down(cpu);
+				change--;
+				down_set |= (1 << cpu);
+			}
+		}
+	}
+
+out:
+	for_each_possible_cpu(cpu) {
+		if(cpu_online(cpu)) {
+			overall |= (1 << cpu);
+		}
+	}
+	trace_tempfreq_hotplug(up_set, down_set, overall);
+
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
+	printk(KERN_DEBUG "tempfreq: %s: Rescheduling ...\n", __func__);
+	schedule_delayed_work(&hotplug_work, msecs_to_jiffies(phonelab_tempfreq_hotplug_delay_ms));
+}
+
+static int __init init_hotplug_work(void)
+{
+	INIT_DELAYED_WORK(&hotplug_work, hotplug_driver_fn);
+	schedule_delayed_work(&hotplug_work, 0);
+	return 0;
+}
+late_initcall(init_hotplug_work);
+#endif
+
 
 
 /* Initcall stuff */
