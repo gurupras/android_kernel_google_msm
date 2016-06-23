@@ -112,6 +112,26 @@ TRACE_EVENT(tempfreq_thermal_bg_throttling_proc,
 
 #endif
 
+TRACE_EVENT(tempfreq_timing,
+
+	TP_PROTO(const char *func, u64 time_ns),
+
+	TP_ARGS(func, time_ns),
+
+	TP_STRUCT__entry(
+		__string(	func,	func	)
+		__field(	u64,	time_ns	)
+	),
+
+	TP_fast_assign(
+		__assign_str(func, func);
+		__entry->time_ns	= time_ns;
+	),
+
+	TP_printk("func=%s time=%lluns", __get_str(func), __entry->time_ns)
+);
+
+
 #endif
 
 /* This part must be outside protection */

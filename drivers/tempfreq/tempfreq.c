@@ -121,6 +121,9 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 	int i;
 	int ret = 0;
 
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
 	for(i = 0; i < phone_state->ncpus; i++) {
 		enabled |= phone_state->cpu_states[i]->enabled;
 	}
@@ -273,6 +276,9 @@ done:
 	}
 #endif
 	(void) ret;
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tempfreq_thermal_callback);
@@ -283,7 +289,9 @@ static void thermal_bg_throttling_update_cgroup_entry(struct cgroup_entry *entry
 	struct cgroup *cgrp = entry->cgroup;
 	u64 shares = entry->cpu_shares;
 	int state = entry->state;
-
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
 	if(temp == 0) {
 		// We just got an update from sysfs
 		return;
@@ -306,6 +314,9 @@ static void thermal_bg_throttling_update_cgroup_entry(struct cgroup_entry *entry
 		trace_tempfreq_thermal_bg_throttling(temp, entry->cur_idx, state);
 		entry->state = state;
 	}
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 }
 #endif
 
@@ -316,6 +327,9 @@ static int tempfreq_cpufreq_callback(struct notifier_block *nfb,
 	struct cpufreq_freqs *freqs;
 	int cpu;
 	struct cpu_state *cs;
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
 
 	freqs = (struct cpufreq_freqs *) temp_ptr;
 	if(freqs == NULL) {
@@ -333,6 +347,9 @@ static int tempfreq_cpufreq_callback(struct notifier_block *nfb,
 	cs->cur_freq = freqs->new;
 	cs->cur_idx = get_frequency_index(cs->cur_freq);
 
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tempfreq_cpufreq_callback);
@@ -389,6 +406,9 @@ static inline int get_frequency_index(int frequency)
 static int __get_frequency_index(int frequency, int start, int end)
 {
 	int mid = (start + end) / 2;
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
 
 	if(start  > end) {
 		printk(KERN_ERR "tempfreq: %s: Could not find '%d' in FREQUENCIES\n", __func__, frequency);
@@ -404,6 +424,9 @@ static int __get_frequency_index(int frequency, int start, int end)
 	else {
 		return __get_frequency_index(frequency, mid + 1, end);
 	}
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 }
 
 static inline int get_new_frequency(int cpu, int relation)
@@ -412,6 +435,9 @@ static inline int get_new_frequency(int cpu, int relation)
 	struct cpu_state *cs;
 	int cur_idx, result_idx;
 	int tmp;
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
 
 	cs = phone_state->cpu_states[cpu];
 	policy = cpufreq_cpu_get(cpu);
@@ -435,6 +461,9 @@ static inline int get_new_frequency(int cpu, int relation)
 			result_idx = tmp >= 0 ? tmp : 0;
 			break;
 	}
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 	return FREQUENCIES[result_idx];
 }
 
@@ -445,6 +474,10 @@ static inline int get_cpu_with(int relation)
 
 	int culprit_f_idx = relation == HIGHEST ? 0 : num_frequencies;
 	int culprit_cpu = -1;
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
+
 	// XXX: Check how all of this interacts with hotplug
 	// Eventually, we will be the ones controlling hotplug, so
 	// we should be able to maintain this state in the phone state
@@ -475,6 +508,9 @@ static inline int get_cpu_with(int relation)
 			printk(KERN_ERR "tempfreq: %s: Neither HIGHEST/LOWEST: %d\n", __func__, relation);
 		}
 	}
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 	return culprit_cpu;
 }
 
