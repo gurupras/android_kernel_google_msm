@@ -564,11 +564,10 @@ static int __init init_tempfreq_thermal_bg_throttling(void)
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 int phonelab_tempfreq_hotplug_epoch_ms = 100;
-
-static struct delayed_work hotplug_work;
-
 int phonelab_tempfreq_hotplug_epochs_up = 2;
 int phonelab_tempfreq_hotplug_epochs_down = 5;
+
+static struct delayed_work hotplug_work;
 
 enum {
 	HOTPLUG_UNKNOWN_NEXT = 0,
@@ -694,7 +693,7 @@ late_initcall(init_hotplug_work);
 
 /* sysfs hooks */
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
-static ssize_t store_tempfreq_binary_threshold_temp(const char *buf, size_t count)
+static ssize_t store_binary_threshold_temp(const char *buf, size_t count)
 {
 	int val, err;
 	err = sscanf(buf, "%u", &val);
@@ -713,12 +712,12 @@ static ssize_t store_tempfreq_binary_threshold_temp(const char *buf, size_t coun
 	return count;
 }
 
-static ssize_t show_tempfreq_binary_threshold_temp(char *buf)
+static ssize_t show_binary_threshold_temp(char *buf)
 {
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_threshold_temp);
 }
 
-static ssize_t store_tempfreq_binary_critical(const char *buf, size_t count)
+static ssize_t store_binary_critical(const char *buf, size_t count)
 {
 	int val, err;
 	err = sscanf(buf, "%u", &val);
@@ -733,12 +732,12 @@ static ssize_t store_tempfreq_binary_critical(const char *buf, size_t count)
 	return count;
 }
 
-static ssize_t show_tempfreq_binary_critical(char *buf)
+static ssize_t show_binary_critical(char *buf)
 {
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_critical);
 }
 
-static ssize_t store_tempfreq_binary_lower_threshold(const char *buf, size_t count)
+static ssize_t store_binary_lower_threshold(const char *buf, size_t count)
 {
 	int val, err;
 	err = sscanf(buf, "%u", &val);
@@ -753,12 +752,12 @@ static ssize_t store_tempfreq_binary_lower_threshold(const char *buf, size_t cou
 	return count;
 }
 
-static ssize_t show_tempfreq_binary_lower_threshold(char *buf)
+static ssize_t show_binary_lower_threshold(char *buf)
 {
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_lower_threshold);
 }
 
-static ssize_t store_tempfreq_binary_short_epochs(const char *buf, size_t count)
+static ssize_t store_binary_short_epochs(const char *buf, size_t count)
 {
 	int val, err;
 	err = sscanf(buf, "%u", &val);
@@ -773,12 +772,12 @@ static ssize_t store_tempfreq_binary_short_epochs(const char *buf, size_t count)
 	return count;
 }
 
-static ssize_t show_tempfreq_binary_short_epochs(char *buf)
+static ssize_t show_binary_short_epochs(char *buf)
 {
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_short_epochs);
 }
 
-static ssize_t store_tempfreq_binary_short_diff_limit(const char *buf, size_t count)
+static ssize_t store_binary_short_diff_limit(const char *buf, size_t count)
 {
 	int val, err;
 	err = sscanf(buf, "%u", &val);
@@ -793,13 +792,13 @@ static ssize_t store_tempfreq_binary_short_diff_limit(const char *buf, size_t co
 	return count;
 }
 
-static ssize_t show_tempfreq_binary_short_diff_limit(char *buf)
+static ssize_t show_binary_short_diff_limit(char *buf)
 {
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_short_diff_limit);
 }
 
 
-static ssize_t store_tempfreq_binary_long_epochs(const char *buf, size_t count)
+static ssize_t store_binary_long_epochs(const char *buf, size_t count)
 {
 	int val, err;
 	err = sscanf(buf, "%u", &val);
@@ -814,12 +813,12 @@ static ssize_t store_tempfreq_binary_long_epochs(const char *buf, size_t count)
 	return count;
 }
 
-static ssize_t show_tempfreq_binary_long_epochs(char *buf)
+static ssize_t show_binary_long_epochs(char *buf)
 {
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_long_epochs);
 }
 
-static ssize_t store_tempfreq_binary_long_diff_limit(const char *buf, size_t count)
+static ssize_t store_binary_long_diff_limit(const char *buf, size_t count)
 {
 	int val, err;
 	err = sscanf(buf, "%u", &val);
@@ -836,12 +835,12 @@ static ssize_t store_tempfreq_binary_long_diff_limit(const char *buf, size_t cou
 	return count;
 }
 
-static ssize_t show_tempfreq_binary_long_diff_limit(char *buf)
+static ssize_t show_binary_long_diff_limit(char *buf)
 {
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_long_diff_limit);
 }
 
-static ssize_t store_tempfreq_binary_jump_lower(const char *buf, size_t count)
+static ssize_t store_binary_jump_lower(const char *buf, size_t count)
 {
 	int val, err;
 	err = sscanf(buf, "%u", &val);
@@ -856,12 +855,74 @@ static ssize_t store_tempfreq_binary_jump_lower(const char *buf, size_t count)
 	return count;
 }
 
-static ssize_t show_tempfreq_binary_jump_lower(char *buf)
+static ssize_t show_binary_jump_lower(char *buf)
 {
 	return sprintf(buf, "%d", phonelab_tempfreq_binary_jump_lower);
 }
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+static ssize_t store_hotplug_epoch_ms(const char *buf, size_t count)
+{
+	int val, err;
+	err = sscanf(buf, "%u", &val);
+	if (err != 1)
+		return -EINVAL;
+
+	if(val <= 0)
+		return -EINVAL;
+
+	phonelab_tempfreq_hotplug_epoch_ms = val;
+
+	return count;
+}
+
+static ssize_t show_hotplug_epoch_ms(char *buf)
+{
+	return sprintf(buf, "%d", phonelab_tempfreq_hotplug_epoch_ms);
+}
+
+static ssize_t store_hotplug_epochs_up(const char *buf, size_t count)
+{
+	int val, err;
+	err = sscanf(buf, "%u", &val);
+	if (err != 1)
+		return -EINVAL;
+
+	if(val <= 0)
+		return -EINVAL;
+
+	phonelab_tempfreq_hotplug_epochs_up = val;
+
+	return count;
+}
+
+static ssize_t show_hotplug_epochs_up(char *buf)
+{
+	return sprintf(buf, "%d", phonelab_tempfreq_hotplug_epochs_up);
+}
+
+static ssize_t store_hotplug_epochs_down(const char *buf, size_t count)
+{
+	int val, err;
+	err = sscanf(buf, "%u", &val);
+	if (err != 1)
+		return -EINVAL;
+
+	if(val <= 0)
+		return -EINVAL;
+
+	phonelab_tempfreq_hotplug_epochs_down = val;
+
+	return count;
+}
+
+static ssize_t show_hotplug_epochs_down(char *buf)
+{
+	return sprintf(buf, "%d", phonelab_tempfreq_hotplug_epochs_down);
+}
+
+#endif
 
 struct tempfreq_attr {
 	struct attribute attr;
@@ -879,26 +940,37 @@ static struct tempfreq_attr _name =			\
 __ATTR(_name, 0644, show_##_name, store_##_name)
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
-tempfreq_attr_rw(tempfreq_binary_threshold_temp);
-tempfreq_attr_rw(tempfreq_binary_critical);
-tempfreq_attr_rw(tempfreq_binary_lower_threshold);
-tempfreq_attr_rw(tempfreq_binary_short_epochs);
-tempfreq_attr_rw(tempfreq_binary_short_diff_limit);
-tempfreq_attr_rw(tempfreq_binary_long_epochs);
-tempfreq_attr_rw(tempfreq_binary_long_diff_limit);
-tempfreq_attr_rw(tempfreq_binary_jump_lower);
+tempfreq_attr_rw(binary_threshold_temp);
+tempfreq_attr_rw(binary_critical);
+tempfreq_attr_rw(binary_lower_threshold);
+tempfreq_attr_rw(binary_short_epochs);
+tempfreq_attr_rw(binary_short_diff_limit);
+tempfreq_attr_rw(binary_long_epochs);
+tempfreq_attr_rw(binary_long_diff_limit);
+tempfreq_attr_rw(binary_jump_lower);
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+tempfreq_attr_rw(hotplug_epoch_ms);
+tempfreq_attr_rw(hotplug_epochs_up);
+tempfreq_attr_rw(hotplug_epochs_down);
 #endif
 
 static struct attribute *attrs[] = {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
-	&tempfreq_binary_threshold_temp.attr,
-	&tempfreq_binary_critical.attr,
-	&tempfreq_binary_lower_threshold.attr,
-	&tempfreq_binary_short_epochs.attr,
-	&tempfreq_binary_short_diff_limit.attr,
-	&tempfreq_binary_long_epochs.attr,
-	&tempfreq_binary_long_diff_limit.attr,
-	&tempfreq_binary_jump_lower.attr,
+	&binary_threshold_temp.attr,
+	&binary_critical.attr,
+	&binary_lower_threshold.attr,
+	&binary_short_epochs.attr,
+	&binary_short_diff_limit.attr,
+	&binary_long_epochs.attr,
+	&binary_long_diff_limit.attr,
+	&binary_jump_lower.attr,
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+	&hotplug_epoch_ms.attr,
+	&hotplug_epochs_up.attr,
+	&hotplug_epochs_down.attr,
 #endif
 	NULL
 };
@@ -945,7 +1017,7 @@ static int __init init_tempfreq_sysfs(void)
 {
 	int ret = 0;
 	tempfreq_kobj = kobject_create_and_add("tempfreq",
-			&get_cpu_device(0)->kobj);
+			NULL);
 	if (!tempfreq_kobj)
 		ret = -ENOMEM;
 	ret = sysfs_create_group(tempfreq_kobj, &tempfreq_attr_group);
