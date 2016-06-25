@@ -7,6 +7,8 @@
 #include <linux/ktime.h>
 #include <linux/tracepoint.h>
 
+#include <linux/phonelab.h>
+
 TRACE_EVENT(tempfreq_temp,
 
 	TP_PROTO(long temp),
@@ -216,6 +218,39 @@ TRACE_EVENT(tempfreq_hotplug_nr_running,
 	),
 
 	TP_printk("nr_running=%d", __entry->nr_running)
+);
+
+#ifndef __TEMPFREQ_HOTPLUG_STATE__
+#define __TEMPFREQ_HOTPLUG_STATE__
+const char *HOTPLUG_STATE_STR[] = {
+	"HOTPLUG_UNKNOWN_NEXT",
+	"HOTPLUG_INCREASE_NEXT",
+	"HOTPLUG_DECREASE_NEXT",
+};
+#endif
+TRACE_EVENT(tempfreq_hotplug_state,
+
+	TP_PROTO(int elapsed_epochs, int next_state, int expected_next_state),
+
+	TP_ARGS(elapsed_epochs, next_state, expected_next_state),
+
+	TP_STRUCT__entry(
+		__field(	int,	elapsed_epochs		)
+		__field(	int,	next_state		)
+		__field(	int,	expected_next_state	)
+	),
+
+	TP_fast_assign(
+		__entry->elapsed_epochs = elapsed_epochs;
+		__entry->next_state = next_state;
+		__entry->expected_next_state = expected_next_state;
+	),
+
+	TP_printk("elapsed_epochs=%d next_state=%s expected_next_state=%s",
+		__entry->elapsed_epochs,
+		HOTPLUG_STATE_STR[__entry->next_state],
+		HOTPLUG_STATE_STR[__entry->expected_next_state]
+	)
 );
 
 #endif

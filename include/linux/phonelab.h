@@ -121,4 +121,17 @@ struct cgroup_map {
 };
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING */
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+enum {
+	HOTPLUG_UNKNOWN_NEXT = 0,
+	HOTPLUG_INCREASE_NEXT,
+	HOTPLUG_DECREASE_NEXT
+};
+
+struct hotplug_state {
+	int elapsed_epochs;
+	int next_state;
+};
+
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER */
 #endif	/* __PHONELAB__H_ */

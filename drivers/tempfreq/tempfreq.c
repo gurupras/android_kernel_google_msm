@@ -569,20 +569,8 @@ int phonelab_tempfreq_hotplug_epochs_down = 5;
 
 static struct delayed_work hotplug_work;
 
-enum {
-	HOTPLUG_UNKNOWN_NEXT = 0,
-	HOTPLUG_INCREASE_NEXT,
-	HOTPLUG_DECREASE_NEXT
-};
-
-struct hotplug_state {
-	int elapsed_epochs;
-	int rq_threshold;
-	int next_state;
-};
-
 static struct hotplug_state hotplug_state = {
-	0, 0, HOTPLUG_UNKNOWN_NEXT
+	0, HOTPLUG_UNKNOWN_NEXT
 };
 
 // Borrowed from block/drbd/drbd_int.h
@@ -622,7 +610,7 @@ static void __ref hotplug_driver_fn(struct work_struct *w)
 	u64 ns = sched_clock();
 #endif
 
-	printk(KERN_DEBUG "tempfreq: %s: Running\n", __func__);
+	//printk(KERN_DEBUG "tempfreq: %s: Running\n", __func__);
 
 	trace_tempfreq_hotplug_nr_running(rq_len);
 	trace_tempfreq_hotplug_target(online_ncpus, target_ncpus);
@@ -630,6 +618,9 @@ static void __ref hotplug_driver_fn(struct work_struct *w)
 	hotplug_state.elapsed_epochs++;
 
 	if(online_ncpus == target_ncpus) {
+		if(online_ncpus == 4) {
+			hotplug_state.next_state = rq_len >= online_ncpus ? HOTPLUG_INCREASE_NEXT : HOTPLUG_DECREASE_NEXT;
+		}
 		goto out;
 	} else if(online_ncpus < target_ncpus) {
 		cpu_fn = cpu_up;
@@ -644,16 +635,18 @@ static void __ref hotplug_driver_fn(struct work_struct *w)
 		expected_next_hotplug_state = HOTPLUG_DECREASE_NEXT;
 		required_num_elapsed_epochs = phonelab_tempfreq_hotplug_epochs_down;
 	}
+	trace_tempfreq_hotplug_state(hotplug_state.elapsed_epochs, hotplug_state.next_state, expected_next_hotplug_state);
+
 	// Now check if everything matches and perform the operation
 	if(hotplug_state.next_state != expected_next_hotplug_state) {
 		hotplug_state.next_state = expected_next_hotplug_state;
 		hotplug_state.elapsed_epochs = 0;
 	}
 	else {
-		if(hotplug_state.elapsed_epochs == required_num_elapsed_epochs) {
+		if(hotplug_state.elapsed_epochs >= required_num_elapsed_epochs) {
 			// Alter number of cores
 			for(cpu = ncpus; cpu > 0 && change > 0; cpu--) {
-				if(!(*check_fn)(cpu)) {
+				if((*check_fn)(cpu)) {
 					(*cpu_fn)(cpu);
 					change--;
 					*(set_ptr) = (*set_ptr) | (1 << cpu);
@@ -673,17 +666,17 @@ out:
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
-	printk(KERN_DEBUG "tempfreq: %s: Rescheduling ...\n", __func__);
+	//printk(KERN_DEBUG "tempfreq: %s: Rescheduling ...\n", __func__);
 	schedule_delayed_work(&hotplug_work, msecs_to_jiffies(phonelab_tempfreq_hotplug_epoch_ms));
 }
 
-static int __init init_hotplug_work(void)
+static int __init init_tempfreq_hotplug(void)
 {
 	INIT_DELAYED_WORK(&hotplug_work, hotplug_driver_fn);
 	schedule_delayed_work(&hotplug_work, 0);
 	return 0;
 }
-late_initcall(init_hotplug_work);
+late_initcall(init_tempfreq_hotplug);
 #endif
 
 
