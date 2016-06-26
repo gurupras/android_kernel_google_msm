@@ -369,12 +369,12 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 	case CPU_ONLINE_FROZEN:
 	case CPU_DOWN_FAILED:
 	case CPU_DOWN_FAILED_FROZEN:
-		printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 1\n", __func__, cpu);
+		//printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 1\n", __func__, cpu);
 		phone_state->cpu_states[cpu]->enabled = 1;
 		break;
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
-		printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 0\n", __func__, cpu);
+		//printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 0\n", __func__, cpu);
 		phone_state->cpu_states[cpu]->enabled = 0;
 		break;
 	};
@@ -686,11 +686,12 @@ late_initcall(init_tempfreq_hotplug);
 
 /* sysfs hooks */
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
-static ssize_t store_binary_threshold_temp(const char *buf, size_t count)
+static ssize_t store_binary_threshold_temp(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_DISABLE_KERNEL_LIMITS
@@ -702,19 +703,16 @@ static ssize_t store_binary_threshold_temp(const char *buf, size_t count)
 #endif
 	phonelab_tempfreq_binary_threshold_temp = val;
 
+	kfree(buf);
 	return count;
 }
 
-static ssize_t show_binary_threshold_temp(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_binary_threshold_temp);
-}
-
-static ssize_t store_binary_critical(const char *buf, size_t count)
+static ssize_t store_binary_critical(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val <= phonelab_tempfreq_binary_threshold_temp)
@@ -722,19 +720,16 @@ static ssize_t store_binary_critical(const char *buf, size_t count)
 
 	phonelab_tempfreq_binary_critical = val;
 
+	kfree(buf);
 	return count;
 }
 
-static ssize_t show_binary_critical(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_binary_critical);
-}
-
-static ssize_t store_binary_lower_threshold(const char *buf, size_t count)
+static ssize_t store_binary_lower_threshold(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val >= phonelab_tempfreq_binary_threshold_temp)
@@ -742,19 +737,16 @@ static ssize_t store_binary_lower_threshold(const char *buf, size_t count)
 
 	phonelab_tempfreq_binary_lower_threshold = val;
 
+	kfree(buf);
 	return count;
 }
 
-static ssize_t show_binary_lower_threshold(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_binary_lower_threshold);
-}
-
-static ssize_t store_binary_short_epochs(const char *buf, size_t count)
+static ssize_t store_binary_short_epochs(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val <= 0)
@@ -762,19 +754,16 @@ static ssize_t store_binary_short_epochs(const char *buf, size_t count)
 
 	phonelab_tempfreq_binary_short_epochs = val;
 
+	kfree(buf);
 	return count;
 }
 
-static ssize_t show_binary_short_epochs(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_binary_short_epochs);
-}
-
-static ssize_t store_binary_short_diff_limit(const char *buf, size_t count)
+static ssize_t store_binary_short_diff_limit(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val <= 0)
@@ -782,62 +771,54 @@ static ssize_t store_binary_short_diff_limit(const char *buf, size_t count)
 
 	phonelab_tempfreq_binary_short_diff_limit = val;
 
+	kfree(buf);
 	return count;
 }
 
-static ssize_t show_binary_short_diff_limit(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_binary_short_diff_limit);
-}
 
-
-static ssize_t store_binary_long_epochs(const char *buf, size_t count)
+static ssize_t store_binary_long_epochs(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val <= 0)
+		return -EINVAL;
+
+	if(val <= phonelab_tempfreq_binary_short_epochs)
 		return -EINVAL;
 
 	phonelab_tempfreq_binary_long_epochs = val;
 
+	kfree(buf);
 	return count;
 }
 
-static ssize_t show_binary_long_epochs(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_binary_long_epochs);
-}
-
-static ssize_t store_binary_long_diff_limit(const char *buf, size_t count)
+static ssize_t store_binary_long_diff_limit(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val <= 0)
 		return -EINVAL;
-	if(val <= phonelab_tempfreq_binary_short_epochs)
-		return -EINVAL;
 
 	phonelab_tempfreq_binary_long_diff_limit = val;
 
+	kfree(buf);
 	return count;
 }
 
-static ssize_t show_binary_long_diff_limit(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_binary_long_diff_limit);
-}
-
-static ssize_t store_binary_jump_lower(const char *buf, size_t count)
+static ssize_t store_binary_jump_lower(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val <= 0)
@@ -845,21 +826,18 @@ static ssize_t store_binary_jump_lower(const char *buf, size_t count)
 
 	phonelab_tempfreq_binary_jump_lower = val;
 
+	kfree(buf);
 	return count;
-}
-
-static ssize_t show_binary_jump_lower(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_binary_jump_lower);
 }
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
-static ssize_t store_hotplug_epoch_ms(const char *buf, size_t count)
+static ssize_t store_hotplug_epoch_ms(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val <= 0)
@@ -867,19 +845,16 @@ static ssize_t store_hotplug_epoch_ms(const char *buf, size_t count)
 
 	phonelab_tempfreq_hotplug_epoch_ms = val;
 
+	kfree(buf);
 	return count;
 }
 
-static ssize_t show_hotplug_epoch_ms(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_hotplug_epoch_ms);
-}
-
-static ssize_t store_hotplug_epochs_up(const char *buf, size_t count)
+static ssize_t store_hotplug_epochs_up(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val <= 0)
@@ -887,19 +862,16 @@ static ssize_t store_hotplug_epochs_up(const char *buf, size_t count)
 
 	phonelab_tempfreq_hotplug_epochs_up = val;
 
+	kfree(buf);
 	return count;
 }
 
-static ssize_t show_hotplug_epochs_up(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_hotplug_epochs_up);
-}
-
-static ssize_t store_hotplug_epochs_down(const char *buf, size_t count)
+static ssize_t store_hotplug_epochs_down(const char *_buf, size_t count)
 {
 	int val, err;
-	err = sscanf(buf, "%u", &val);
-	if (err != 1)
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
 		return -EINVAL;
 
 	if(val <= 0)
@@ -907,14 +879,9 @@ static ssize_t store_hotplug_epochs_down(const char *buf, size_t count)
 
 	phonelab_tempfreq_hotplug_epochs_down = val;
 
+	kfree(buf);
 	return count;
 }
-
-static ssize_t show_hotplug_epochs_down(char *buf)
-{
-	return sprintf(buf, "%d", phonelab_tempfreq_hotplug_epochs_down);
-}
-
 #endif
 
 struct tempfreq_attr {
@@ -923,12 +890,21 @@ struct tempfreq_attr {
 	ssize_t (*store)(const char *, size_t count);
 };
 
+#define __show(name)						\
+static ssize_t show_##name(char *buf)				\
+{								\
+	/* printk(KERN_DEBUG "tempfreq: %s: show() -> %d\n", __func__, phonelab_tempfreq_##name);*/	\
+	return sprintf(buf, "%d", phonelab_tempfreq_##name);	\
+}
+
 
 #define tempfreq_attr_ro(_name)				\
+__show(_name);						\
 static struct tempfreq_attr _name =			\
 __ATTR(_name, 0444, show_##_name, NULL)
 
 #define tempfreq_attr_rw(_name)				\
+__show(_name);						\
 static struct tempfreq_attr _name =			\
 __ATTR(_name, 0644, show_##_name, store_##_name)
 
@@ -970,11 +946,11 @@ static struct attribute *attrs[] = {
 
 
 
-#define to_attr(a) container_of(a, struct tempfreq_attr, attr)
+#define tf_to_attr(a) container_of(a, struct tempfreq_attr, attr)
 static ssize_t show(struct kobject *kobj, struct attribute *attr, char *buf)
 {
 	ssize_t ret = -EINVAL;
-	struct tempfreq_attr *fattr = to_attr(attr);
+	struct tempfreq_attr *fattr = tf_to_attr(attr);
 	if (fattr->show)
 		ret = fattr->show(buf);
 	else
@@ -985,10 +961,12 @@ static ssize_t show(struct kobject *kobj, struct attribute *attr, char *buf)
 static ssize_t store(struct kobject *kobj, struct attribute *attr,
 		     const char *buf, size_t count)
 {
-	struct tempfreq_attr *fattr = to_attr(attr);
+	struct tempfreq_attr *fattr = tf_to_attr(attr);
 	ssize_t ret = -EINVAL;
-	if (fattr->store)
+	//printk(KERN_DEBUG "tempfreq: %s: %s\n", __func__, buf);
+	if (fattr->store) {
 		ret = fattr->store(buf, count);
+	}
 	else
 		ret = -EIO;
 	return ret;
@@ -1000,24 +978,24 @@ static const struct sysfs_ops sysfs_ops = {
 };
 
 
-static struct attribute_group tempfreq_attr_group = {
-	.attrs = attrs,
+static struct kobj_type tempfreq_ktype = {
+	.sysfs_ops = &sysfs_ops,
+	.default_attrs = attrs,
 };
 
-static struct kobject *tempfreq_kobj;
+static struct kobject tempfreq_kobj;
 
 static int __init init_tempfreq_sysfs(void)
 {
 	int ret = 0;
-	tempfreq_kobj = kobject_create_and_add("tempfreq",
-			NULL);
-	if (!tempfreq_kobj)
-		ret = -ENOMEM;
-	ret = sysfs_create_group(tempfreq_kobj, &tempfreq_attr_group);
-	if (ret)
-		kobject_put(tempfreq_kobj);
-	else
-		kobject_uevent(tempfreq_kobj, KOBJ_ADD);
+	struct kobject *kobj = &tempfreq_kobj;
+	ret = kobject_init_and_add(kobj, &tempfreq_ktype,
+				   NULL, "tempfreq");
+//	ret = sysfs_create_group(tempfreq_kobj, &tempfreq_attr_group);
+//	if (ret)
+//		kobject_put(tempfreq_kobj);
+//	else
+//		kobject_uevent(tempfreq_kobj, KOBJ_ADD);
 
 
 	return ret;

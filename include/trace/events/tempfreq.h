@@ -155,7 +155,7 @@ static void set_to_string(int set, char buf[10])
 		}
 	}
 	offset += sprintf(tmpbuf + offset, "]");
-	printk(KERN_DEBUG "tempfreq: %s: %s\n", __func__, tmpbuf);
+	//printk(KERN_DEBUG "tempfreq: %s: %s\n", __func__, tmpbuf);
 	sprintf(buf, "%s", tmpbuf);
 }
 #endif
