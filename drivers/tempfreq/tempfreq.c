@@ -362,7 +362,7 @@ static int tempfreq_cpufreq_callback(struct notifier_block *nfb,
 
 	if(action != CPUFREQ_POSTCHANGE)
 		return 0;
-	if(cs->cur_freq != freqs->old) {
+	if(freqs->old != 0 && cs->cur_freq != freqs->old) {
 		printk(KERN_WARNING "tempfreq: %s: cpu_state->cur_freq (%d) != freqs->old (%d)\n", __func__, cs->cur_freq, freqs->old);
 	}
 	cs->cur_freq = freqs->new;
