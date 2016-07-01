@@ -583,14 +583,23 @@ static int __init init_tempfreq_thermal_cgroup_throttling(void)
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 int phonelab_tempfreq_hotplug_epoch_ms = 100;
+
 static DEFINE_MUTEX(hotplug_driver_mutex);
 struct hotplug_driver *hotplug_driver = NULL;
 struct delayed_work hotplug_work;
+struct hotplug_drivers_list hotplug_drivers_list;
+
+static struct hotplug_driver null_hotplug_driver = {
+	.id = PHONELAB_TEMPFREQ_NO_HOTPLUG_DRIVER,
+	.name = "null",
+	.hotplug_work_fn = NULL
+};
 
 static void __cpuinit hotplug_driver_fn(struct work_struct *w)
 {
 	mutex_lock(&hotplug_driver_mutex);
-	hotplug_driver->hotplug_work_fn(w);
+	if(hotplug_driver->hotplug_work_fn)
+		hotplug_driver->hotplug_work_fn(w);
 	mutex_unlock(&hotplug_driver_mutex);
 	schedule_delayed_work_on(0, &hotplug_work, msecs_to_jiffies(phonelab_tempfreq_hotplug_epoch_ms));
 }
@@ -713,12 +722,37 @@ out:
 
 static int __init init_tempfreq_hotplug(void)
 {
-#ifdef CONFIG_PHONELAB_TEMPFREQ_DEFAULT_AUTOSMP_HOTPLUG_DRIVER
+	struct hotplug_drivers_list *lst;
+#ifdef CONFIG_PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER
 	extern struct hotplug_driver autosmp_hotplug_driver;
-	hotplug_driver = &autosmp_hotplug_driver;
 #endif
+	INIT_LIST_HEAD(&hotplug_drivers_list.list);
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+	lst = kmalloc(sizeof(struct hotplug_drivers_list), GFP_KERNEL);
+	lst->driver = &null_hotplug_driver;
+	list_add(&lst->list, &hotplug_drivers_list.list);
+#ifdef CONFIG_PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER
+	hotplug_driver = &null_hotplug_driver;
+#endif
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
+	lst = kmalloc(sizeof(struct hotplug_drivers_list), GFP_KERNEL);
+	lst->driver = &task_hotplug_driver;
+	list_add(&lst->list, &hotplug_drivers_list.list);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_DEFAULT_TASK_HOTPLUG_DRIVER
 	hotplug_driver = &task_hotplug_driver;
+#endif
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER
+	lst = kmalloc(sizeof(struct hotplug_drivers_list), GFP_KERNEL);
+	lst->driver = &autosmp_hotplug_driver;
+	list_add(&lst->list, &hotplug_drivers_list.list);
+#ifdef CONFIG_PHONELAB_TEMPFREQ_DEFAULT_AUTOSMP_HOTPLUG_DRIVER
+	hotplug_driver = &autosmp_hotplug_driver;
+#endif
 #endif
 	INIT_DELAYED_WORK(&hotplug_work, hotplug_driver_fn);
 	schedule_delayed_work(&hotplug_work, 0);
@@ -898,30 +932,29 @@ out:
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
-static const char *hotplug_driver_names[] = {
-	"task_hotplug",
-	"autosmp",
-	NULL
-};
 
 static ssize_t store_tempfreq_hotplug_driver(const char *_buf, size_t count)
 {
 	int err = 0;
 	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
-
-	mutex_lock(&hotplug_driver_mutex);
-	if(strcmp(buf, "task_hotplug") == 0) {
-		hotplug_driver = &task_hotplug_driver;
-	} else if(strcmp(buf, "autosmp") == 0) {
-		//FIXME: This should be handled properly..extern is lousy hack
-		extern struct hotplug_driver autosmp_hotplug_driver;
-		hotplug_driver = &autosmp_hotplug_driver;
-	} else {
+	struct hotplug_driver *driver = NULL;
+	struct hotplug_drivers_list *entry;
+	list_for_each_entry(entry, &hotplug_drivers_list.list, list) {
+		if(strcmp(entry->driver->name, buf) == 0) {
+			driver = entry->driver;
+			break;
+		}
+	}
+	if(!driver) {
 		printk(KERN_DEBUG "tempfreq: %s: Did not find driver for '%s'\n", __func__, buf);
 		err = -EINVAL;
+		goto out;
 	}
-	mutex_unlock(&hotplug_driver_mutex);
 
+	mutex_lock(&hotplug_driver_mutex);
+	hotplug_driver = driver;
+	mutex_unlock(&hotplug_driver_mutex);
+out:
 	kfree(buf);
 	return err != 0 ? err : count;
 }
@@ -933,13 +966,15 @@ static ssize_t show_tempfreq_hotplug_driver(char *buf)
 
 static ssize_t show_available_hotplug_drivers(char *buf)
 {
-	int i;
+	int i = 0;
 	int offset = 0;
-	for(i = 0; i < PHONELAB_TEMPFREQ_NR_HOTPLUG_DRIVERS; i++) {
-		offset += sprintf(buf + offset, "%s", hotplug_driver_names[i]);
-		if(i < PHONELAB_TEMPFREQ_NR_HOTPLUG_DRIVERS - 1) {
+	struct hotplug_drivers_list *entry;
+	list_for_each_entry(entry, &hotplug_drivers_list.list, list) {
+		if(i) {
 			offset += sprintf(buf + offset, " ");
 		}
+		offset += sprintf(buf + offset, "%s", entry->driver->name);
+		i++;
 	}
 	return offset;
 }

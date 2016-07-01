@@ -5,6 +5,7 @@
 #include <linux/workqueue.h>
 
 enum {
+	PHONELAB_TEMPFREQ_NO_HOTPLUG_DRIVER,
 	PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER,
 	PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER,
 	PHONELAB_TEMPFREQ_NR_HOTPLUG_DRIVERS
@@ -16,5 +17,9 @@ struct hotplug_driver {
 	void (*hotplug_work_fn) (struct work_struct *);
 };
 
-extern struct hotplug_driver *hotplug_driver;
+struct hotplug_drivers_list {
+	struct list_head list;
+	struct hotplug_driver *driver;
+};
+extern struct hotplug_drivers_list hotplug_drivers_list;
 #endif	/* __TEMPFREQ_HOTPLUG_H_ */

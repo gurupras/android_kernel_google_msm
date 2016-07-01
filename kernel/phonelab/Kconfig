@@ -101,6 +101,11 @@ choice
 	help
 	  Select default hotplug driver to use
 
+config PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER
+	bool "null hotplug driver"
+	help
+	  No kernel hotplugging. Left to userspace.
+
 config PHONELAB_TEMPFREQ_DEFAULT_TASK_HOTPLUG_DRIVER
 	bool "task hotplug driver"
 	depends on PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
