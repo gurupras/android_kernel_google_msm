@@ -309,7 +309,7 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 	tg = cgroup_tg(cgrp);
 
 	// Check if timeout has exceeded. If it has, we just reset the cgroup
-	if((sched_clock() - entry->throttle_time) >= tg->tempfreq_thermal_cgroup_throttling_timeout) {
+	if(entry->state == CGROUP_STATE_THROTTLED && (sched_clock() - entry->throttle_time) >= tg->tempfreq_thermal_cgroup_throttling_timeout) {
 		shares = entry->cpu_shares;
 		entry->cpu_shares = 0;
 		entry->throttle_time = 0;
