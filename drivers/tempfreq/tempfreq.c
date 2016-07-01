@@ -28,7 +28,7 @@
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 int phonelab_tempfreq_binary_threshold_temp	= 70;
-int phonelab_tempfreq_binary_critical		= 78;
+int phonelab_tempfreq_binary_critical		= 75;
 int phonelab_tempfreq_binary_lower_threshold	= 65;
 int phonelab_tempfreq_binary_jump_lower		= 2;
 
