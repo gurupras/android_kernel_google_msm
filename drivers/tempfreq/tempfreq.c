@@ -36,7 +36,7 @@ int phonelab_tempfreq_binary_long_epochs	= 5;
 int phonelab_tempfreq_binary_long_diff_limit	= 2;
 #endif
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 //FIXME: This include is a hack
 #include <linux/../../kernel/sched/sched.h>
 
@@ -47,7 +47,7 @@ enum {
 };
 struct cgroup_map cgroup_map;
 
-static void thermal_bg_throttling_update_cgroup_entry(struct cgroup_entry *entry, int temp);
+static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *entry, int temp);
 
 // This function is implemented in kern/sched/core.c
 // Borrowed since this would require header file change => long compilation
@@ -274,10 +274,10 @@ done:
 	cpu_state_string(NULL, NULL);
 #endif
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 	for(i = 0; i < cgroup_map.cur_idx; i++) {
 		struct cgroup_entry *entry = &cgroup_map.entries[i];
-		thermal_bg_throttling_update_cgroup_entry(entry, temp);
+		thermal_cgroup_throttling_update_cgroup_entry(entry, temp);
 	}
 #endif
 	(void) ret;
@@ -288,12 +288,13 @@ done:
 }
 EXPORT_SYMBOL_GPL(tempfreq_thermal_callback);
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
-static void thermal_bg_throttling_update_cgroup_entry(struct cgroup_entry *entry, int temp)
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *entry, int temp)
 {
 	struct cgroup *cgrp = entry->cgroup;
 	u64 shares = entry->cpu_shares;
 	int state = entry->state;
+	struct task_group *tg;
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
@@ -302,21 +303,36 @@ static void thermal_bg_throttling_update_cgroup_entry(struct cgroup_entry *entry
 		return;
 	}
 
+	tg = cgroup_tg(cgrp);
+
+	// Check if timeout has exceeded. If it has, we just reset the cgroup
+	if((sched_clock() - entry->throttle_time) >= tg->tempfreq_thermal_cgroup_throttling_timeout) {
+		shares = entry->cpu_shares;
+		entry->cpu_shares = 0;
+		entry->throttle_time = 0;
+		state = CGROUP_STATE_NORMAL;
+		sched_group_set_shares(tg, scale_load(shares));
+		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 1);
+		entry->state = state;
+	}
+
 	if(temp >= entry->throttling_temp && (entry->state == CGROUP_STATE_NORMAL || entry->state == CGROUP_STATE_UNKNOWN)) {
 		// First store the current CPU shares
-		entry->cpu_shares = scale_load_down(cgroup_tg(cgrp)->shares);
+		entry->cpu_shares = scale_load_down(tg->shares);
 		// Now set shares to 0
 		shares = 0;
 		state = CGROUP_STATE_THROTTLED;
-		sched_group_set_shares(cgroup_tg(cgrp), scale_load(shares));
-		trace_tempfreq_thermal_bg_throttling(temp, entry->cur_idx, state);
+		sched_group_set_shares(tg, scale_load(shares));
+		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0);
 		entry->state = state;
+		entry->throttle_time = sched_clock();
 	} else if(temp < entry->unthrottling_temp && (entry->state == CGROUP_STATE_THROTTLED || entry->state == CGROUP_STATE_UNKNOWN)) {
 		shares = entry->cpu_shares;
 		entry->cpu_shares = 0;
+		entry->throttle_time = 0;
 		state = CGROUP_STATE_NORMAL;
-		sched_group_set_shares(cgroup_tg(cgrp), scale_load(shares));
-		trace_tempfreq_thermal_bg_throttling(temp, entry->cur_idx, state);
+		sched_group_set_shares(tg, scale_load(shares));
+		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0);
 		entry->state = state;
 	}
 #ifdef DEBUG
@@ -395,7 +411,7 @@ int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unt
 	cgroup_map.entries[i].throttling_temp = throttling_temp;
 	cgroup_map.entries[i].unthrottling_temp = unthrottling_temp;
 	//FIXME: This could cause tasks to run when they're not supposed to
-	thermal_bg_throttling_update_cgroup_entry(&cgroup_map.entries[i], 0);
+	thermal_cgroup_throttling_update_cgroup_entry(&cgroup_map.entries[i], 0);
 	if(i == cgroup_map.cur_idx)
 		cgroup_map.cur_idx++;
 	return 0;
@@ -542,8 +558,8 @@ static void cpu_state_string(struct cpu_state *cs, char *str)
 
 
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
-static int __init init_tempfreq_thermal_bg_throttling(void)
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+static int __init init_tempfreq_thermal_cgroup_throttling(void)
 {
 	int i;
 
@@ -554,6 +570,7 @@ static int __init init_tempfreq_thermal_bg_throttling(void)
 		cgroup_map.entries[i].throttling_temp = 0;
 		cgroup_map.entries[i].unthrottling_temp = 0;
 		cgroup_map.entries[i].cpu_shares = 0;
+		cgroup_map.entries[i].throttle_time = 0;
 		cgroup_map.entries[i].state = CGROUP_STATE_UNKNOWN;
 	}
 	return 0;
@@ -1117,8 +1134,8 @@ static int __init init_tempfreq_callbacks(void)
 static int __init init_tempfreq(void)
 {
 	// Initialize state before callbacks
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
-	init_tempfreq_thermal_bg_throttling();
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+	init_tempfreq_thermal_cgroup_throttling();
 #endif
 	init_phone_state();
 	init_tempfreq_callbacks();

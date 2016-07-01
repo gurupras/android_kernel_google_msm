@@ -104,7 +104,7 @@ extern int phonelab_tempfreq_binary_long_diff_limit;
 extern int phonelab_tempfreq_binary_jump_lower;
 #endif
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 #define CGROUP_MAP_MAX		10
 struct cgroup_entry {
 	int cur_idx;
@@ -112,6 +112,7 @@ struct cgroup_entry {
 	int throttling_temp;
 	int unthrottling_temp;
 	u64 cpu_shares;
+	u64 throttle_time;
 	int state;
 };
 
@@ -119,7 +120,8 @@ struct cgroup_map {
 	int cur_idx;
 	struct cgroup_entry entries[CGROUP_MAP_MAX];
 };
-#endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING */
+int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unthrottling_temp);
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING */
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 enum {

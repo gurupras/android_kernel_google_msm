@@ -64,8 +64,10 @@ config PHONELAB_TEMPFREQ_BINARY_MODE
 	  The scaling logic to increase/decrease frequency is
 	  done by a factor of 2
 
-config PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+config PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 	bool "Enable background work throttling based on temperature"
+	select CPUSETS
+	select PROC_PID_CPUSET
 	help
 	  Background work is throttled based on temperature. This temperature
           is configurable via sysfs.

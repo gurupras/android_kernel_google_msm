@@ -61,29 +61,32 @@ TRACE_EVENT(tempfreq_binary_diff,
 );
 #endif
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
-TRACE_EVENT(tempfreq_thermal_bg_throttling,
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+TRACE_EVENT(tempfreq_thermal_cgroup_throttling,
 
-	TP_PROTO(int temp, int idx, int state),
+	TP_PROTO(int temp, int idx, int state, int reason),
 
-	TP_ARGS(temp, idx, state),
+	TP_ARGS(temp, idx, state, reason),
 
 	TP_STRUCT__entry(
 		__field(	int,		temp		)
 		__field(	int,		idx		)
 		__field(	int,		state		)
+		__field(	int,		reason		)
 	),
 
 	TP_fast_assign(
 		__entry->temp		= temp;
 		__entry->idx		= idx;
 		__entry->state		= state;
+		__entry->reason		= reason;
 	),
 
-	TP_printk("temp=%d idx=%d state=%s",
+	TP_printk("temp=%d idx=%d state=%s reason=%s",
 			__entry->temp,
 			__entry->idx,
-			__entry->state == 0 ? "NORMAL" : "THROTTLED"
+			__entry->state == 0 ? "NORMAL" : "THROTTLED",
+			__entry->reason == 0 ? "temp" : "timeout"
 	)
 );
 

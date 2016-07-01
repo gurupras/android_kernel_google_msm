@@ -8081,43 +8081,61 @@ static u64 cpu_rt_period_read_uint(struct cgroup *cgrp, struct cftype *cft)
 }
 #endif /* CONFIG_RT_GROUP_SCHED */
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
-static int cpu_tempfreq_thermal_bg_throttling_temp_write_uint(struct cgroup *cgrp,
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+static int cpu_tempfreq_thermal_cgroup_throttling_temp_write_uint(struct cgroup *cgrp,
 		struct cftype *cft, u64 val)
 {
 	struct task_group *tg = cgroup_tg(cgrp);
 	if (val >= 110 || val < 30)
 		return -EINVAL;
 
-	tg->tempfreq_thermal_bg_throttling_temp = (int) val;
-	tg->tempfreq_thermal_bg_unthrottling_temp = val - 5;
+	tg->tempfreq_thermal_cgroup_throttling_temp = (int) val;
+	tg->tempfreq_thermal_cgroup_unthrottling_temp = val - 5;
 
-	tempfreq_update_cgroup_map(cgrp, tg->tempfreq_thermal_bg_throttling_temp, tg->tempfreq_thermal_bg_unthrottling_temp);
+	tempfreq_update_cgroup_map(cgrp, tg->tempfreq_thermal_cgroup_throttling_temp, tg->tempfreq_thermal_cgroup_unthrottling_temp);
 	return 0;
 }
 
-static u64 cpu_tempfreq_thermal_bg_throttling_temp_read_uint(struct cgroup *cgrp, struct cftype *cft)
+static u64 cpu_tempfreq_thermal_cgroup_throttling_temp_read_uint(struct cgroup *cgrp, struct cftype *cft)
 {
 	struct task_group *tg = cgroup_tg(cgrp);
-	return (u64) tg->tempfreq_thermal_bg_throttling_temp;
+	return (u64) tg->tempfreq_thermal_cgroup_throttling_temp;
 }
 
-static int cpu_tempfreq_thermal_bg_unthrottling_temp_write_uint(struct cgroup *cgrp,
+static int cpu_tempfreq_thermal_cgroup_unthrottling_temp_write_uint(struct cgroup *cgrp,
 		struct cftype *cft, u64 val)
 {
 	struct task_group *tg = cgroup_tg(cgrp);
 	if (val >= 110)
 		return -EINVAL;
 
-	tg->tempfreq_thermal_bg_unthrottling_temp = (int) val;
+	tg->tempfreq_thermal_cgroup_unthrottling_temp = (int) val;
 	return 0;
 }
 
-static u64 cpu_tempfreq_thermal_bg_unthrottling_temp_read_uint(struct cgroup *cgrp, struct cftype *cft)
+static u64 cpu_tempfreq_thermal_cgroup_unthrottling_temp_read_uint(struct cgroup *cgrp, struct cftype *cft)
 {
 	struct task_group *tg = cgroup_tg(cgrp);
-	return (u64) tg->tempfreq_thermal_bg_unthrottling_temp;
+	return (u64) tg->tempfreq_thermal_cgroup_unthrottling_temp;
 }
+
+static int cpu_tempfreq_thermal_cgroup_throttling_timeout_write_uint(struct cgroup *cgrp,
+		struct cftype *cft, u64 val)
+{
+	struct task_group *tg = cgroup_tg(cgrp);
+	if (val >= 110)
+		return -EINVAL;
+
+	tg->tempfreq_thermal_cgroup_throttling_timeout = (int) val;
+	return 0;
+}
+
+static u64 cpu_tempfreq_thermal_cgroup_throttling_timeout_read_uint(struct cgroup *cgrp, struct cftype *cft)
+{
+	struct task_group *tg = cgroup_tg(cgrp);
+	return (u64) tg->tempfreq_thermal_cgroup_throttling_timeout;
+}
+
 #endif
 
 static struct cftype cpu_files[] = {
@@ -8161,16 +8179,21 @@ static struct cftype cpu_files[] = {
 		.write_u64 = cpu_rt_period_write_uint,
 	},
 #endif
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 	{
-		.name = "tempfreq_thermal_bg_throttling_temp",
-		.read_u64 = cpu_tempfreq_thermal_bg_throttling_temp_read_uint,
-		.write_u64 = cpu_tempfreq_thermal_bg_throttling_temp_write_uint,
+		.name = "tempfreq_thermal_cgroup_throttling_temp",
+		.read_u64 = cpu_tempfreq_thermal_cgroup_throttling_temp_read_uint,
+		.write_u64 = cpu_tempfreq_thermal_cgroup_throttling_temp_write_uint,
 	},
 	{
-		.name = "tempfreq_thermal_bg_unthrottling_temp",
-		.read_u64 = cpu_tempfreq_thermal_bg_unthrottling_temp_read_uint,
-		.write_u64 = cpu_tempfreq_thermal_bg_unthrottling_temp_write_uint,
+		.name = "tempfreq_thermal_cgroup_unthrottling_temp",
+		.read_u64 = cpu_tempfreq_thermal_cgroup_unthrottling_temp_read_uint,
+		.write_u64 = cpu_tempfreq_thermal_cgroup_unthrottling_temp_write_uint,
+	},
+	{
+		.name = "tempfreq_thermal_cgroup_throttling_timeout",
+		.read_u64 = cpu_tempfreq_thermal_cgroup_throttling_timeout_read_uint,
+		.write_u64 = cpu_tempfreq_thermal_cgroup_throttling_timeout_write_uint,
 	},
 #endif
 };

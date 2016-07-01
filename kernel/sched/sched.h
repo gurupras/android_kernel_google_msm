@@ -135,9 +135,10 @@ struct task_group {
 #endif
 
 	struct cfs_bandwidth cfs_bandwidth;
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
-	int tempfreq_thermal_bg_throttling_temp;
-	int tempfreq_thermal_bg_unthrottling_temp;
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+	int tempfreq_thermal_cgroup_throttling_temp;
+	int tempfreq_thermal_cgroup_unthrottling_temp;
+	u64 tempfreq_thermal_cgroup_throttling_timeout;
 #endif
 };
 
