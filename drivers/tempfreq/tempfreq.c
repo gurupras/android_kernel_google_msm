@@ -740,19 +740,23 @@ static ssize_t store_binary_threshold_temp(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_DISABLE_KERNEL_LIMITS
-	if(val >= 90)
-		return -EINVAL;
+	if(val >= 90) {
+		err = -EINVAL;
+		goto out;
+	}
 #else
-	if(val >= 80)
-		return -EINVAL;
+	if(val >= 80) {
+		err = -EINVAL;
+		goto out;
+	}
 #endif
 	phonelab_tempfreq_binary_threshold_temp = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 
 static ssize_t store_binary_critical(const char *_buf, size_t count)
@@ -761,15 +765,17 @@ static ssize_t store_binary_critical(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
-	if(val <= phonelab_tempfreq_binary_threshold_temp)
-		return -EINVAL;
+	if(val <= phonelab_tempfreq_binary_threshold_temp) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	phonelab_tempfreq_binary_critical = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 
 static ssize_t store_binary_lower_threshold(const char *_buf, size_t count)
@@ -778,15 +784,17 @@ static ssize_t store_binary_lower_threshold(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
-	if(val >= phonelab_tempfreq_binary_threshold_temp)
-		return -EINVAL;
+	if(val >= phonelab_tempfreq_binary_threshold_temp) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	phonelab_tempfreq_binary_lower_threshold = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 
 static ssize_t store_binary_short_epochs(const char *_buf, size_t count)
@@ -795,15 +803,16 @@ static ssize_t store_binary_short_epochs(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
-	if(val <= 0)
-		return -EINVAL;
-
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
 	phonelab_tempfreq_binary_short_epochs = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 
 static ssize_t store_binary_short_diff_limit(const char *_buf, size_t count)
@@ -812,15 +821,16 @@ static ssize_t store_binary_short_diff_limit(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
-	if(val <= 0)
-		return -EINVAL;
-
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
 	phonelab_tempfreq_binary_short_diff_limit = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 
 
@@ -830,18 +840,22 @@ static ssize_t store_binary_long_epochs(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
-	if(val <= 0)
-		return -EINVAL;
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
 
-	if(val <= phonelab_tempfreq_binary_short_epochs)
-		return -EINVAL;
+	if(val <= phonelab_tempfreq_binary_short_epochs) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	phonelab_tempfreq_binary_long_epochs = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 
 static ssize_t store_binary_long_diff_limit(const char *_buf, size_t count)
@@ -850,15 +864,17 @@ static ssize_t store_binary_long_diff_limit(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
-	if(val <= 0)
-		return -EINVAL;
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	phonelab_tempfreq_binary_long_diff_limit = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 
 static ssize_t store_binary_jump_lower(const char *_buf, size_t count)
@@ -867,15 +883,17 @@ static ssize_t store_binary_jump_lower(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
-	if(val <= 0)
-		return -EINVAL;
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	phonelab_tempfreq_binary_jump_lower = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 #endif
 
@@ -930,19 +948,22 @@ static ssize_t show_available_hotplug_drivers(char *buf)
 #ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 static ssize_t store_hotplug_epoch_ms(const char *_buf, size_t count)
 {
-	int val, err;
+	int val, err = 0;
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
-	if (err)
-		return -EINVAL;
+	if (err) {
+		goto out;
+	}
 
-	if(val <= 0)
-		return -EINVAL;
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	phonelab_tempfreq_hotplug_epoch_ms = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 
 static ssize_t store_hotplug_epochs_up(const char *_buf, size_t count)
@@ -951,15 +972,17 @@ static ssize_t store_hotplug_epochs_up(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
-	if(val <= 0)
-		return -EINVAL;
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	phonelab_tempfreq_hotplug_epochs_up = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 
 static ssize_t store_hotplug_epochs_down(const char *_buf, size_t count)
@@ -968,15 +991,17 @@ static ssize_t store_hotplug_epochs_down(const char *_buf, size_t count)
 	char *buf = kstrdup(_buf, GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
-		return -EINVAL;
+		goto out;
 
-	if(val <= 0)
-		return -EINVAL;
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	phonelab_tempfreq_hotplug_epochs_down = val;
-
+out:
 	kfree(buf);
-	return count;
+	return err != 0 ? err : count;
 }
 #endif
 
