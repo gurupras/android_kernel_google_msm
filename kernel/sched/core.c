@@ -8123,10 +8123,10 @@ static int cpu_tempfreq_thermal_cgroup_throttling_timeout_write_uint(struct cgro
 		struct cftype *cft, u64 val)
 {
 	struct task_group *tg = cgroup_tg(cgrp);
-	if (val >= 110)
+	if (val <= 0)
 		return -EINVAL;
 
-	tg->tempfreq_thermal_cgroup_throttling_timeout = (int) val;
+	tg->tempfreq_thermal_cgroup_throttling_timeout = val;
 	return 0;
 }
 
