@@ -19,9 +19,12 @@
 #include <linux/phonelab.h>
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
-#include <linux/rq_stats.h>
+#include "hotplug.h"
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
+#include <linux/rq_stats.h>
+#endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 int phonelab_tempfreq_binary_threshold_temp	= 70;
@@ -578,13 +581,35 @@ static int __init init_tempfreq_thermal_cgroup_throttling(void)
 #endif
 
 
-
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 int phonelab_tempfreq_hotplug_epoch_ms = 100;
+static DEFINE_MUTEX(hotplug_driver_mutex);
+struct hotplug_driver *hotplug_driver = NULL;
+struct delayed_work hotplug_work;
+
+static void __cpuinit hotplug_driver_fn(struct work_struct *w)
+{
+	mutex_lock(&hotplug_driver_mutex);
+	hotplug_driver->hotplug_work_fn(w);
+	mutex_unlock(&hotplug_driver_mutex);
+	schedule_delayed_work_on(0, &hotplug_work, msecs_to_jiffies(phonelab_tempfreq_hotplug_epoch_ms));
+}
+
+#endif
+
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 int phonelab_tempfreq_hotplug_epochs_up = 2;
 int phonelab_tempfreq_hotplug_epochs_down = 5;
 
-static struct delayed_work hotplug_work;
+static void __cpuinit task_hotplug_driver_fn(struct work_struct *w);
+
+
+static struct hotplug_driver task_hotplug_driver = {
+	.id = PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER,
+	.name = "task_hotplug",
+	.hotplug_work_fn = task_hotplug_driver_fn
+};
 
 static struct hotplug_state hotplug_state = {
 	0, HOTPLUG_UNKNOWN_NEXT
@@ -594,7 +619,7 @@ static struct hotplug_state hotplug_state = {
 #define div_ceil(A, B) ((A)/(B) + ((A)%(B) ? 1 : 0))
 
 /* The following functions are wrapper functions created so that
- * we can avoid code duplication inside hotplug_driver_fn
+ * we can avoid code duplication inside task_hotplug_driver_fn
  */
 static inline int is_cpu_online(unsigned int cpu) {
 	return cpu_online(cpu);
@@ -604,7 +629,7 @@ static inline int is_cpu_offline(unsigned int cpu) {
 	return !cpu_online(cpu);
 }
 
-static void __ref hotplug_driver_fn(struct work_struct *w)
+static void __cpuinit task_hotplug_driver_fn(struct work_struct *w)
 {
 	int cpu;
 	int ncpus = num_possible_cpus() - 1;
@@ -684,11 +709,17 @@ out:
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
 	//printk(KERN_DEBUG "tempfreq: %s: Rescheduling ...\n", __func__);
-	schedule_delayed_work(&hotplug_work, msecs_to_jiffies(phonelab_tempfreq_hotplug_epoch_ms));
 }
 
 static int __init init_tempfreq_hotplug(void)
 {
+#ifdef CONFIG_PHONELAB_TEMPFREQ_DEFAULT_AUTOSMP_HOTPLUG_DRIVER
+	extern struct hotplug_driver autosmp_hotplug_driver;
+	hotplug_driver = &autosmp_hotplug_driver;
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_DEFAULT_TASK_HOTPLUG_DRIVER
+	hotplug_driver = &task_hotplug_driver;
+#endif
 	INIT_DELAYED_WORK(&hotplug_work, hotplug_driver_fn);
 	schedule_delayed_work(&hotplug_work, 0);
 	return 0;
@@ -849,6 +880,54 @@ static ssize_t store_binary_jump_lower(const char *_buf, size_t count)
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+static const char *hotplug_driver_names[] = {
+	"task_hotplug",
+	"autosmp",
+	NULL
+};
+
+static ssize_t store_tempfreq_hotplug_driver(const char *_buf, size_t count)
+{
+	int err = 0;
+	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
+
+	mutex_lock(&hotplug_driver_mutex);
+	if(strcmp(buf, "task_hotplug") == 0) {
+		hotplug_driver = &task_hotplug_driver;
+	} else if(strcmp(buf, "autosmp") == 0) {
+		//FIXME: This should be handled properly..extern is lousy hack
+		extern struct hotplug_driver autosmp_hotplug_driver;
+		hotplug_driver = &autosmp_hotplug_driver;
+	} else {
+		printk(KERN_DEBUG "tempfreq: %s: Did not find driver for '%s'\n", __func__, buf);
+		err = -EINVAL;
+	}
+	mutex_unlock(&hotplug_driver_mutex);
+
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
+static ssize_t show_tempfreq_hotplug_driver(char *buf)
+{
+	return sprintf(buf, "%s", hotplug_driver->name);
+}
+
+static ssize_t show_available_hotplug_drivers(char *buf)
+{
+	int i;
+	int offset = 0;
+	for(i = 0; i < PHONELAB_TEMPFREQ_NR_HOTPLUG_DRIVERS; i++) {
+		offset += sprintf(buf + offset, "%s", hotplug_driver_names[i]);
+		if(i < PHONELAB_TEMPFREQ_NR_HOTPLUG_DRIVERS - 1) {
+			offset += sprintf(buf + offset, " ");
+		}
+	}
+	return offset;
+}
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 static ssize_t store_hotplug_epoch_ms(const char *_buf, size_t count)
 {
 	int val, err;
@@ -925,6 +1004,14 @@ __show(_name);						\
 static struct tempfreq_attr _name =			\
 __ATTR(_name, 0644, show_##_name, store_##_name)
 
+#define tempfreq_attr_plain_rw(_name)			\
+static struct tempfreq_attr _name =			\
+__ATTR(_name, 0644, show_##_name, store_##_name)
+
+#define tempfreq_attr_plain_ro(_name)			\
+static struct tempfreq_attr _name =			\
+__ATTR(_name, 0444, show_##_name, NULL)
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 tempfreq_attr_rw(binary_threshold_temp);
 tempfreq_attr_rw(binary_critical);
@@ -937,6 +1024,11 @@ tempfreq_attr_rw(binary_jump_lower);
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+tempfreq_attr_plain_rw(tempfreq_hotplug_driver);
+tempfreq_attr_plain_ro(available_hotplug_drivers);
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 tempfreq_attr_rw(hotplug_epoch_ms);
 tempfreq_attr_rw(hotplug_epochs_up);
 tempfreq_attr_rw(hotplug_epochs_down);
@@ -954,7 +1046,11 @@ static struct attribute *attrs[] = {
 	&binary_jump_lower.attr,
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+	&tempfreq_hotplug_driver.attr,
+	&available_hotplug_drivers.attr,
 	&hotplug_epoch_ms.attr,
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 	&hotplug_epochs_up.attr,
 	&hotplug_epochs_down.attr,
 #endif

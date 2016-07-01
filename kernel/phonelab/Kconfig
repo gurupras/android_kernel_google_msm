@@ -73,8 +73,41 @@ config PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
           is configurable via sysfs.
 
 config PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+	bool "Enable hotplug driver"
+	help
+	  Enable tempfreq hotplug drivers
+
+menu "Hotplug Drivers"
+depends on PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+
+config PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 	bool "Enable tempfreq hotplug driver"
 	help
 	  Enable custom hotplug driver based on number of runnable tasks
 	  in the system.
+
+config PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER
+	bool "Enable autosmp hotplug driver"
+	help
+	  Use the open source AutoSMP hotplug driver.
+	  Source can be found at:
+	  https://github.com/mrg666/android_kernel_mako/blob/master/arch/arm/kernel/autosmp.c
+endmenu
+
+choice
+	prompt "Default hotplug driver"
+	default PHONELAB_TEMPFREQ_DEFAULT_TASK_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
+	default PHONELAB_TEMPFREQ_DEFAULT_AUTOSMP_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER
+	help
+	  Select default hotplug driver to use
+
+config PHONELAB_TEMPFREQ_DEFAULT_TASK_HOTPLUG_DRIVER
+	bool "task hotplug driver"
+	depends on PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
+
+config PHONELAB_TEMPFREQ_DEFAULT_AUTOSMP_HOTPLUG_DRIVER
+	bool "autosmp hotplug driver"
+	depends on PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER
+endchoice
+
 endmenu

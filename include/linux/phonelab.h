@@ -123,7 +123,7 @@ struct cgroup_map {
 int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unthrottling_temp);
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING */
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 enum {
 	HOTPLUG_UNKNOWN_NEXT = 0,
 	HOTPLUG_INCREASE_NEXT,
@@ -135,5 +135,5 @@ struct hotplug_state {
 	int next_state;
 };
 
-#endif	/* CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER */
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER */
 #endif	/* __PHONELAB__H_ */

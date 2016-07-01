@@ -137,9 +137,9 @@ TRACE_EVENT(tempfreq_timing,
 );
 
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
-#ifndef __TEMPFREQ_HOTPLUG_TRACE_HELPERS__
-#define __TEMPFREQ_HOTPLUG_TRACE_HELPERS__
+#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
+#ifndef __TEMPFREQ_TASK_HOTPLUG_TRACE_HELPERS__
+#define __TEMPFREQ_TASK_HOTPLUG_TRACE_HELPERS__
 static void set_to_string(int set, char buf[10])
 {
 	int i;
@@ -223,8 +223,8 @@ TRACE_EVENT(tempfreq_hotplug_nr_running,
 	TP_printk("nr_running=%d", __entry->nr_running)
 );
 
-#ifndef __TEMPFREQ_HOTPLUG_STATE__
-#define __TEMPFREQ_HOTPLUG_STATE__
+#ifndef __TEMPFREQ_TASK_HOTPLUG_STATE__
+#define __TEMPFREQ_TASK_HOTPLUG_STATE__
 const char *HOTPLUG_STATE_STR[] = {
 	"HOTPLUG_UNKNOWN_NEXT",
 	"HOTPLUG_INCREASE_NEXT",
