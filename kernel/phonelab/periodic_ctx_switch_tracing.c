@@ -383,13 +383,13 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	case CPU_DOWN_FAILED:
 	case CPU_DOWN_FAILED_FROZEN:
 		trace_phonelab_periodic_warning_cpu("notify_up", smp_processor_id());
-		printk(KERN_DEBUG "periodic: notify_up: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
+		//printk(KERN_DEBUG "periodic: notify_up: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
 		setup_periodic_work(cpu);
 		break;
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
 		trace_phonelab_periodic_warning_cpu("notify_down", smp_processor_id());
-		printk(KERN_DEBUG "periodic: notify_down: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
+		//printk(KERN_DEBUG "periodic: notify_down: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
 		destroy_periodic_work(cpu);
 		break;
 	};
