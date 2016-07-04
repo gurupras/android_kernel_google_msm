@@ -127,6 +127,36 @@ static void build_heap_from_temp_list(struct temp_list *tl)
 	}
 }
 
+static int get_nth_percentile(struct temp_list *tl, int n)
+{
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
+
+	int pn = -1;
+
+	int x = 100 / n;
+	// The window is full
+	// Find the number of elements to get to 25th percentile
+	int npn = (tl->max_elements + x) / x;
+	int i, j;
+
+	i = 0;
+	j = 0;
+	while(i < 100 && j < npn) {
+		j += tl->temperatures[i];
+		if(j >= npn) {
+			pn = i;
+			break;
+		}
+		i++;
+	}
+#ifdef DEBUG
+	trace_tempd_timing(__func__, sched_clock() - ns);
+#endif
+	return pn;
+}
+
 static int temp_distribution_thermal_callback(struct notifier_block *nfb,
 					unsigned long action, void *temp_ptr)
 {
@@ -136,7 +166,7 @@ static int temp_distribution_thermal_callback(struct notifier_block *nfb,
 	struct temp_list *stl, *ltl;
 	int p25;
 #ifdef DEBUG
-	u64 ns;
+	u64 ns = sched_clock();
 #endif
 
 	stl = short_temp_list;
@@ -153,27 +183,15 @@ static int temp_distribution_thermal_callback(struct notifier_block *nfb,
 	temp_list_add(ltl, temp);
 
 	if(likely(stl->num_elements == stl->max_elements)) {
-		// The window is full
-#ifdef DEBUG
-		ns = sched_clock();
-#endif
-		build_heap_from_temp_list(stl);
-#ifdef DEBUG
-		trace_tempd_timing("build_heap_from_temp_list(stl)", sched_clock() - ns);
-#endif
-
-		// TODO: Only run the following if bg cgroup is blocked waiting
-		// for low temps.
-		// Now we need to check 25th percentile
-		if(stl->max_elements % 4 == 0) {
-			// We average the first elements of min and max heaps
-			p25 = (heap_peek(stl->max_heap) + heap_peek(stl->min_heap)) / 2;
-		} else {
-			p25 = heap_peek(stl->max_heap);
+		p25 = get_nth_percentile(stl, 25);
+		if(p25 != -1) {
+			trace_tempd_pn("short", 25, p25);
 		}
-		trace_tempd_p25("short", p25);
 	}
 	// TODO: If the current temperature is below p25, then unblock
+#ifdef DEBUG
+	trace_tempd_timing(__func__, sched_clock() - ns);
+#endif
 	return 0;
 }
 
@@ -200,8 +218,8 @@ static int __init init_temp_distribution_callback(void)
 static int __init init_temp_distribution(void)
 {
 	// Initialize state before callbacks
-	init_temp_list(&short_temp_list, 15 * MSEC_PER_SEC);
-	//init_temp_list(&short_temp_list, 15 * 60 * MSEC_PER_SEC);
+	//init_temp_list(&short_temp_list, 15 * MSEC_PER_SEC);
+	init_temp_list(&short_temp_list, 15 * 60 * MSEC_PER_SEC);
 	init_temp_list(&long_temp_list, 60 * 60 * MSEC_PER_SEC);
 	// Callbacks
 	init_temp_distribution_callback();

@@ -7,23 +7,25 @@
 #include <linux/ktime.h>
 #include <linux/tracepoint.h>
 
-TRACE_EVENT(tempd_p25,
+TRACE_EVENT(tempd_pn,
 
-	TP_PROTO(const char *name, int p25),
+	TP_PROTO(const char *name, int n, int pn),
 
-	TP_ARGS(name, p25),
+	TP_ARGS(name, n, pn),
 
 	TP_STRUCT__entry(
 		__array(	char,	name,	8	)
-		__field(	int,	p25		)
+		__field(	int,	n		)
+		__field(	int,	pn		)
 	),
 
 	TP_fast_assign(
 		memcpy(__entry->name, name, 8);
-		__entry->p25 = p25;
+		__entry->n = n;
+		__entry->pn = pn;
 	),
 
-	TP_printk("list=%s p25=%d", __entry->name, __entry->p25)
+	TP_printk("list=%s percentile_n=%d percentile=%d", __entry->name, __entry->n,  __entry->pn)
 );
 
 TRACE_EVENT(tempd_timing,
