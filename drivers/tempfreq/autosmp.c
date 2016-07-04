@@ -30,6 +30,7 @@
 
 #include "hotplug.h"
 
+#undef DEBUG
 #define DEBUG 0
 
 #define ASMP_TAG "AutoSMP: "
