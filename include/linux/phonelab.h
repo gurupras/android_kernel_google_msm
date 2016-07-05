@@ -136,4 +136,10 @@ struct hotplug_state {
 };
 
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER */
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+extern const char *HOTPLUG_STATE_STR[];
+void __set_to_string(int set, char buf[10]);
+#endif
+
 #endif	/* __PHONELAB__H_ */

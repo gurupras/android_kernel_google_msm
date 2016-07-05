@@ -19,27 +19,15 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/tempd.h>
 
+#include "tempfreq.h"
 
-
-#define MIN_TEMPERATURE		0
-#define MAX_TEMPERATURE		100
-#define TEMP_FREQUENCY_MS	250
-
-struct temp_list {
-	int num_elements;
-	int max_elements;
-	int temperatures[MAX_TEMPERATURE - MIN_TEMPERATURE];
-	struct heap *min_heap;
-	struct heap *max_heap;
-	struct list_head list;
-};
 
 struct temp {
 	int temp;
 	struct list_head list;
 };
 
-static struct temp_list *long_temp_list, *short_temp_list;
+struct temp_list *long_temp_list, *short_temp_list;
 
 static int init_temp_list(struct temp_list **tlist, int duration_ms)
 {
@@ -127,7 +115,7 @@ static void build_heap_from_temp_list(struct temp_list *tl)
 	}
 }
 
-static int get_nth_percentile(struct temp_list *tl, int n)
+int get_nth_percentile(struct temp_list *tl, int n)
 {
 #ifdef DEBUG
 	u64 ns = sched_clock();

@@ -22,6 +22,10 @@
 #include "hotplug.h"
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+#include "tempfreq.h"
+#endif
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 #include <linux/rq_stats.h>
 #endif
@@ -98,12 +102,44 @@ static const char *reasons[] = {
 };
 #endif
 
+const char *HOTPLUG_STATE_STR[] = {
+	"HOTPLUG_UNKNOWN_NEXT",
+	"HOTPLUG_INCREASE_NEXT",
+	"HOTPLUG_DECREASE_NEXT",
+};
+
 static inline int get_cpu_with(int relation);
 static inline int get_frequency_index(int frequency);
 static inline int get_new_frequency(int cpu, int relation);
 static inline int get_next_frequency_index(int idx);
 
 static void cpu_state_string(struct cpu_state *cs, char *str);
+
+
+void __set_to_string(int set, char buf[10])
+{
+	int i;
+	int offset = 0;
+	char tmpbuf[10];
+	offset += sprintf(tmpbuf + offset, "[");
+
+	for_each_possible_cpu(i) {
+		int is_online = set & (1 << i);
+		if(is_online) {
+			if(i != 0) {
+				offset += sprintf(tmpbuf + offset, ",%d", i);
+			} else {
+				offset += sprintf(tmpbuf + offset, "%d", i);
+			}
+		}
+	}
+	offset += sprintf(tmpbuf + offset, "]");
+	//printk(KERN_DEBUG "tempfreq: %s: %s\n", __func__, tmpbuf);
+	sprintf(buf, "%s", tmpbuf);
+}
+
+
+
 
 static int tempfreq_thermal_callback(struct notifier_block *nfb,
 					unsigned long action, void *temp_ptr)
@@ -329,14 +365,17 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0);
 		entry->state = state;
 		entry->throttle_time = sched_clock();
-	} else if(temp < entry->unthrottling_temp && (entry->state == CGROUP_STATE_THROTTLED || entry->state == CGROUP_STATE_UNKNOWN)) {
-		shares = entry->cpu_shares;
-		entry->cpu_shares = 0;
-		entry->throttle_time = 0;
-		state = CGROUP_STATE_NORMAL;
-		sched_group_set_shares(tg, scale_load(shares));
-		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0);
-		entry->state = state;
+	} else {
+		// Check if the current temperature is below 25th percentile of recently measured temperatures
+		if(temp <= get_nth_percentile(short_temp_list, 25)) {
+			shares = entry->cpu_shares;
+			entry->cpu_shares = 0;
+			entry->throttle_time = 0;
+			state = CGROUP_STATE_NORMAL;
+			sched_group_set_shares(tg, scale_load(shares));
+			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0);
+			entry->state = state;
+		}
 	}
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);

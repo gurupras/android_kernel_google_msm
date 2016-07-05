@@ -30,6 +30,8 @@
 
 #include "hotplug.h"
 
+#include <trace/events/tempfreq.h>
+
 #undef DEBUG
 #define DEBUG 0
 
@@ -68,6 +70,12 @@ static unsigned int cycle = 0, delay0 = 0;
 static unsigned long delay_jif = 0;
 static int enabled __read_mostly = 1;
 
+static int cpufreq_get_policy_max(int cpu)
+{
+	struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
+	return policy->max;
+}
+
 static void __cpuinit asmp_work_fn(struct work_struct *work) {
 	unsigned int cpu = 0, slow_cpu = 0;
 	unsigned int rate, cpu0_rate, slow_rate = UINT_MAX, fast_rate;
@@ -83,7 +91,10 @@ static void __cpuinit asmp_work_fn(struct work_struct *work) {
 
 	/* get maximum possible freq for cpu0 and
 	   calculate up/down limits */
-	max_rate  = cpufreq_quick_get_max(cpu);
+	//XXX: This is a custom hack since we tweak policy->max which I think
+	//autosmp does not expect.
+	//max_rate  = cpufreq_quick_get_max(cpu);
+	max_rate = cpufreq_get_policy_max(cpu);
 	up_rate   = asmp_param.cpufreq_up*max_rate/100;
 	down_rate = asmp_param.cpufreq_down*max_rate/100;
 
@@ -105,6 +116,7 @@ static void __cpuinit asmp_work_fn(struct work_struct *work) {
 	if (cpu0_rate < slow_rate)
 		slow_rate = cpu0_rate;
 
+	trace_tempfreq_hotplug_autosmp_rates(max_rate, up_rate, down_rate, slow_rate, fast_rate);
 	/* hotplug one core if all online cores are over up_rate limit */
 	if (slow_rate > up_rate) {
 		if ((nr_cpu_online < asmp_param.max_cpus) &&

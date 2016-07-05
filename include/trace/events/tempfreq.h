@@ -26,7 +26,6 @@ TRACE_EVENT(tempfreq_temp,
 	TP_printk("temp=%ld", __entry->temp)
 );
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 TRACE_EVENT(tempfreq_binary_diff,
 
 	TP_PROTO(long temp, long prev_temp, int culprit_cpu, int culprit_freq, int is_increase, int result_freq, const char *reason),
@@ -59,9 +58,7 @@ TRACE_EVENT(tempfreq_binary_diff,
 			__entry->is_increase == 1 ? "UP" : "DOWN",
 			__entry->result_freq, __get_str(reason))
 );
-#endif
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 TRACE_EVENT(tempfreq_thermal_cgroup_throttling,
 
 	TP_PROTO(int temp, int idx, int state, int reason),
@@ -115,8 +112,6 @@ TRACE_EVENT(tempfreq_thermal_bg_throttling_proc,
 	)
 );
 
-#endif
-
 TRACE_EVENT(tempfreq_timing,
 
 	TP_PROTO(const char *func, u64 time_ns),
@@ -137,31 +132,6 @@ TRACE_EVENT(tempfreq_timing,
 );
 
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
-#ifndef __TEMPFREQ_TASK_HOTPLUG_TRACE_HELPERS__
-#define __TEMPFREQ_TASK_HOTPLUG_TRACE_HELPERS__
-static void set_to_string(int set, char buf[10])
-{
-	int i;
-	int offset = 0;
-	char tmpbuf[10];
-	offset += sprintf(tmpbuf + offset, "[");
-
-	for_each_possible_cpu(i) {
-		int is_online = set & (1 << i);
-		if(is_online) {
-			if(i != 0) {
-				offset += sprintf(tmpbuf + offset, ",%d", i);
-			} else {
-				offset += sprintf(tmpbuf + offset, "%d", i);
-			}
-		}
-	}
-	offset += sprintf(tmpbuf + offset, "]");
-	//printk(KERN_DEBUG "tempfreq: %s: %s\n", __func__, tmpbuf);
-	sprintf(buf, "%s", tmpbuf);
-}
-#endif
 TRACE_EVENT(tempfreq_hotplug,
 
 	TP_PROTO(int up_set, int down_set, int overall_up),
@@ -175,9 +145,9 @@ TRACE_EVENT(tempfreq_hotplug,
 	),
 
 	TP_fast_assign(
-		set_to_string(up_set, __entry->up_buf);
-		set_to_string(down_set, __entry->down_buf);
-		set_to_string(overall_up, __entry->overall_up_buf);
+		__set_to_string(up_set, __entry->up_buf);
+		__set_to_string(down_set, __entry->down_buf);
+		__set_to_string(overall_up, __entry->overall_up_buf);
 	),
 
 	TP_printk("up=%s down=%s overall_up=%s",
@@ -223,14 +193,6 @@ TRACE_EVENT(tempfreq_hotplug_nr_running,
 	TP_printk("nr_running=%d", __entry->nr_running)
 );
 
-#ifndef __TEMPFREQ_TASK_HOTPLUG_STATE__
-#define __TEMPFREQ_TASK_HOTPLUG_STATE__
-const char *HOTPLUG_STATE_STR[] = {
-	"HOTPLUG_UNKNOWN_NEXT",
-	"HOTPLUG_INCREASE_NEXT",
-	"HOTPLUG_DECREASE_NEXT",
-};
-#endif
 TRACE_EVENT(tempfreq_hotplug_state,
 
 	TP_PROTO(int elapsed_epochs, int next_state, int expected_next_state),
@@ -256,9 +218,37 @@ TRACE_EVENT(tempfreq_hotplug_state,
 	)
 );
 
-#endif
+TRACE_EVENT(tempfreq_hotplug_autosmp_rates,
+
+	TP_PROTO(int max, int up, int down, int slow, int fast),
+
+	TP_ARGS(max, up, down, slow, fast),
+
+	TP_STRUCT__entry(
+		__field(	int,		max	)
+		__field(	int,		up	)
+		__field(	int,		down	)
+		__field(	int,		slow	)
+		__field(	int,		fast	)
+	),
+
+	TP_fast_assign(
+		__entry->max		= max;
+		__entry->up		= up;
+		__entry->down		= down;
+		__entry->slow		= slow;
+		__entry->fast		= fast;
+	),
+
+	TP_printk("max=%d up=%d down=%d slow=%d fast=%d",
+		__entry->max,
+		__entry->up,
+		__entry->down,
+		__entry->slow,
+		__entry->fast
+	)
+);
 
 #endif
-
 /* This part must be outside protection */
 #include <trace/define_trace.h>
