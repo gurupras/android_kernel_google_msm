@@ -1242,7 +1242,7 @@ static struct kobj_type tempfreq_ktype = {
 	.default_attrs = attrs,
 };
 
-static struct kobject tempfreq_kobj;
+struct kobject tempfreq_kobj;
 
 static int __init init_tempfreq_sysfs(void)
 {

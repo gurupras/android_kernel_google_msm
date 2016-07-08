@@ -6,6 +6,7 @@
 #define MAX_TEMPERATURE		100
 #define TEMP_FREQUENCY_MS	250
 
+extern struct kobject tempfreq_kobj;
 
 struct temp_list {
 	int num_elements;
