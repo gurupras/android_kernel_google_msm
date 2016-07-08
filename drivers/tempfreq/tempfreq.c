@@ -30,6 +30,8 @@
 #include <linux/rq_stats.h>
 #endif
 
+static int phonelab_tempfreq_enable = 1;
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 int phonelab_tempfreq_binary_threshold_temp	= 70;
 int phonelab_tempfreq_binary_critical		= 75;
@@ -140,7 +142,6 @@ void __set_to_string(int set, char buf[10])
 
 
 
-
 static int tempfreq_thermal_callback(struct notifier_block *nfb,
 					unsigned long action, void *temp_ptr)
 {
@@ -168,11 +169,15 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
+	if(!phonelab_tempfreq_enable) {
+		goto out;
+	}
+
 	for(i = 0; i < phone_state->ncpus; i++) {
 		enabled |= phone_state->cpu_states[i]->enabled;
 	}
 	if(!enabled) {
-		return 0;
+		goto out;
 	}
 
 	// Handle
@@ -273,7 +278,7 @@ done:
 		}
 		// We have nothing more to do. Just return
 //		printk(KERN_WARNING "tempfreq: CPU == -1\n");
-		return 0;
+		goto out;
 	}
 
 	reason_str = reasons[reason_int];
@@ -320,6 +325,7 @@ done:
 	}
 #endif
 	(void) ret;
+out:
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
@@ -806,6 +812,29 @@ late_initcall(init_tempfreq_hotplug);
 
 
 /* sysfs hooks */
+static ssize_t store_enable(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+	switch(val) {
+	case 0:
+		phonelab_tempfreq_enable = 0;
+		break;
+	case 1:
+		phonelab_tempfreq_enable = 1;
+		break;
+	default:
+		err = -EINVAL;
+		break;
+	}
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 static ssize_t store_binary_threshold_temp(const char *_buf, size_t count)
 {
@@ -1112,6 +1141,7 @@ static struct tempfreq_attr _name =			\
 __ATTR(_name, 0444, show_##_name, NULL)
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
+tempfreq_attr_rw(enable);
 tempfreq_attr_rw(binary_threshold_temp);
 tempfreq_attr_rw(binary_critical);
 tempfreq_attr_rw(binary_lower_threshold);
@@ -1135,6 +1165,7 @@ tempfreq_attr_rw(hotplug_epochs_down);
 
 static struct attribute *attrs[] = {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
+	&enable.attr,
 	&binary_threshold_temp.attr,
 	&binary_critical.attr,
 	&binary_lower_threshold.attr,
