@@ -334,12 +334,20 @@ out:
 EXPORT_SYMBOL_GPL(tempfreq_thermal_callback);
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+static int compute_nth_percentile(int base_percentile, int elapsed, int max_timeout)
+{
+	return min(base_percentile + ((elapsed * 100) / max_timeout), 100);
+}
+
 static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *entry, int temp)
 {
 	struct cgroup *cgrp = entry->cgroup;
 	u64 shares = entry->cpu_shares;
 	int state = entry->state;
 	struct task_group *tg;
+
+	int elapsed_time;
+	int nth_percentile;
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
@@ -349,18 +357,37 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 	}
 
 	tg = cgroup_tg(cgrp);
+	elapsed_time = sched_clock() - entry->throttle_time;
 
-	// Check if timeout has exceeded. If it has, we just reset the cgroup
-	if(entry->state == CGROUP_STATE_THROTTLED && (sched_clock() - entry->throttle_time) >= tg->tempfreq_thermal_cgroup_throttling_timeout) {
-		shares = entry->cpu_shares;
-		entry->cpu_shares = 0;
-		entry->throttle_time = 0;
-		state = CGROUP_STATE_NORMAL;
-		sched_group_set_shares(tg, scale_load(shares));
-		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 1);
-		entry->state = state;
+	if(entry->state == CGROUP_STATE_THROTTLED) {
+		// Check if timeout has exceeded. If it has, we just reset the cgroup
+	       if(elapsed_time >= tg->tempfreq_thermal_cgroup_throttling_timeout) {
+			shares = entry->cpu_shares;
+			entry->cpu_shares = 0;
+			entry->throttle_time = 0;
+			state = CGROUP_STATE_NORMAL;
+			sched_group_set_shares(tg, scale_load(shares));
+			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 1, 0);
+			entry->state = state;
+	       }
+	} else {
+		// Cgroup is throttled but time hasn't elapsed
+		// Relax threshold according to ratio of elapsed time to total timeout
+		// FIXME: the timeout may be adjusted in between. Check to see if this is accounted for properly
+		nth_percentile = compute_nth_percentile(25, elapsed_time, tg->tempfreq_thermal_cgroup_throttling_timeout);
+		// Check if the current temperature is below 25th percentile of recently measured temperatures
+		if(temp <= get_nth_percentile(short_temp_list, nth_percentile)) {
+			shares = entry->cpu_shares;
+			entry->cpu_shares = 0;
+			entry->throttle_time = 0;
+			state = CGROUP_STATE_NORMAL;
+			sched_group_set_shares(tg, scale_load(shares));
+			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0, nth_percentile);
+			entry->state = state;
+		}
 	}
 
+	// Check to see if we should throttle the cgroup
 	if(temp >= entry->throttling_temp && (entry->state == CGROUP_STATE_NORMAL || entry->state == CGROUP_STATE_UNKNOWN)) {
 		// First store the current CPU shares
 		entry->cpu_shares = scale_load_down(tg->shares);
@@ -368,20 +395,9 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 		shares = 0;
 		state = CGROUP_STATE_THROTTLED;
 		sched_group_set_shares(tg, scale_load(shares));
-		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0);
+		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0, 0);
 		entry->state = state;
 		entry->throttle_time = sched_clock();
-	} else {
-		// Check if the current temperature is below 25th percentile of recently measured temperatures
-		if(temp <= get_nth_percentile(short_temp_list, 25)) {
-			shares = entry->cpu_shares;
-			entry->cpu_shares = 0;
-			entry->throttle_time = 0;
-			state = CGROUP_STATE_NORMAL;
-			sched_group_set_shares(tg, scale_load(shares));
-			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0);
-			entry->state = state;
-		}
 	}
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
