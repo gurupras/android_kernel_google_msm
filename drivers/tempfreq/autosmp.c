@@ -61,7 +61,7 @@ static struct asmp_param_struct {
 	.max_cpus = CONFIG_NR_CPUS,
 	.min_cpus = 1,
 	.cpufreq_up = 90,
-	.cpufreq_down = 30,
+	.cpufreq_down = 20,
 	.cycle_up = 1,
 	.cycle_down = 1,
 };
