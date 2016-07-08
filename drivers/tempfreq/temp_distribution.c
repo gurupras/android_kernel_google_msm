@@ -209,8 +209,8 @@ static int __init init_temp_distribution(void)
 {
 	// Initialize state before callbacks
 	//init_temp_list(&short_temp_list, 15 * MSEC_PER_SEC);
-	init_temp_list(&short_temp_list, 15 * 60 * MSEC_PER_SEC);
-	init_temp_list(&long_temp_list, 60 * 60 * MSEC_PER_SEC);
+	init_temp_list(&short_temp_list, 2 * 60 * 60 * MSEC_PER_SEC);
+	init_temp_list(&long_temp_list, 24 * 60 * 60 * MSEC_PER_SEC);
 	// Callbacks
 	init_temp_distribution_callback();
 	return 0;
