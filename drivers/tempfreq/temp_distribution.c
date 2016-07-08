@@ -43,9 +43,11 @@ static int init_temp_list(struct temp_list **tlist, int duration_ms)
 	tl->max_elements = max_elements;
 	memset(&tl->temperatures, 0, (MAX_TEMPERATURE - MIN_TEMPERATURE) * sizeof(int));
 	INIT_LIST_HEAD(&tl->list);
+#if 0
 	// Now the heaps
 	tl->min_heap = create_min_heap((max_elements * 3) / 4);
 	tl->max_heap = create_max_heap((max_elements + 4) / 4);
+#endif
 	return 0;
 }
 
