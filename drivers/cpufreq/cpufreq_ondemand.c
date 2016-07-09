@@ -31,6 +31,10 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/ondemand.h>
 
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+#include <../drivers/tempfreq/tempfreq.h>
+#endif
+
 /*
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
@@ -712,8 +716,12 @@ skip_this_cpu_bypass:
 }
 
 #ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
-static ssize_t store_ignore_bg(struct kobject *a, struct attribute *b,
-				   const char *buf, size_t count)
+ssize_t show_ondemand_ignore_bg(char *buf)
+{
+	return sprintf(buf, "%u", dbs_tuners_ins.ignore_bg);
+}
+
+ssize_t set_ondemand_ignore_bg(const char *buf, size_t count)
 {
 	unsigned int old, input;
 	int ret;
@@ -724,6 +732,11 @@ static ssize_t store_ignore_bg(struct kobject *a, struct attribute *b,
 	dbs_tuners_ins.ignore_bg = input;
 	trace_ignore_bg(old, input);
 	return count;
+}
+static ssize_t store_ignore_bg(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
+{
+	return set_ondemand_ignore_bg(buf, count);
 }
 #endif
 

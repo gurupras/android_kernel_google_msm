@@ -28,6 +28,12 @@ struct tempfreq_attr {
 	ssize_t (*store)(const char *, size_t count);
 };
 
+
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+ssize_t show_ondemand_ignore_bg(char *buf);
+ssize_t set_ondemand_ignore_bg(const char *buf, size_t count);
+#endif
+
 #define __show(name)						\
 static ssize_t show_##name(char *buf)				\
 {								\

@@ -369,21 +369,21 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 			sched_group_set_shares(tg, scale_load(shares));
 			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 1, 0, elapsed_time);
 			entry->state = state;
-	       }
-	} else {
-		// Cgroup is throttled but time hasn't elapsed
-		// Relax threshold according to ratio of elapsed time to total timeout
-		// FIXME: the timeout may be adjusted in between. Check to see if this is accounted for properly
-		nth_percentile = compute_nth_percentile(25, elapsed_time, tg->tempfreq_thermal_cgroup_throttling_timeout);
-		// Check if the current temperature is below 25th percentile of recently measured temperatures
-		if(temp <= get_nth_percentile(short_temp_list, nth_percentile)) {
-			shares = entry->cpu_shares;
-			entry->cpu_shares = 0;
-			entry->throttle_time = 0;
-			state = CGROUP_STATE_NORMAL;
-			sched_group_set_shares(tg, scale_load(shares));
-			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0, nth_percentile, elapsed_time);
-			entry->state = state;
+		} else {
+			// Cgroup is throttled but time hasn't elapsed
+			// Relax threshold according to ratio of elapsed time to total timeout
+			// FIXME: the timeout may be adjusted in between. Check to see if this is accounted for properly
+			nth_percentile = compute_nth_percentile(25, elapsed_time, tg->tempfreq_thermal_cgroup_throttling_timeout);
+			// Check if the current temperature is below 25th percentile of recently measured temperatures
+			if(temp <= get_nth_percentile(short_temp_list, nth_percentile)) {
+				shares = entry->cpu_shares;
+				entry->cpu_shares = 0;
+				entry->throttle_time = 0;
+				state = CGROUP_STATE_NORMAL;
+				sched_group_set_shares(tg, scale_load(shares));
+				trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0, nth_percentile, elapsed_time);
+				entry->state = state;
+			}
 		}
 	}
 
@@ -1123,6 +1123,18 @@ out:
 }
 #endif
 
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+static ssize_t show_ignore_bg(char *buf)
+{
+	return show_ondemand_ignore_bg(buf);
+}
+static ssize_t store_ignore_bg(const char *_buf, size_t count)
+{
+	return set_ondemand_ignore_bg(_buf, count);
+}
+#endif
+
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 tempfreq_attr_rw(enable);
 tempfreq_attr_rw(binary_threshold_temp);
@@ -1146,6 +1158,10 @@ tempfreq_attr_rw(hotplug_epochs_up);
 tempfreq_attr_rw(hotplug_epochs_down);
 #endif
 
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+tempfreq_attr_plain_rw(ignore_bg);
+#endif
+
 static struct attribute *attrs[] = {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	&enable.attr,
@@ -1166,6 +1182,9 @@ static struct attribute *attrs[] = {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 	&hotplug_epochs_up.attr,
 	&hotplug_epochs_down.attr,
+#endif
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	&ignore_bg.attr,
 #endif
 	NULL
 };
