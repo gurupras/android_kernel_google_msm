@@ -29,15 +29,24 @@ struct temp {
 
 struct temp_list *long_temp_list, *short_temp_list;
 
-static inline u64 get_max_elements(u64 duration_ms)
+#define duration_to_elements(duration) (div_u64((duration + TEMP_FREQUENCY_MS), TEMP_FREQUENCY_MS))
+#define elements_to_duration(elements) ((elements * TEMP_FREQUENCY_MS) - TEMP_FREQUENCY_MS)
+/*
+static inline u64 duration_to_elements(u64 duration)
 {
-	u64 max_elements = div_u64((duration_ms + TEMP_FREQUENCY_MS), TEMP_FREQUENCY_MS);
-	return max_elements;
+	return div_u64(duration + TEMP_FREQUENCY_MS, TEMP_FREQUENCY_MS);
 }
+
+static inline u64 elements_to_duration(u64 elements)
+{
+	return ((elements * TEMP_FREQUENCY_MS) - TEMP_FREQUENCY_MS);
+}
+*/
+
 static int init_temp_list(struct temp_list **tlist, u64 duration_ms)
 {
 	struct temp_list *tl;
-	u64 max_elements = get_max_elements(duration_ms);
+	u64 max_elements = duration_to_elements(duration_ms);
 	*tlist = kmalloc(sizeof(struct temp_list), GFP_KERNEL);
 	tl = *tlist;
 	if(tl == NULL) {
@@ -195,6 +204,7 @@ static int temp_distribution_thermal_callback(struct notifier_block *nfb,
 
 /* sysfs hooks */
 
+
 /* Thermal callback initcall */
 extern struct srcu_notifier_head thermal_notifier_list;
 
@@ -226,4 +236,81 @@ static int __init init_temp_distribution(void)
 	return 0;
 }
 late_initcall(init_temp_distribution);
+
+
+/* sysfs */
+#define list_sysfs_hooks(name)									\
+static ssize_t show_##name##_duration(char *buf)						\
+{												\
+	return sprintf(buf, "%llu", elements_to_duration(name->max_elements));			\
+	return 0;	\
+}												\
+												\
+static ssize_t store_##name##_duration(const char *_buf, size_t count)				\
+{												\
+	char *buf = kstrdup(_buf, GFP_KERNEL);							\
+	struct temp *entry, *tmp;								\
+	int err;										\
+	s64 val;										\
+	int temp;										\
+	err = kstrtoull(strstrip(buf), 0, &val);						\
+	if (err)										\
+		goto out;									\
+												\
+	if(val <= 0) {										\
+		err = -EINVAL;									\
+		goto out;									\
+	}											\
+	name->max_elements = val;								\
+	count = 0;										\
+	list_for_each_entry_safe(entry, tmp, &(name->list), list) {				\
+		count++;									\
+		if(count > val) {								\
+			temp = entry->temp;							\
+			list_del(&entry->list);							\
+			name->num_elements--;							\
+			name->temperatures[temp]--;						\
+			if(name->temperatures[temp] < 0) {					\
+				printk(KERN_ERR "temp_distribution: %s: Negative count for temperature: %d\n", __func__, temp);	\
+			}									\
+			kfree(entry);								\
+		}										\
+	}											\
+out:												\
+	kfree(buf);										\
+	return err != 0 ? err : count;								\
+}												\
+static struct tempfreq_attr name##_sysfs =							\
+__ATTR(name##_duration, 0644, show_##name##_duration, store_##name##_duration)
+
+list_sysfs_hooks(short_temp_list);
+list_sysfs_hooks(long_temp_list);
+
+static struct attribute *attrs[] = {
+	&short_temp_list_sysfs.attr,
+	&long_temp_list_sysfs.attr,
+	NULL
+};
+
+static const struct sysfs_ops sysfs_ops = {
+	.show	= tempfreq_show,
+	.store	= tempfreq_store,
+};
+
+static struct kobj_type tempfreq_ktype = {
+	.sysfs_ops = &sysfs_ops,
+	.default_attrs = attrs,
+};
+
+static int __init init_tempd_sysfs(void)
+{
+	int ret = 0;
+	struct kobject *kobj = &tempfreq_kobj;
+	ret = kobject_init_and_add(kobj, &tempfreq_ktype,
+				   &tempfreq_kobj, "tempd");
+
+	return ret;
+}
+late_initcall(init_tempd_sysfs);
+
 

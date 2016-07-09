@@ -162,7 +162,7 @@ static struct dbs_tuners {
 	.sync_freq = 0,
 	.optimal_freq = 0,
 #ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
-	.ignore_bg = 1,
+	.ignore_bg = 0,
 #endif
 };
 

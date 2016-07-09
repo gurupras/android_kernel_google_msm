@@ -1016,7 +1016,6 @@ out:
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
-
 static ssize_t store_tempfreq_hotplug_driver(const char *_buf, size_t count)
 {
 	int err = 0;
@@ -1124,38 +1123,6 @@ out:
 }
 #endif
 
-struct tempfreq_attr {
-	struct attribute attr;
-	ssize_t (*show)(char *);
-	ssize_t (*store)(const char *, size_t count);
-};
-
-#define __show(name)						\
-static ssize_t show_##name(char *buf)				\
-{								\
-	/* printk(KERN_DEBUG "tempfreq: %s: show() -> %d\n", __func__, phonelab_tempfreq_##name);*/	\
-	return sprintf(buf, "%d", phonelab_tempfreq_##name);	\
-}
-
-
-#define tempfreq_attr_ro(_name)				\
-__show(_name);						\
-static struct tempfreq_attr _name =			\
-__ATTR(_name, 0444, show_##_name, NULL)
-
-#define tempfreq_attr_rw(_name)				\
-__show(_name);						\
-static struct tempfreq_attr _name =			\
-__ATTR(_name, 0644, show_##_name, store_##_name)
-
-#define tempfreq_attr_plain_rw(_name)			\
-static struct tempfreq_attr _name =			\
-__ATTR(_name, 0644, show_##_name, store_##_name)
-
-#define tempfreq_attr_plain_ro(_name)			\
-static struct tempfreq_attr _name =			\
-__ATTR(_name, 0444, show_##_name, NULL)
-
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 tempfreq_attr_rw(enable);
 tempfreq_attr_rw(binary_threshold_temp);
@@ -1203,10 +1170,7 @@ static struct attribute *attrs[] = {
 	NULL
 };
 
-
-
-#define tf_to_attr(a) container_of(a, struct tempfreq_attr, attr)
-static ssize_t show(struct kobject *kobj, struct attribute *attr, char *buf)
+int tempfreq_show(struct kobject *kobj, struct attribute *attr, char *buf)
 {
 	ssize_t ret = -EINVAL;
 	struct tempfreq_attr *fattr = tf_to_attr(attr);
@@ -1217,7 +1181,7 @@ static ssize_t show(struct kobject *kobj, struct attribute *attr, char *buf)
 	return ret;
 }
 
-static ssize_t store(struct kobject *kobj, struct attribute *attr,
+ssize_t tempfreq_store(struct kobject *kobj, struct attribute *attr,
 		     const char *buf, size_t count)
 {
 	struct tempfreq_attr *fattr = tf_to_attr(attr);
@@ -1232,8 +1196,8 @@ static ssize_t store(struct kobject *kobj, struct attribute *attr,
 }
 
 static const struct sysfs_ops sysfs_ops = {
-	.show	= show,
-	.store	= store,
+	.show	= tempfreq_show,
+	.store	= tempfreq_store,
 };
 
 
