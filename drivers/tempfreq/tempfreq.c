@@ -357,7 +357,7 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 	}
 
 	tg = cgroup_tg(cgrp);
-	elapsed_time = sched_clock() - entry->throttle_time;
+	elapsed_time = div_u64((sched_clock() - entry->throttle_time), 1000000);
 
 	if(entry->state == CGROUP_STATE_THROTTLED) {
 		// Check if timeout has exceeded. If it has, we just reset the cgroup
@@ -386,9 +386,8 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 			}
 		}
 	}
-
 	// Check to see if we should throttle the cgroup
-	if(temp >= entry->throttling_temp && (entry->state == CGROUP_STATE_NORMAL || entry->state == CGROUP_STATE_UNKNOWN)) {
+	else if(temp >= entry->throttling_temp && (entry->state == CGROUP_STATE_NORMAL || entry->state == CGROUP_STATE_UNKNOWN)) {
 		// First store the current CPU shares
 		entry->cpu_shares = scale_load_down(tg->shares);
 		// Now set shares to 0
