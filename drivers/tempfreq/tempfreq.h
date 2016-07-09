@@ -9,8 +9,8 @@
 extern struct kobject tempfreq_kobj;
 
 struct temp_list {
-	int num_elements;
-	int max_elements;
+	u64 num_elements;
+	u64 max_elements;
 	int temperatures[MAX_TEMPERATURE - MIN_TEMPERATURE];
 	struct heap *min_heap;
 	struct heap *max_heap;

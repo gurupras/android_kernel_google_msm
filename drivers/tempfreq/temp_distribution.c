@@ -29,11 +29,15 @@ struct temp {
 
 struct temp_list *long_temp_list, *short_temp_list;
 
-static int init_temp_list(struct temp_list **tlist, int duration_ms)
+static inline u64 get_max_elements(u64 duration_ms)
 {
-	int max_elements = (duration_ms + TEMP_FREQUENCY_MS) / TEMP_FREQUENCY_MS;
+	u64 max_elements = div_u64((duration_ms + TEMP_FREQUENCY_MS), TEMP_FREQUENCY_MS);
+	return max_elements;
+}
+static int init_temp_list(struct temp_list **tlist, u64 duration_ms)
+{
 	struct temp_list *tl;
-
+	u64 max_elements = get_max_elements(duration_ms);
 	*tlist = kmalloc(sizeof(struct temp_list), GFP_KERNEL);
 	tl = *tlist;
 	if(tl == NULL) {
@@ -126,10 +130,11 @@ int get_nth_percentile(struct temp_list *tl, int n)
 	int pn = -1;
 
 	int x = 100 / n;
-	// The window is full
+	// The window is not necessarily full
 	// Find the number of elements to get to 25th percentile
-	int npn = (tl->max_elements + x) / x;
-	int i, j;
+	u64 npn = div_u64((tl->num_elements), x);
+	int i;
+	u64 j;
 
 	i = 0;
 	j = 0;
@@ -172,6 +177,7 @@ static int temp_distribution_thermal_callback(struct notifier_block *nfb,
 	temp_list_add(stl, temp);
 	temp_list_add(ltl, temp);
 
+#if 0
 	if(likely(stl->num_elements == stl->max_elements)) {
 		p25 = get_nth_percentile(stl, 25);
 		if(p25 != -1) {
@@ -179,11 +185,15 @@ static int temp_distribution_thermal_callback(struct notifier_block *nfb,
 		}
 	}
 	// TODO: If the current temperature is below p25, then unblock
+	// We do this in tempfreq.c when checking each cgroup. So this remains commented
+#endif
 #ifdef DEBUG
 	trace_tempd_timing(__func__, sched_clock() - ns);
 #endif
 	return 0;
 }
+
+/* sysfs hooks */
 
 /* Thermal callback initcall */
 extern struct srcu_notifier_head thermal_notifier_list;
