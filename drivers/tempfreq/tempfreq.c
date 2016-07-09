@@ -367,7 +367,7 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 			entry->throttle_time = 0;
 			state = CGROUP_STATE_NORMAL;
 			sched_group_set_shares(tg, scale_load(shares));
-			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 1, 0);
+			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 1, 0, elapsed_time);
 			entry->state = state;
 	       }
 	} else {
@@ -382,7 +382,7 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 			entry->throttle_time = 0;
 			state = CGROUP_STATE_NORMAL;
 			sched_group_set_shares(tg, scale_load(shares));
-			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0, nth_percentile);
+			trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0, nth_percentile, elapsed_time);
 			entry->state = state;
 		}
 	}
@@ -395,7 +395,7 @@ static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *e
 		shares = 0;
 		state = CGROUP_STATE_THROTTLED;
 		sched_group_set_shares(tg, scale_load(shares));
-		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0, 0);
+		trace_tempfreq_thermal_cgroup_throttling(temp, entry->cur_idx, state, 0, 0, 0);
 		entry->state = state;
 		entry->throttle_time = sched_clock();
 	}

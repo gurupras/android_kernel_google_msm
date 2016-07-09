@@ -61,9 +61,9 @@ TRACE_EVENT(tempfreq_binary_diff,
 
 TRACE_EVENT(tempfreq_thermal_cgroup_throttling,
 
-	TP_PROTO(int temp, int idx, int state, int reason, int nth_percentile),
+	TP_PROTO(int temp, int idx, int state, int reason, int nth_percentile, u64 throttled_time),
 
-	TP_ARGS(temp, idx, state, reason, nth_percentile),
+	TP_ARGS(temp, idx, state, reason, nth_percentile, throttled_time),
 
 	TP_STRUCT__entry(
 		__field(	int,		temp		)
@@ -71,6 +71,7 @@ TRACE_EVENT(tempfreq_thermal_cgroup_throttling,
 		__field(	int,		state		)
 		__field(	int,		reason		)
 		__field(	int,		nth_percentile	)
+		__field(	u64,		throttled_time	)
 	),
 
 	TP_fast_assign(
@@ -79,14 +80,16 @@ TRACE_EVENT(tempfreq_thermal_cgroup_throttling,
 		__entry->state		= state;
 		__entry->reason		= reason;
 		__entry->nth_percentile	= nth_percentile;
+		__entry->throttled_time	= throttled_time;
 	),
 
-	TP_printk("temp=%d idx=%d state=%s reason=%s nth_percentile=%d",
+	TP_printk("temp=%d idx=%d state=%s reason=%s nth_percentile=%d throttled_time=%llu",
 			__entry->temp,
 			__entry->idx,
 			__entry->state == 0 ? "NORMAL" : "THROTTLED",
 			__entry->reason == 0 ? "temp" : "timeout",
-			__entry->nth_percentile
+			__entry->nth_percentile,
+			__entry->throttled_time
 	)
 );
 
