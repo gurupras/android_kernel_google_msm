@@ -32,6 +32,12 @@
 
 static int phonelab_tempfreq_enable = 1;
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+int phonelab_tempfreq_mpdecision_blocked = 0;
+static void start_bg_core_control(void);
+static void stop_bg_core_control(void);
+#endif
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 int phonelab_tempfreq_binary_threshold_temp	= 70;
 int phonelab_tempfreq_binary_critical		= 75;
@@ -188,6 +194,14 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 	long_epochs_counted++;
 
 	if(temp > phonelab_tempfreq_binary_threshold_temp) {
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+		// There is a case here where mpdecision has blocked a cpu just before we enter and block mpdecision
+		// Think about whether this needs to be specially handled
+		cpu_hotplug_driver_lock();
+		phonelab_tempfreq_mpdecision_blocked = 1;
+		cpu_hotplug_driver_unlock();
+		start_bg_core_control();
+#endif
 		if(short_epochs_counted == phonelab_tempfreq_binary_short_epochs) {
 			// We're above the phonelab_tempfreq_binary_critical and
 			// if temperature increased by more than
@@ -218,6 +232,11 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 		goto done;
 	}
 	else if(temp <= phonelab_tempfreq_binary_lower_threshold) {
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+		cpu_hotplug_driver_lock();
+		phonelab_tempfreq_mpdecision_blocked = 0;
+		cpu_hotplug_driver_unlock();
+#endif
 		// We can now increase the limit on the lowest
 		cpu = get_cpu_with(LOWEST);
 		op = HIGHER;
@@ -332,6 +351,18 @@ out:
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tempfreq_thermal_callback);
+
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+static void start_bg_core_control(void)
+{
+}
+
+static void stop_bg_core_control(void)
+{
+}
+#endif
+
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 static int compute_nth_percentile(int base_percentile, int elapsed, int max_timeout)
@@ -850,6 +881,31 @@ out:
 	return err != 0 ? err : count;
 }
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+static ssize_t store_mpdecision_blocked(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+	switch(val) {
+	case 0:
+		phonelab_tempfreq_mpdecision_blocked = 0;
+		break;
+	case 1:
+		phonelab_tempfreq_mpdecision_blocked = 1;
+		break;
+	default:
+		err = -EINVAL;
+		break;
+	}
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+#endif
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 static ssize_t store_binary_threshold_temp(const char *_buf, size_t count)
 {
@@ -1134,8 +1190,13 @@ static ssize_t store_ignore_bg(const char *_buf, size_t count)
 #endif
 
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 tempfreq_attr_rw(enable);
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+tempfreq_attr_rw(mpdecision_blocked);
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 tempfreq_attr_rw(binary_threshold_temp);
 tempfreq_attr_rw(binary_critical);
 tempfreq_attr_rw(binary_lower_threshold);
@@ -1172,6 +1233,9 @@ static struct attribute *attrs[] = {
 	&binary_long_epochs.attr,
 	&binary_long_diff_limit.attr,
 	&binary_jump_lower.attr,
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	&mpdecision_blocked.attr,
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 	&tempfreq_hotplug_driver.attr,

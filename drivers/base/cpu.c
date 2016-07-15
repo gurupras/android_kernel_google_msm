@@ -16,6 +16,12 @@
 
 #include "base.h"
 
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+extern int phonelab_tempfreq_mpdecision_blocked;
+#endif
+
+
 struct bus_type cpu_subsys = {
 	.name = "cpu",
 	.dev_name = "cpu",
@@ -42,6 +48,13 @@ static ssize_t __ref store_online(struct device *dev,
 	ssize_t ret;
 
 	cpu_hotplug_driver_lock();
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	if(phonelab_tempfreq_mpdecision_blocked) {
+		ret = -EPERM;
+		goto out;
+	}
+#endif
+
 	switch (buf[0]) {
 	case '0':
 		ret = cpu_down(cpu->dev.id);
@@ -56,6 +69,7 @@ static ssize_t __ref store_online(struct device *dev,
 	default:
 		ret = -EINVAL;
 	}
+out:
 	cpu_hotplug_driver_unlock();
 
 	if (ret >= 0)

@@ -64,6 +64,16 @@ config PHONELAB_TEMPFREQ_BINARY_MODE
 	  The scaling logic to increase/decrease frequency is
 	  done by a factor of 2
 
+config PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	depends on PHONELAB_TEMPFREQ_BINARY_MODE
+	select PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER
+	bool "Coexist tempfreq with mpdecision"
+	help
+	  Allow tempfreq to coexist with mpdecision. This option leaves
+	  hotplug control to mpdecision while temperature is below thresholds.
+	  Once temperature crosses the threshold, tempfreq takes over core control
+	  until temperature drops back down.
+
 config PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 	bool "Enable background work throttling based on temperature"
 	select CPUSETS
@@ -96,8 +106,10 @@ endmenu
 
 choice
 	prompt "Default hotplug driver"
+	default PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	default PHONELAB_TEMPFREQ_DEFAULT_TASK_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 	default PHONELAB_TEMPFREQ_DEFAULT_AUTOSMP_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER
+	default PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_NULL_HOTPLUG_DRIVER
 	help
 	  Select default hotplug driver to use
 
