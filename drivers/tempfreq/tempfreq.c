@@ -236,6 +236,7 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 		cpu_hotplug_driver_lock();
 		phonelab_tempfreq_mpdecision_blocked = 0;
 		cpu_hotplug_driver_unlock();
+		stop_bg_core_control();
 #endif
 		// We can now increase the limit on the lowest
 		cpu = get_cpu_with(LOWEST);
