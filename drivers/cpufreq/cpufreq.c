@@ -449,7 +449,7 @@ static ssize_t store_##file_name					\
 									\
 	policy->user_policy.min = new_policy.min;			\
 	policy->user_policy.max = new_policy.max;			\
-	trace_cpufreq_scaling(new_policy.min, new_policy.max,		\
+	trace_cpufreq_scaling(#file_name, new_policy.min, new_policy.max,		\
 			policy->cpu);					\
 	ret = __cpufreq_set_policy(policy, &new_policy);		\
 									\
