@@ -541,9 +541,13 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 		// If mpdecision is blocked, then that means this core was brought up by start_bg_core_control
 		// XXX: We __have__ to ensure that thermal emergencies do not occur. If they do, then the core
 		// may have been brought up by the kernel as temperature dropped
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		if(!phonelab_tempfreq_mpdecision_blocked) {
+#endif
 			phone_state->cpu_states[cpu]->enabled = 1;
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		}
+#endif
 		break;
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
