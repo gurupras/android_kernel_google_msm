@@ -68,4 +68,15 @@ int tempfreq_show(struct kobject *kobj, struct attribute *attr, char *buf);
 ssize_t tempfreq_store(struct kobject *kobj, struct attribute *attr,
 		     const char *buf, size_t count);
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+int __init init_mpdecision_coexist(void);
+extern int phonelab_tempfreq_mpdecision_coexist_enable;
+extern int phonelab_tempfreq_mpdecision_blocked;
+void start_bg_core_control(void);
+void stop_bg_core_control(void);
+extern struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
+extern struct tempfreq_attr mpdecision_coexist_enable;
+extern struct tempfreq_attr mpdecision_coexist_upcall;
+#endif
+
 #endif	/* __TEMPFREQ_H_ */

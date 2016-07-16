@@ -74,6 +74,13 @@ config PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	  Once temperature crosses the threshold, tempfreq takes over core control
 	  until temperature drops back down.
 
+config PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
+	depends on PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	bool "Use Netlink sockets to communicate with userspace"
+	help
+	  Use netlink sockets to perform bi-directional communication with
+	  userspace binary
+
 config PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 	bool "Enable background work throttling based on temperature"
 	select CPUSETS
