@@ -3786,7 +3786,9 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 	int err = 0;
 	struct cgroup_subsys *ss;
 	struct super_block *sb = root->sb;
-
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	extern struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
+#endif
 	cgrp = kzalloc(sizeof(*cgrp), GFP_KERNEL);
 	if (!cgrp)
 		return -ENOMEM;
@@ -3856,6 +3858,15 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 	mutex_unlock(&cgroup_mutex);
 	mutex_unlock(&cgrp->dentry->d_inode->i_mutex);
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	if(strcmp("bg_non_interactive", dentry->d_name.name) == 0) {
+		bg_non_interactive = cgrp;
+	} else if(strcmp("fg_bg", dentry->d_name.name) == 0) {
+		fg_bg = cgrp;
+	} else if(strcmp("delay_tolerant", dentry->d_name.name) == 0) {
+		delay_tolerant = cgrp;
+	}
+#endif
 	return 0;
 
  err_remove:
