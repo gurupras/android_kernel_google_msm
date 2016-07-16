@@ -68,6 +68,7 @@ static ssize_t __ref store_online(struct device *dev,
 		break;
 	default:
 		ret = -EINVAL;
+		goto out;
 	}
 out:
 	cpu_hotplug_driver_unlock();
