@@ -255,6 +255,23 @@ TRACE_EVENT(tempfreq_hotplug_autosmp_rates,
 	)
 );
 
+TRACE_EVENT(tempfreq_mpdecision_blocked,
+
+	TP_PROTO(int is_blocked),
+
+	TP_ARGS(is_blocked),
+
+	TP_STRUCT__entry(
+		__field(	int,	is_blocked	)
+	),
+
+	TP_fast_assign(
+		__entry->is_blocked = is_blocked
+	),
+
+	TP_printk("mpdecision_state=%s", __entry->is_blocked ? "blocked" : "unblocked")
+);
+
 #endif
 /* This part must be outside protection */
 #include <trace/define_trace.h>

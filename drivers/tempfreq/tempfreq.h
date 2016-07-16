@@ -34,11 +34,13 @@ ssize_t show_ondemand_ignore_bg(char *buf);
 ssize_t set_ondemand_ignore_bg(const char *buf, size_t count);
 #endif
 
-#define __show(name)						\
-static ssize_t show_##name(char *buf)				\
+#define __show(name) __show1(name, name);
+
+#define __show1(fname, vname)					\
+static ssize_t show_##fname(char *buf)				\
 {								\
-	/* printk(KERN_DEBUG "tempfreq: %s: show() -> %d\n", __func__, phonelab_tempfreq_##name);*/	\
-	return sprintf(buf, "%d", phonelab_tempfreq_##name);	\
+	/* printk(KERN_DEBUG "tempfreq: %s: show() -> %d\n", __func__, phonelab_tempfreq_##vname);*/	\
+	return sprintf(buf, "%d", phonelab_tempfreq_##vname);	\
 }
 
 

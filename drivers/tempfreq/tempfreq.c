@@ -33,9 +33,11 @@
 static int phonelab_tempfreq_enable = 1;
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+static int phonelab_tempfreq_mpdecision_coexist_enable = 1;
 int phonelab_tempfreq_mpdecision_blocked = 0;
 static void start_bg_core_control(void);
 static void stop_bg_core_control(void);
+struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
@@ -148,7 +150,7 @@ void __set_to_string(int set, char buf[10])
 
 
 
-static int tempfreq_thermal_callback(struct notifier_block *nfb,
+static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 					unsigned long action, void *temp_ptr)
 {
 	struct cpufreq_policy *policy;
@@ -197,10 +199,9 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		// There is a case here where mpdecision has blocked a cpu just before we enter and block mpdecision
 		// Think about whether this needs to be specially handled
-		cpu_hotplug_driver_lock();
-		phonelab_tempfreq_mpdecision_blocked = 1;
-		cpu_hotplug_driver_unlock();
-		start_bg_core_control();
+		if(phonelab_tempfreq_mpdecision_coexist_enable) {
+			start_bg_core_control();
+		}
 #endif
 		if(short_epochs_counted == phonelab_tempfreq_binary_short_epochs) {
 			// We're above the phonelab_tempfreq_binary_critical and
@@ -233,10 +234,9 @@ static int tempfreq_thermal_callback(struct notifier_block *nfb,
 	}
 	else if(temp <= phonelab_tempfreq_binary_lower_threshold) {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-		cpu_hotplug_driver_lock();
-		phonelab_tempfreq_mpdecision_blocked = 0;
-		cpu_hotplug_driver_unlock();
-		stop_bg_core_control();
+		if(phonelab_tempfreq_mpdecision_coexist_enable) {
+			stop_bg_core_control();
+		}
 #endif
 		// We can now increase the limit on the lowest
 		cpu = get_cpu_with(LOWEST);
@@ -355,12 +355,69 @@ EXPORT_SYMBOL_GPL(tempfreq_thermal_callback);
 
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-static void start_bg_core_control(void)
+static int bg_cpu = 0;
+static inline __cpuinit void start_bg_core_control(void)
 {
+	struct cpufreq_policy *policy;
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
+	if(phonelab_tempfreq_mpdecision_blocked) {
+		return;
+	}
+
+	trace_tempfreq_mpdecision_blocked(1);
+
+	cpu_hotplug_driver_lock();
+	phonelab_tempfreq_mpdecision_blocked = 1;
+	cpu_hotplug_driver_unlock();
+	// Tasks may be pegged to any subset of cores.
+	// Find this subset
+	// FIXME: For now, we assume that it is only 1 CPU and its hard-coded to CPU 0
+	if(!cpu_online(bg_cpu)) {
+		cpu_up(bg_cpu);
+		// Hotplug driver will not enable the flag when mpdecision is blocked
+	} else {
+		// We disable this cpu state so that binary mode will not change the frequency limits
+		// and thereby give us complete control over this core
+		phone_state->cpu_states[bg_cpu]->enabled = 0;
+	}
+
+	// We set this core to a frequency that we know will lead to cooling
+	// FIXME: Currently, this is hardcoded to 960000. We may need this to be adjustable
+	// We know that this frequency will only work towards cooling the system
+	policy = cpufreq_cpu_get(bg_cpu);
+	policy->max = 960000;
+	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 }
 
-static void stop_bg_core_control(void)
+static inline void stop_bg_core_control(void)
 {
+	int cpu;
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
+	cpu_hotplug_driver_lock();
+	if(!phonelab_tempfreq_mpdecision_blocked) {
+		cpu_hotplug_driver_unlock();
+		return;
+	}
+	phonelab_tempfreq_mpdecision_blocked = 0;
+	for_each_possible_cpu(cpu) {
+		phone_state->cpu_states[cpu]->enabled = 1;
+	}
+	cpu_hotplug_driver_unlock();
+	trace_tempfreq_mpdecision_blocked(0);
+	phone_state->cpu_states[bg_cpu]->enabled = 1;
+	// We don't need to set policy->max necessarily.
+	// This will happen automatically once binary mode starts to run
+	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 }
 #endif
 
@@ -481,7 +538,12 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 	case CPU_DOWN_FAILED:
 	case CPU_DOWN_FAILED_FROZEN:
 		//printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 1\n", __func__, cpu);
-		phone_state->cpu_states[cpu]->enabled = 1;
+		// If mpdecision is blocked, then that means this core was brought up by start_bg_core_control
+		// XXX: We __have__ to ensure that thermal emergencies do not occur. If they do, then the core
+		// may have been brought up by the kernel as temperature dropped
+		if(!phonelab_tempfreq_mpdecision_blocked) {
+			phone_state->cpu_states[cpu]->enabled = 1;
+		}
 		break;
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
@@ -883,7 +945,7 @@ out:
 }
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-static ssize_t store_mpdecision_blocked(const char *_buf, size_t count)
+static ssize_t store_mpdecision_coexist_enable(const char *_buf, size_t count)
 {
 	int val, err;
 	char *buf = kstrdup(_buf, GFP_KERNEL);
@@ -892,10 +954,11 @@ static ssize_t store_mpdecision_blocked(const char *_buf, size_t count)
 		goto out;
 	switch(val) {
 	case 0:
-		phonelab_tempfreq_mpdecision_blocked = 0;
+		phonelab_tempfreq_mpdecision_coexist_enable = 0;
+		stop_bg_core_control();
 		break;
 	case 1:
-		phonelab_tempfreq_mpdecision_blocked = 1;
+		phonelab_tempfreq_mpdecision_coexist_enable = 1;
 		break;
 	default:
 		err = -EINVAL;
@@ -905,6 +968,8 @@ out:
 	kfree(buf);
 	return err != 0 ? err : count;
 }
+
+__show1(mpdecision_coexist_upcall, mpdecision_blocked);
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
@@ -1194,7 +1259,8 @@ static ssize_t store_ignore_bg(const char *_buf, size_t count)
 tempfreq_attr_rw(enable);
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-tempfreq_attr_rw(mpdecision_blocked);
+tempfreq_attr_rw(mpdecision_coexist_enable);
+static struct tempfreq_attr mpdecision_coexist_upcall = __ATTR(mpdecision_coexist_upcall, 0444, show_mpdecision_coexist_upcall, NULL);
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
@@ -1236,7 +1302,8 @@ static struct attribute *attrs[] = {
 	&binary_jump_lower.attr,
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-	&mpdecision_blocked.attr,
+	&mpdecision_coexist_enable.attr,
+	&mpdecision_coexist_upcall.attr,
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 	&tempfreq_hotplug_driver.attr,
@@ -1291,12 +1358,23 @@ static struct kobj_type tempfreq_ktype = {
 
 struct kobject tempfreq_kobj;
 
+
 static int __init init_tempfreq_sysfs(void)
 {
 	int ret = 0;
 	struct kobject *kobj = &tempfreq_kobj;
 	ret = kobject_init_and_add(kobj, &tempfreq_ktype,
 				   NULL, "tempfreq");
+#if 0
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	tempfreq_mpdecision_upcall_kobj = kobject_create_and_add("mpdecision-upcall", &tempfreq_kobj);
+	if(!tempfreq_mpdecision_upcall_kobj) {
+		printk(KERN_ERR "%s: Cannot create mpdecision-upcall file\n", __func__);
+		ret = -EFAULT;
+	}
+#endif
+#endif
+
 //	ret = sysfs_create_group(tempfreq_kobj, &tempfreq_attr_group);
 //	if (ret)
 //		kobject_put(tempfreq_kobj);
@@ -1340,21 +1418,6 @@ static int __init init_phone_state(void)
 		}
 		cs->cpuid = cpu;
 		(void) policy;
-#if 0
-		policy = cpufreq_cpu_get(cpu);
-		if(policy != NULL) {
-			if(policy->governor != NULL) {
-//				snprintf(cs->governor, CPUFREQ_NAME_LEN, "%s", policy->governor->name);
-//				if(strncmp(policy->governor->name, "ondemand", CPUFREQ_NAME_LEN) == 0) {
-					cs->enabled = 1;
-//				}
-			}
-			cs->cur_freq = policy->cur;
-			cs->cur_idx = get_frequency_index(cs->cur_freq);
-			cs->cur_max_idx = get_frequency_index(policy->max);
-		}
-		cpufreq_cpu_put(policy);
-#endif
 		cs->enabled = 1;
 		phone_state->cpu_states[cpu] = cs;
 	}
