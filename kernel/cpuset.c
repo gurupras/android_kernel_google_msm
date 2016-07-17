@@ -93,7 +93,6 @@ struct cpuset {
 
 	unsigned long flags;		/* "unsigned long" so bitops work */
 	cpumask_var_t cpus_allowed;	/* CPUs allowed to tasks in cpuset */
-	cpumask_var_t cpus_requested;   /* CPUS requested, but not used because of hotplug */
 	nodemask_t mems_allowed;	/* Memory Nodes allowed to tasks */
 
 	struct cpuset *parent;		/* my parent */
@@ -346,7 +345,7 @@ static void cpuset_update_task_spread_flag(struct cpuset *cs,
 
 static int is_cpuset_subset(const struct cpuset *p, const struct cpuset *q)
 {
-	return  cpumask_subset(p->cpus_requested, q->cpus_requested) &&
+	return	cpumask_subset(p->cpus_allowed, q->cpus_allowed) &&
 		nodes_subset(p->mems_allowed, q->mems_allowed) &&
 		is_cpu_exclusive(p) <= is_cpu_exclusive(q) &&
 		is_mem_exclusive(p) <= is_mem_exclusive(q);
@@ -432,7 +431,7 @@ static int validate_change(const struct cpuset *cur, const struct cpuset *trial)
 		c = cgroup_cs(cont);
 		if ((is_cpu_exclusive(trial) || is_cpu_exclusive(c)) &&
 		    c != cur &&
-		    cpumask_intersects(trial->cpus_requested, c->cpus_requested))
+		    cpumask_intersects(trial->cpus_allowed, c->cpus_allowed))
 			return -EINVAL;
 		if ((is_mem_exclusive(trial) || is_mem_exclusive(c)) &&
 		    c != cur &&
@@ -885,16 +884,15 @@ static int update_cpumask(struct cpuset *cs, struct cpuset *trialcs,
 		if (retval < 0)
 			return retval;
 
-		if (!cpumask_subset(trialcs->cpus_requested, cpu_active_mask))
+		if (!cpumask_subset(trialcs->cpus_allowed, cpu_active_mask))
 			return -EINVAL;
-		cpumask_and(trialcs->cpus_allowed, trialcs->cpus_requested, cpu_active_mask);
 	}
 	retval = validate_change(cs, trialcs);
 	if (retval < 0)
 		return retval;
 
 	/* Nothing to do if the cpus didn't change */
-	if (cpumask_equal(cs->cpus_requested, trialcs->cpus_requested))
+	if (cpumask_equal(cs->cpus_allowed, trialcs->cpus_allowed))
 		return 0;
 
 	retval = heap_init(&heap, PAGE_SIZE, GFP_KERNEL, NULL);
@@ -904,7 +902,7 @@ static int update_cpumask(struct cpuset *cs, struct cpuset *trialcs,
 	is_load_balanced = is_sched_load_balance(trialcs);
 
 	mutex_lock(&callback_mutex);
-	cpumask_copy(cs->cpus_requested, trialcs->cpus_requested);
+	cpumask_copy(cs->cpus_allowed, trialcs->cpus_allowed);
 	mutex_unlock(&callback_mutex);
 
 	/*
@@ -1583,7 +1581,7 @@ static size_t cpuset_sprintf_cpulist(char *page, struct cpuset *cs)
 	size_t count;
 
 	mutex_lock(&callback_mutex);
-	count = cpulist_scnprintf(page, PAGE_SIZE, cs->cpus_requested);
+	count = cpulist_scnprintf(page, PAGE_SIZE, cs->cpus_allowed);
 	mutex_unlock(&callback_mutex);
 
 	return count;
@@ -1845,10 +1843,8 @@ static struct cgroup_subsys_state *cpuset_create(struct cgroup *cont)
 	if (!cs)
 		return ERR_PTR(-ENOMEM);
 	if (!alloc_cpumask_var(&cs->cpus_allowed, GFP_KERNEL)) {
-		goto error_allowed;
-	}
-	if(!alloc_cpumask_var(&cs->cpus_requested, GFP_KERNEL)) {
-		goto error_requested;
+		kfree(cs);
+		return ERR_PTR(-ENOMEM);
 	}
 
 	cs->flags = 0;
@@ -1858,7 +1854,6 @@ static struct cgroup_subsys_state *cpuset_create(struct cgroup *cont)
 		set_bit(CS_SPREAD_SLAB, &cs->flags);
 	set_bit(CS_SCHED_LOAD_BALANCE, &cs->flags);
 	cpumask_clear(cs->cpus_allowed);
-	cpumask_clear(cs->cpus_requested);
 	nodes_clear(cs->mems_allowed);
 	fmeter_init(&cs->fmeter);
 	cs->relax_domain_level = -1;
@@ -1866,12 +1861,6 @@ static struct cgroup_subsys_state *cpuset_create(struct cgroup *cont)
 	cs->parent = parent;
 	number_of_cpusets++;
 	return &cs->css ;
-
-error_requested:
-	free_cpumask_var(cs->cpus_allowed);
-error_allowed:
-	kfree(cs);
-	return ERR_PTR(-ENOMEM);
 }
 
 /*
