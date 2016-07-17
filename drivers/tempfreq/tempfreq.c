@@ -169,6 +169,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
+	cpu_hotplug_driver_lock();
 	if(!phonelab_tempfreq_enable) {
 		goto out;
 	}
@@ -338,6 +339,7 @@ done:
 #endif
 	(void) ret;
 out:
+	cpu_hotplug_driver_unlock();
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
@@ -463,11 +465,12 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 	case CPU_DOWN_FAILED:
 	case CPU_DOWN_FAILED_FROZEN:
 		//printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 1\n", __func__, cpu);
+
 		// If mpdecision is blocked, then that means this core was brought up by start_bg_core_control
 		// XXX: We __have__ to ensure that thermal emergencies do not occur. If they do, then the core
 		// may have been brought up by the kernel as temperature dropped
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-		if(!phonelab_tempfreq_mpdecision_blocked) {
+		if(!phonelab_tempfreq_mpdecision_blocked || cpu != mpdecision_coexist_cpu) {
 #endif
 			phone_state->cpu_states[cpu]->enabled = 1;
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST

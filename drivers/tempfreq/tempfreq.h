@@ -72,6 +72,7 @@ ssize_t tempfreq_store(struct kobject *kobj, struct attribute *attr,
 int __init init_mpdecision_coexist(void);
 extern int phonelab_tempfreq_mpdecision_coexist_enable;
 extern int phonelab_tempfreq_mpdecision_blocked;
+extern int mpdecision_coexist_cpu;
 void start_bg_core_control(void);
 void stop_bg_core_control(void);
 extern struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
