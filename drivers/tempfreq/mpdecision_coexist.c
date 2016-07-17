@@ -201,7 +201,7 @@ __show1(mpdecision_coexist_upcall, mpdecision_blocked);
 //tempfreq_attr_rw(mpdecision_coexist_enable);
 __show(mpdecision_coexist_enable);
 struct tempfreq_attr mpdecision_coexist_enable =
-__ATTR(_name, 0644, show_mpdecision_coexist_enable, store_mpdecision_coexist_enable);
+__ATTR(mpdecision_coexist_enable, 0644, show_mpdecision_coexist_enable, store_mpdecision_coexist_enable);
 struct tempfreq_attr mpdecision_coexist_upcall =
 __ATTR(mpdecision_coexist_upcall, 0444, show_mpdecision_coexist_upcall, NULL);
 
