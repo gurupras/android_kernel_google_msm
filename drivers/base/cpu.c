@@ -47,9 +47,12 @@ static ssize_t __ref store_online(struct device *dev,
 	struct cpu *cpu = container_of(dev, struct cpu, dev);
 	ssize_t ret;
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	extern int mpdecision_coexist_cpu;
+#endif
 	cpu_hotplug_driver_lock();
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-	if(phonelab_tempfreq_mpdecision_blocked) {
+	if(cpu->dev.id == mpdecision_coexist_cpu && phonelab_tempfreq_mpdecision_blocked) {
 		ret = -EPERM;
 		goto out;
 	}
