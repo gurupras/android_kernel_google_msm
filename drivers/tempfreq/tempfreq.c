@@ -876,6 +876,19 @@ out:
 	return err != 0 ? err : count;
 }
 
+static ssize_t show_cur_phone_state(char *buf)
+{
+	int offset = 0;
+	int cpu;
+	for_each_possible_cpu(cpu) {
+		offset += sprintf(buf + offset, "%d", phone_state->cpu_states[cpu]->enabled);
+		if(cpu < 3) {
+			offset += sprintf(buf + offset, " ");
+		}
+	}
+	return offset;
+}
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 static ssize_t store_binary_threshold_temp(const char *_buf, size_t count)
 {
@@ -1161,6 +1174,7 @@ static ssize_t store_ignore_bg(const char *_buf, size_t count)
 
 
 tempfreq_attr_rw(enable);
+tempfreq_attr_plain_ro(cur_phone_state);
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 tempfreq_attr_rw(binary_threshold_temp);
@@ -1189,8 +1203,9 @@ tempfreq_attr_plain_rw(ignore_bg);
 #endif
 
 static struct attribute *attrs[] = {
-#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	&enable.attr,
+	&cur_phone_state.attr,
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	&binary_threshold_temp.attr,
 	&binary_critical.attr,
 	&binary_lower_threshold.attr,
