@@ -45,9 +45,7 @@ void phone_state_unlock(void)
 
 void update_phone_state(int cpu, int enabled)
 {
-	phone_state_lock();
 	phone_state->cpu_states[cpu]->enabled = enabled;
-	phone_state_unlock();
 }
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
@@ -277,7 +275,8 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 					cpu = get_cpu_with(LOWEST);
 					if(cpu == -1) {
 						printk(KERN_ERR "tempfreq: %s: Could not get CPU for linear increment\n", __func__);
-						return -1;
+						ret = -1;
+						goto out;
 					}
 					op = HIGHER;
 					is_increase = 1;
@@ -491,7 +490,7 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		if(!phonelab_tempfreq_mpdecision_blocked || cpu != mpdecision_coexist_cpu) {
 #endif
-			phone_state->cpu_states[cpu]->enabled = 1;
+			update_phone_state(cpu, 1);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		}
 #endif
@@ -501,7 +500,7 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 	case CPU_DOWN_PREPARE_FROZEN:
 		//printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 0\n", __func__, cpu);
 		phone_state_lock();
-		phone_state->cpu_states[cpu]->enabled = 0;
+		update_phone_state(cpu, 0);
 		phone_state_unlock();
 		break;
 	};

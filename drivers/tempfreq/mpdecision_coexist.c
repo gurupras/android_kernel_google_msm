@@ -134,7 +134,9 @@ static void netlink_recv(struct sk_buff *skb)
 	} else if(strcmp(payload, "0 OK") == 0) {
 		// Userspace finished handling stop_bg_core_control()
 		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 0\n", __func__);
+		phone_state_lock();
 		update_phone_state(mpdecision_coexist_cpu, 1);
+		phone_state_unlock();
 		trace_tempfreq_mpdecision_blocked(0);
 	} else if(strcmp(payload, "1 OK") == 0) {
 		// Userspace finished handling start_bg_core_control()
