@@ -155,6 +155,10 @@ static void netlink_send(char *msg)
 	int skblen = NLMSG_SPACE(len);
 	int ret;
 
+	if(netlink_sk == NULL) {
+		printk(KERN_ERR "tempfreq: %s: Netlink socket not registered\n", __func__);
+		return;
+	}
 	if(userspace_pid == -1) {
 		printk(KERN_ERR "tempfreq: %s: No userspace program registered yet\n", __func__);
 		return;
