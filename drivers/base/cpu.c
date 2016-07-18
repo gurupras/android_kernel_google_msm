@@ -16,6 +16,9 @@
 
 #include "base.h"
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+#include "../tempfreq/tempfreq.h"
+#endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 extern int phonelab_tempfreq_mpdecision_blocked;
@@ -51,6 +54,9 @@ static ssize_t __ref store_online(struct device *dev,
 	extern int mpdecision_coexist_cpu;
 #endif
 	cpu_hotplug_driver_lock();
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	phone_state_lock();
+#endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	if(cpu->dev.id == mpdecision_coexist_cpu && phonelab_tempfreq_mpdecision_blocked) {
 		ret = -EPERM;
@@ -74,6 +80,9 @@ static ssize_t __ref store_online(struct device *dev,
 		goto out;
 	}
 out:
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	phone_state_unlock();
+#endif
 	cpu_hotplug_driver_unlock();
 
 	if (ret >= 0)

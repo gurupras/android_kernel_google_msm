@@ -32,6 +32,24 @@
 
 static int phonelab_tempfreq_enable = 1;
 
+static DEFINE_MUTEX(phone_state_mutex);
+
+void phone_state_lock(void)
+{
+	mutex_lock(&phone_state_mutex);
+}
+void phone_state_unlock(void)
+{
+	mutex_unlock(&phone_state_mutex);
+}
+
+void update_phone_state(int cpu, int enabled)
+{
+	phone_state_lock();
+	phone_state->cpu_states[cpu]->enabled = enabled;
+	phone_state_unlock();
+}
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 int phonelab_tempfreq_binary_threshold_temp	= 70;
 int phonelab_tempfreq_binary_critical		= 75;
@@ -169,7 +187,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
-	cpu_hotplug_driver_lock();
+	phone_state_lock();
 	if(!phonelab_tempfreq_enable) {
 		goto out;
 	}
@@ -339,7 +357,7 @@ done:
 #endif
 	(void) ret;
 out:
-	cpu_hotplug_driver_unlock();
+	phone_state_unlock();
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
@@ -469,6 +487,7 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 		// If mpdecision is blocked, then that means this core was brought up by start_bg_core_control
 		// XXX: We __have__ to ensure that thermal emergencies do not occur. If they do, then the core
 		// may have been brought up by the kernel as temperature dropped
+		phone_state_lock();
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		if(!phonelab_tempfreq_mpdecision_blocked || cpu != mpdecision_coexist_cpu) {
 #endif
@@ -476,16 +495,18 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		}
 #endif
+		phone_state_unlock();
 		break;
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
 		//printk(KERN_DEBUG "tempfreq: %s: cpu_states[%d]->enabled = 0\n", __func__, cpu);
+		phone_state_lock();
 		phone_state->cpu_states[cpu]->enabled = 0;
+		phone_state_unlock();
 		break;
 	};
 	return NOTIFY_OK;
 }
-
 
 
 int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unthrottling_temp)
@@ -1218,6 +1239,7 @@ static struct attribute *attrs[] = {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	&mpdecision_coexist_enable.attr,
 	&mpdecision_coexist_upcall.attr,
+	&mpdecision_coexist_nl_send.attr,
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 	&tempfreq_hotplug_driver.attr,

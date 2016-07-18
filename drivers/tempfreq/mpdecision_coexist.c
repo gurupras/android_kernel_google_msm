@@ -31,7 +31,7 @@ void stop_bg_core_control(void);
 struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
-#define NETLINK_MPDECISION_COEXIST 14
+#define NETLINK_MPDECISION_COEXIST NETLINK_USERSOCK
 static struct sock *netlink_sk = NULL;
 static void netlink_send(char *msg);
 static void netlink_recv(struct sk_buff *skb);
@@ -61,7 +61,7 @@ inline __cpuinit void start_bg_core_control(void)
 	} else {
 		// We disable this cpu state so that binary mode will not change the frequency limits
 		// and thereby give us complete control over this core
-		phone_state->cpu_states[mpdecision_coexist_cpu]->enabled = 0;
+		update_phone_state(mpdecision_coexist_cpu, 0);
 	}
 
 	// We set this core to a frequency that we know will lead to cooling
@@ -82,7 +82,6 @@ out:
 
 inline void stop_bg_core_control(void)
 {
-	int cpu;
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
@@ -91,15 +90,11 @@ inline void stop_bg_core_control(void)
 		goto out;
 	}
 	phonelab_tempfreq_mpdecision_blocked = 0;
-	for_each_possible_cpu(cpu) {
-		phone_state->cpu_states[cpu]->enabled = 1;
-	}
-
-	trace_tempfreq_mpdecision_blocked(0);
-	phone_state->cpu_states[mpdecision_coexist_cpu]->enabled = 1;
 	// We don't need to set policy->max necessarily.
 	// This will happen automatically once binary mode starts to run
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
+	// We wait for userspace to inform us that it has set up everything else
+	// Once that's done, the netlink recv() call will update state
 	netlink_send("0");
 #else
 	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
@@ -116,23 +111,46 @@ out:
 static int userspace_pid = -1;
 static void netlink_recv(struct sk_buff *skb)
 {
-	struct nlmsghdr *netlink_header = NULL;
+	struct nlmsghdr *nlh = NULL;
+	char *payload;
+	int len;
 	if(skb == NULL) {
 		return;
 	}
 
-	netlink_header = (struct nlmsghdr *) skb->data;
-	userspace_pid = netlink_header->nlmsg_pid;
+	nlh = (struct nlmsghdr *) skb->data;
+	len = nlh->nlmsg_len;
+	payload = kzalloc(len, GFP_KERNEL);
+	strncpy(payload, NLMSG_DATA(nlh), len);
 
-	printk(KERN_DEBUG "tempfreq: %s: payload=%s\n", __func__, (char *)NLMSG_DATA(netlink_header));
+	printk(KERN_DEBUG "tempfreq: %s: seq=%d pid=%d len=%d payload=%s\n"
+			, __func__,
+			nlh->nlmsg_seq, nlh->nlmsg_pid, nlh->nlmsg_len,
+		       	payload);
 	// TODO: Handle the message from userspace
+	if(strcmp(payload, "hello") == 0) {
+		userspace_pid = nlh->nlmsg_pid;
+		printk(KERN_DEBUG "tempfreq: %s: Updated pid to %d\n", __func__, userspace_pid);
+	} else if(strcmp(payload, "0 OK") == 0) {
+		// Userspace finished handling stop_bg_core_control()
+		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 0\n", __func__);
+		update_phone_state(mpdecision_coexist_cpu, 1);
+		trace_tempfreq_mpdecision_blocked(0);
+	} else if(strcmp(payload, "1 OK") == 0) {
+		// Userspace finished handling start_bg_core_control()
+		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 1\n", __func__);
+	} else {
+		printk(KERN_DEBUG "tempfreq: %s: Unknown payload: '%s'\n", __func__, payload);
+	}
+	kfree(payload);
 }
 
 static void netlink_send(char *msg)
 {
 	struct sk_buff *skb;
-	struct nlmsghdr *netlink_header;
-	int len = strlen(msg);
+	struct nlmsghdr *nlh;
+	int len = NLMSG_SPACE(strlen(msg));
+	int skblen = NLMSG_SPACE(len);
 	int ret;
 
 	if(userspace_pid == -1) {
@@ -140,20 +158,30 @@ static void netlink_send(char *msg)
 		return;
 	}
 
-	skb = nlmsg_new(len, 0);
+	skb = alloc_skb(skblen, GFP_KERNEL);
 	if(!skb) {
 		printk(KERN_ERR "tempfreq: %s: Failed to allocate skb\n", __func__);
 			return;
 	}
 
-	netlink_header = nlmsg_put(skb, 0, 0, NLMSG_DONE, len, 0);
+	nlh = nlmsg_put(skb, 0, 0, NLMSG_DONE, len - sizeof(*nlh), 0);
+	/*
+	nlh = (struct nlmsghdr *)skb->data;
+	nlh->nlmsg_len = len;
+	nlh->nlmsg_pid = userspace_pid;
+	nlh->nlmsg_flags = 0;
+	*/
+	strncpy(NLMSG_DATA(nlh), msg, strlen(msg));
+	NETLINK_CB(skb).pid = 0;
 	NETLINK_CB(skb).dst_group = 0;
-	strncpy(nlmsg_data(netlink_header), msg, len);
 
-	ret = nlmsg_unicast(netlink_sk, skb, userspace_pid);
+	ret = netlink_unicast(netlink_sk, skb, userspace_pid, 0);
 	if(ret < 0) {
-		printk(KERN_ERR "tempfreq: %s: Failed to send message to userspace\n", __func__);
+		printk(KERN_ERR "tempfreq: %s: Failed to broadcast message to userspace\n", __func__);
+	} else {
+		printk(KERN_DEBUG "tempfreq: %s: Successfully sent '%s'\n", __func__, msg);
 	}
+	kfree(skb);
 }
 #endif
 
@@ -196,6 +224,16 @@ out:
 	return err != 0 ? err : count;
 }
 
+static int phonelab_tempfreq_mpdecision_coexist_nl_send = -1;
+static ssize_t store_mpdecision_coexist_nl_send(const char *_buf, size_t count)
+{
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	netlink_send(buf);
+	kfree(buf);
+	return count;
+}
+
+
 __show1(mpdecision_coexist_upcall, mpdecision_blocked);
 
 //tempfreq_attr_rw(mpdecision_coexist_enable);
@@ -204,6 +242,8 @@ struct tempfreq_attr mpdecision_coexist_enable =
 __ATTR(mpdecision_coexist_enable, 0644, show_mpdecision_coexist_enable, store_mpdecision_coexist_enable);
 struct tempfreq_attr mpdecision_coexist_upcall =
 __ATTR(mpdecision_coexist_upcall, 0444, show_mpdecision_coexist_upcall, NULL);
+
+export_tempfreq_attr_rw(mpdecision_coexist_nl_send);
 
 
 int __init init_mpdecision_coexist(void)

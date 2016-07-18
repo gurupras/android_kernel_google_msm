@@ -6,6 +6,10 @@
 #define MAX_TEMPERATURE		100
 #define TEMP_FREQUENCY_MS	250
 
+void phone_state_lock(void);
+void phone_state_unlock(void);
+void update_phone_state(int cpu, int enabled);
+
 extern struct kobject tempfreq_kobj;
 
 struct temp_list {
@@ -62,6 +66,11 @@ __ATTR(_name, 0644, show_##_name, store_##_name)
 static struct tempfreq_attr _name =			\
 __ATTR(_name, 0444, show_##_name, NULL)
 
+#define export_tempfreq_attr_rw(_name)			\
+__show(_name);						\
+struct tempfreq_attr _name =				\
+__ATTR(_name, 0644, show_##_name, store_##_name)
+
 #define tf_to_attr(a) container_of(a, struct tempfreq_attr, attr)
 
 int tempfreq_show(struct kobject *kobj, struct attribute *attr, char *buf);
@@ -78,6 +87,7 @@ void stop_bg_core_control(void);
 extern struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
 extern struct tempfreq_attr mpdecision_coexist_enable;
 extern struct tempfreq_attr mpdecision_coexist_upcall;
+extern struct tempfreq_attr mpdecision_coexist_nl_send;
 #endif
 
 #endif	/* __TEMPFREQ_H_ */
