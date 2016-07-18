@@ -668,26 +668,6 @@ static void cpu_state_string(struct cpu_state *cs, char *str)
 
 
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
-static int __init init_tempfreq_thermal_cgroup_throttling(void)
-{
-	int i;
-
-	cgroup_map.cur_idx = 0;
-	for(i = 0; i < CGROUP_MAP_MAX; i++) {
-		cgroup_map.entries[i].cur_idx = i;
-		cgroup_map.entries[i].cgroup = NULL;
-		cgroup_map.entries[i].throttling_temp = 0;
-		cgroup_map.entries[i].unthrottling_temp = 0;
-		cgroup_map.entries[i].cpu_shares = 0;
-		cgroup_map.entries[i].throttle_time = 0;
-		cgroup_map.entries[i].state = CGROUP_STATE_UNKNOWN;
-	}
-	return 0;
-}
-#endif
-
-
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 int phonelab_tempfreq_hotplug_epoch_ms = 100;
 
@@ -1294,7 +1274,7 @@ static struct kobj_type tempfreq_ktype = {
 
 struct kobject tempfreq_kobj;
 
-
+/* initcall stuff */
 static int __init init_tempfreq_sysfs(void)
 {
 	int ret = 0;
@@ -1311,10 +1291,25 @@ static int __init init_tempfreq_sysfs(void)
 	return ret;
 }
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+static int __init init_tempfreq_thermal_cgroup_throttling(void)
+{
+	int i;
 
-
-
-/* Initcall stuff */
+	cgroup_map.cur_idx = 0;
+	for(i = 0; i < CGROUP_MAP_MAX; i++) {
+		cgroup_map.entries[i].cur_idx = i;
+		cgroup_map.entries[i].cgroup = NULL;
+		cgroup_map.entries[i].throttling_temp = 0;
+		cgroup_map.entries[i].unthrottling_temp = 0;
+		cgroup_map.entries[i].cpu_shares = 0;
+		cgroup_map.entries[i].throttle_time = 0;
+		cgroup_map.entries[i].state = CGROUP_STATE_UNKNOWN;
+	}
+	return 0;
+}
+early_initcall(init_tempfreq_thermal_cgroup_throttling);
+#endif
 
 /* Phone state initcall */
 static int __init init_phone_state(void)
@@ -1412,9 +1407,6 @@ static int __init init_tempfreq(void)
 {
 	// Initialize state before callbacks
 	init_tempfreq_sysfs();
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
-	init_tempfreq_thermal_cgroup_throttling();
-#endif
 	init_phone_state();
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	init_mpdecision_coexist();
