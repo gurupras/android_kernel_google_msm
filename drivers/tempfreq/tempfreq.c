@@ -1310,14 +1310,9 @@ static int __init init_tempfreq_thermal_cgroup_throttling(void)
 early_initcall(init_tempfreq_thermal_cgroup_throttling);
 #endif
 
-/* Phone state initcall */
-static int __init init_phone_state(void)
+static int __init early_init_phone_state(void)
 {
 	int cpu;
-	struct cpufreq_policy *policy;
-	struct cpufreq_frequency_table *table;
-	int i;
-
 	phone_state = kmalloc(sizeof(struct phone_state), GFP_KERNEL);
 	if(phone_state == NULL) {
 		return ENOMEM;
@@ -1336,10 +1331,18 @@ static int __init init_phone_state(void)
 			return ENOMEM;
 		}
 		cs->cpuid = cpu;
-		(void) policy;
 		cs->enabled = 1;
 		phone_state->cpu_states[cpu] = cs;
 	}
+	return 0;
+}
+early_initcall(early_init_phone_state);
+
+/* Phone state initcall */
+static int __init init_phone_state(void)
+{
+	struct cpufreq_frequency_table *table;
+	int i;
 
 	// Now initialize FREQUENCIES
 	// XXX: Assumes all CPUs share the same table
