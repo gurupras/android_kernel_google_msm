@@ -187,7 +187,6 @@ static void netlink_send(char *msg)
 	} else {
 		printk(KERN_DEBUG "tempfreq: %s: Successfully sent '%s'\n", __func__, msg);
 	}
-	kfree(skb);
 }
 #endif
 
