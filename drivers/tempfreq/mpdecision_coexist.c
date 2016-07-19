@@ -151,7 +151,9 @@ static void netlink_send(char *msg)
 {
 	struct sk_buff *skb;
 	struct nlmsghdr *nlh;
-	int len = NLMSG_SPACE(strlen(msg));
+	int extra_hdr_len = sizeof(int);
+	int real_msg_len = strlen(msg);
+	int len = extra_hdr_len + NLMSG_SPACE(real_msg_len);
 	int skblen = NLMSG_SPACE(len);
 	int ret;
 
@@ -177,7 +179,9 @@ static void netlink_send(char *msg)
 	nlh->nlmsg_pid = userspace_pid;
 	nlh->nlmsg_flags = 0;
 	*/
-	strncpy(NLMSG_DATA(nlh), msg, strlen(msg));
+	memset(NLMSG_DATA(nlh), 0, len);
+	memcpy(NLMSG_DATA(nlh), &real_msg_len, extra_hdr_len);
+	strncpy(NLMSG_DATA(nlh) + extra_hdr_len, msg, strlen(msg));
 	NETLINK_CB(skb).pid = 0;
 	NETLINK_CB(skb).dst_group = 0;
 
@@ -185,7 +189,7 @@ static void netlink_send(char *msg)
 	if(ret < 0) {
 		printk(KERN_ERR "tempfreq: %s: Failed to broadcast message to userspace\n", __func__);
 	} else {
-		printk(KERN_DEBUG "tempfreq: %s: Successfully sent '%s'\n", __func__, msg);
+		printk(KERN_DEBUG "tempfreq: %s: Successfully sent len=%d '%s'\n", __func__, len, msg);
 	}
 }
 #endif
@@ -232,9 +236,13 @@ out:
 static int phonelab_tempfreq_mpdecision_coexist_nl_send = -1;
 static ssize_t store_mpdecision_coexist_nl_send(const char *_buf, size_t count)
 {
-	char *buf = kstrdup(_buf, GFP_KERNEL);
+	char buf[32];
+
+	memset(buf, 0, sizeof buf);
+	strncpy(buf, _buf, count);
+	strcpy(buf, strstrip(buf));
+
 	netlink_send(buf);
-	kfree(buf);
 	return count;
 }
 
