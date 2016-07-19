@@ -26,6 +26,8 @@
 static int initialized = 0;
 int phonelab_tempfreq_mpdecision_coexist_enable = 1;
 int phonelab_tempfreq_mpdecision_blocked = 0;
+int phonelab_tempfreq_mpdecision_coexist_cpu = 0;
+
 void start_bg_core_control(void);
 void stop_bg_core_control(void);
 struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
@@ -37,7 +39,6 @@ static void netlink_send(char *msg);
 static void netlink_recv(struct sk_buff *skb);
 #endif
 
-int mpdecision_coexist_cpu = 0;
 inline __cpuinit void start_bg_core_control(void)
 {
 	struct cpufreq_policy *policy;
@@ -49,25 +50,23 @@ inline __cpuinit void start_bg_core_control(void)
 		goto out;
 	}
 
-	trace_tempfreq_mpdecision_blocked(1);
-
 	phonelab_tempfreq_mpdecision_blocked = 1;
 	// Tasks may be pegged to any subset of cores.
 	// Find this subset
 	// FIXME: For now, we assume that it is only 1 CPU and its hard-coded to CPU 0
-	if(!cpu_online(mpdecision_coexist_cpu)) {
-		cpu_up(mpdecision_coexist_cpu);
+	if(!cpu_online(phonelab_tempfreq_mpdecision_coexist_cpu)) {
+		cpu_up(phonelab_tempfreq_mpdecision_coexist_cpu);
 		// Hotplug driver will not enable the flag when mpdecision is blocked
 	} else {
 		// We disable this cpu state so that binary mode will not change the frequency limits
 		// and thereby give us complete control over this core
-		update_phone_state(mpdecision_coexist_cpu, 0);
+		update_phone_state(phonelab_tempfreq_mpdecision_coexist_cpu, 0);
 	}
 
 	// We set this core to a frequency that we know will lead to cooling
 	// FIXME: Currently, this is hardcoded to 960000. We may need this to be adjustable
 	// We know that this frequency will only work towards cooling the system
-	policy = cpufreq_cpu_get(mpdecision_coexist_cpu);
+	policy = cpufreq_cpu_get(phonelab_tempfreq_mpdecision_coexist_cpu);
 	policy->max = 960000;
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	netlink_send("1");
@@ -89,6 +88,9 @@ inline void stop_bg_core_control(void)
 	if(!initialized || !phonelab_tempfreq_mpdecision_blocked) {
 		goto out;
 	}
+	phone_state_lock();
+	update_phone_state(phonelab_tempfreq_mpdecision_coexist_cpu, 1);
+	phone_state_unlock();
 	phonelab_tempfreq_mpdecision_blocked = 0;
 	// We don't need to set policy->max necessarily.
 	// This will happen automatically once binary mode starts to run
