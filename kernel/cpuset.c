@@ -60,6 +60,10 @@
 #include <linux/workqueue.h>
 #include <linux/cgroup.h>
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+#include <../drivers/tempfreq/tempfreq.h>
+#endif
+
 /*
  * Workqueue for cpuset related tasks.
  *
@@ -81,6 +85,7 @@ struct cpuset;
 
 /* See "Frequency meter" comments, below. */
 
+#ifndef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
 struct fmeter {
 	int cnt;		/* unprocessed events count */
 	int val;		/* most recent output value */
@@ -108,13 +113,23 @@ struct cpuset {
 	/* used for walking a cpuset hierarchy */
 	struct list_head stack_list;
 };
+#endif
 
 /* Retrieve the cpuset for a cgroup */
-static inline struct cpuset *cgroup_cs(struct cgroup *cont)
+#ifndef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+static
+#endif
+inline struct cpuset *cgroup_cs(struct cgroup *cont)
 {
 	return container_of(cgroup_subsys_state(cont, cpuset_subsys_id),
 			    struct cpuset, css);
 }
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+inline struct cgroup *cs_cgroup(struct cpuset *cs)
+{
+	return cs->css.cgroup;
+}
+#endif
 
 /* Retrieve the cpuset for a task */
 static inline struct cpuset *task_cs(struct task_struct *task)
@@ -183,7 +198,10 @@ static inline int is_spread_slab(const struct cpuset *cs)
 	return test_bit(CS_SPREAD_SLAB, &cs->flags);
 }
 
-static struct cpuset top_cpuset = {
+#ifndef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+static
+#endif
+struct cpuset top_cpuset = {
 	.flags = ((1 << CS_CPU_EXCLUSIVE) | (1 << CS_MEM_EXCLUSIVE)),
 };
 

@@ -272,6 +272,25 @@ TRACE_EVENT(tempfreq_mpdecision_blocked,
 	TP_printk("mpdecision_state=%s", __entry->is_blocked ? "blocked" : "unblocked")
 );
 
+TRACE_EVENT(tempfreq_cgroup_copy_tasks,
+
+	TP_PROTO(int n, int failed),
+
+	TP_ARGS(n, failed),
+
+	TP_STRUCT__entry(
+		__field(	int,	n	)
+		__field(	int,	failed	)
+	),
+
+	TP_fast_assign(
+		__entry->n = n;
+		__entry->failed = failed;
+	),
+
+	TP_printk("n=%d failed=%d", __entry->n, __entry->failed)
+);
+
 #endif
 /* This part must be outside protection */
 #include <trace/define_trace.h>

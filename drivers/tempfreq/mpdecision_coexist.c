@@ -30,7 +30,6 @@ int phonelab_tempfreq_mpdecision_coexist_cpu = 0;
 
 void start_bg_core_control(void);
 void stop_bg_core_control(void);
-struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 #define NETLINK_MPDECISION_COEXIST NETLINK_USERSOCK
@@ -133,16 +132,17 @@ static void netlink_recv(struct sk_buff *skb)
 	if(strcmp(payload, "hello") == 0) {
 		userspace_pid = nlh->nlmsg_pid;
 		printk(KERN_DEBUG "tempfreq: %s: Updated pid to %d\n", __func__, userspace_pid);
-	} else if(strcmp(payload, "0 OK") == 0) {
+	} else if(strcmp(payload, "0") == 0) {
 		// Userspace finished handling stop_bg_core_control()
 		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 0\n", __func__);
-		phone_state_lock();
-		update_phone_state(mpdecision_coexist_cpu, 1);
-		phone_state_unlock();
 		trace_tempfreq_mpdecision_blocked(0);
-	} else if(strcmp(payload, "1 OK") == 0) {
+	} else if(strcmp(payload, "1") == 0) {
 		// Userspace finished handling start_bg_core_control()
 		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 1\n", __func__);
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+		//schedule_work(&bind_copy_work);
+#endif
+		trace_tempfreq_mpdecision_blocked(1);
 	} else {
 		printk(KERN_DEBUG "tempfreq: %s: Unknown payload: '%s'\n", __func__, payload);
 	}
@@ -249,14 +249,56 @@ static ssize_t store_mpdecision_coexist_nl_send(const char *_buf, size_t count)
 }
 
 
+static ssize_t store_mpdecision_bg_cpu(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+	if(val < 0 || val > 3) {
+		err = -EINVAL;
+	}
+	phonelab_tempfreq_mpdecision_coexist_cpu = val;
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
+static ssize_t __ref store_mpdecision_coexist_upcall(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+	switch(val) {
+	case 0:
+		stop_bg_core_control();
+		break;
+	case 1:
+		start_bg_core_control();
+		break;
+	default:
+		err = -EINVAL;
+	}
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
 __show1(mpdecision_coexist_upcall, mpdecision_blocked);
+__show1(mpdecision_bg_cpu, mpdecision_coexist_cpu);
 
 //tempfreq_attr_rw(mpdecision_coexist_enable);
 __show(mpdecision_coexist_enable);
 struct tempfreq_attr mpdecision_coexist_enable =
 __ATTR(mpdecision_coexist_enable, 0644, show_mpdecision_coexist_enable, store_mpdecision_coexist_enable);
 struct tempfreq_attr mpdecision_coexist_upcall =
-__ATTR(mpdecision_coexist_upcall, 0444, show_mpdecision_coexist_upcall, NULL);
+__ATTR(mpdecision_coexist_upcall, 0644, show_mpdecision_coexist_upcall, store_mpdecision_coexist_upcall);
+struct tempfreq_attr mpdecision_bg_cpu =
+__ATTR(mpdecision_bg_cpu, 0644, show_mpdecision_bg_cpu, store_mpdecision_bg_cpu);
+
 
 export_tempfreq_attr_rw(mpdecision_coexist_nl_send);
 

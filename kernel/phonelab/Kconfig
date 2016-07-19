@@ -89,6 +89,14 @@ config PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 	  Background work is throttled based on temperature. This temperature
           is configurable via sysfs.
 
+config PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+	bool "Add capability to bind android cgroups to cpusets"
+	select CPUSETS
+	select PROC_PID_CPUSET
+	help
+	  When tasks are assigned to a cgroup, add them to the corresponding
+	  cpuset.
+
 config PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 	bool "Enable hotplug driver"
 	help

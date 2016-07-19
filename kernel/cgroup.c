@@ -66,6 +66,10 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/cgroup.h>
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+#include <../drivers/tempfreq/tempfreq.h>
+#endif
+
 /*
  * cgroup_mutex is the master lock.  Any modification to cgroup or its
  * hierarchy must be performed while holding it.
@@ -82,8 +86,13 @@
  * B happens only through cgroup_show_options() and using cgroup_root_mutex
  * breaks it.
  */
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+DEFINE_MUTEX(cgroup_mutex);
+DEFINE_MUTEX(cgroup_root_mutex);
+#else
 static DEFINE_MUTEX(cgroup_mutex);
 static DEFINE_MUTEX(cgroup_root_mutex);
+#endif
 
 /*
  * Generate an array of cgroup subsystem pointers. At boot time, this is
@@ -1930,7 +1939,28 @@ int cgroup_attach_task(struct cgroup *cgrp, struct task_struct *tsk)
 			}
 		}
 	}
-
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+	if(phonelab_tempfreq_mpdecision_blocked) {
+		if(cgrp == bg_non_interactive) {
+			retval = cgroup_attach_task(cs_bg_non_interactive, tsk);
+			if(retval) {
+				printk(KERN_DEBUG "tempfreq: %s: Failed to attach task to cs_bg_non_interactive\n", __func__);
+				retval = 0;
+			}
+		} else if(cgrp == &rootnode.top_cgroup) {
+			if(top_cpuset.css.cgroup == NULL) {
+				printk(KERN_ERR "tempfreq: %s: top_cpuset.css.cgroup == NULL\n", __func__);
+			} else {
+				printk(KERN_DEBUG "tempfreq: %s: Attempting to move task to top_cpuset\n", __func__);
+				retval = cgroup_attach_task(top_cpuset.css.cgroup, tsk);
+				if(retval) {
+					printk(KERN_DEBUG "tempfreq: %s: Failed to attach task to top_cpuset\n", __func__);
+					retval = 0;
+				}
+			}
+		}
+	}
+#endif
 	newcg = find_css_set(tsk->cgroups, cgrp);
 	if (!newcg) {
 		retval = -ENOMEM;
@@ -2174,6 +2204,85 @@ static int cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
  * function to attach either it or all tasks in its threadgroup. Will lock
  * cgroup_mutex and threadgroup; may take task_lock of task.
  */
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+int __attach_task_by_pid(struct cgroup *cgrp, u64 pid, bool threadgroup, bool check_cred)
+{
+	struct task_struct *tsk;
+	const struct cred *cred = current_cred(), *tcred;
+	int ret;
+
+	if (!cgroup_lock_live_group(cgrp))
+		return -ENODEV;
+
+retry_find_task:
+	rcu_read_lock();
+	if (pid) {
+		tsk = find_task_by_vpid(pid);
+		if (!tsk) {
+			rcu_read_unlock();
+			ret= -ESRCH;
+			goto out_unlock_cgroup;
+		}
+		/*
+		 * even if we're attaching all tasks in the thread group, we
+		 * only need to check permissions on one of them.
+		 */
+		tcred = __task_cred(tsk);
+		if(check_cred) {
+			if (cred->euid &&
+			    cred->euid != tcred->uid &&
+			    cred->euid != tcred->suid) {
+				/*
+				 * if the default permission check fails, give each
+				 * cgroup a chance to extend the permission check
+				 */
+				struct cgroup_taskset tset = { };
+				tset.single.task = tsk;
+				tset.single.cgrp = cgrp;
+				ret = cgroup_allow_attach(cgrp, &tset);
+				if (ret) {
+					rcu_read_unlock();
+					goto out_unlock_cgroup;
+				}
+			}
+		}
+	} else
+		tsk = current;
+
+	if (threadgroup)
+		tsk = tsk->group_leader;
+	get_task_struct(tsk);
+	rcu_read_unlock();
+
+	threadgroup_lock(tsk);
+	if (threadgroup) {
+		if (!thread_group_leader(tsk)) {
+			/*
+			 * a race with de_thread from another thread's exec()
+			 * may strip us of our leadership, if this happens,
+			 * there is no choice but to throw this task away and
+			 * try again; this is
+			 * "double-double-toil-and-trouble-check locking".
+			 */
+			threadgroup_unlock(tsk);
+			put_task_struct(tsk);
+			goto retry_find_task;
+		}
+		ret = cgroup_attach_proc(cgrp, tsk);
+	} else
+		ret = cgroup_attach_task(cgrp, tsk);
+	threadgroup_unlock(tsk);
+
+	put_task_struct(tsk);
+out_unlock_cgroup:
+	cgroup_unlock();
+	return ret;
+}
+int attach_task_by_pid(struct cgroup *cgrp, u64 pid, bool threadgroup)
+{
+	return __attach_task_by_pid(cgrp, pid, threadgroup, true);
+}
+#else
 static int attach_task_by_pid(struct cgroup *cgrp, u64 pid, bool threadgroup)
 {
 	struct task_struct *tsk;
@@ -2245,8 +2354,12 @@ out_unlock_cgroup:
 	cgroup_unlock();
 	return ret;
 }
+#endif
 
-static int cgroup_tasks_write(struct cgroup *cgrp, struct cftype *cft, u64 pid)
+#ifndef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+static
+#endif
+int cgroup_tasks_write(struct cgroup *cgrp, struct cftype *cft, u64 pid)
 {
 	return attach_task_by_pid(cgrp, pid, false);
 }
@@ -3786,8 +3899,10 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 	int err = 0;
 	struct cgroup_subsys *ss;
 	struct super_block *sb = root->sb;
-#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+	int found = 0;
 	extern struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
+	extern struct cgroup *cs_fg_bg, *cs_bg_non_interactive, *cs_delay_tolerant;
 #endif
 	cgrp = kzalloc(sizeof(*cgrp), GFP_KERNEL);
 	if (!cgrp)
@@ -3858,13 +3973,29 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 	mutex_unlock(&cgroup_mutex);
 	mutex_unlock(&cgrp->dentry->d_inode->i_mutex);
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+	//printk(KERN_DEBUG "tempfreq: %s: Initialized cgroup: %s\n", __func__, dentry->d_name.name);
 	if(strcmp("bg_non_interactive", dentry->d_name.name) == 0) {
 		bg_non_interactive = cgrp;
+		found = 1;
 	} else if(strcmp("fg_bg", dentry->d_name.name) == 0) {
 		fg_bg = cgrp;
+		found = 1;
 	} else if(strcmp("delay_tolerant", dentry->d_name.name) == 0) {
 		delay_tolerant = cgrp;
+		found = 1;
+	} else if(strcmp("cs_bg_non_interactive", dentry->d_name.name) == 0) {
+		cs_bg_non_interactive = cgrp;
+		found = 1;
+	} else if(strcmp("cs_fg_bg", dentry->d_name.name) == 0) {
+		cs_fg_bg = cgrp;
+		found = 1;
+	} else if(strcmp("cs_delay_tolerant", dentry->d_name.name) == 0) {
+		cs_delay_tolerant = cgrp;
+		found = 1;
+	}
+	if(found) {
+		printk(KERN_DEBUG "tempfreq: %s: Assigned '%s'\n", __func__, dentry->d_name.name);
 	}
 #endif
 	return 0;
@@ -5328,3 +5459,13 @@ struct cgroup_subsys debug_subsys = {
 	.subsys_id = debug_subsys_id,
 };
 #endif /* CONFIG_CGROUP_DEBUG */
+
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+inline struct cgroup_subsys_state *cgroup_subsys_state(
+	struct cgroup *cgrp, int subsys_id)
+{
+	return cgrp->subsys[subsys_id];
+}
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND */
+
