@@ -115,24 +115,42 @@ out:
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 static int userspace_pid = -1;
+
 static void netlink_recv(struct sk_buff *skb)
 {
 	struct nlmsghdr *nlh = NULL;
 	char *payload;
 	int len;
+	u32 real_len;
+	void *data_ptr;
+	char magic;
+
 	if(skb == NULL) {
 		return;
 	}
 
 	nlh = (struct nlmsghdr *) skb->data;
-	len = nlh->nlmsg_len;
-	payload = kzalloc(len, GFP_KERNEL);
-	strncpy(payload, NLMSG_DATA(nlh), len);
+	data_ptr = NLMSG_DATA(nlh);
 
-	printk(KERN_DEBUG "tempfreq: %s: seq=%d pid=%d len=%d payload=%s\n"
+	magic = *(char *)data_ptr;
+	if(magic != '@') {
+		printk(KERN_ERR "tempfreq: %s: Magic was not '@' ('%c')\n", __func__, magic);
+		return;
+	}
+	data_ptr++;
+
+	len = nlh->nlmsg_len;
+
+	real_len = *(u32 *) data_ptr;
+	data_ptr += sizeof(u32);
+
+	payload = kzalloc(real_len, GFP_KERNEL);
+	strncpy(payload, data_ptr, real_len);
+
+	printk(KERN_DEBUG "tempfreq: %s: seq=%d pid=%d len=%d real_len=%d payload=%s\n"
 			, __func__,
 			nlh->nlmsg_seq, nlh->nlmsg_pid, nlh->nlmsg_len,
-		       	payload);
+			real_len, payload);
 	// TODO: Handle the message from userspace
 	if(strcmp(payload, "hello") == 0) {
 		userspace_pid = nlh->nlmsg_pid;
