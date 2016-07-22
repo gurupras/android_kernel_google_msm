@@ -38,6 +38,7 @@ static void netlink_send(char *msg);
 static void netlink_recv(struct sk_buff *skb);
 #endif
 
+// Expects phone_state_lock to be held
 inline __cpuinit void start_bg_core_control(void)
 {
 	struct cpufreq_policy *policy;
@@ -83,6 +84,7 @@ out:
 #endif
 }
 
+// Expects phone_state_lock to be held
 inline void stop_bg_core_control(void)
 {
 #ifdef DEBUG
@@ -92,9 +94,7 @@ inline void stop_bg_core_control(void)
 	if(!initialized || !phonelab_tempfreq_mpdecision_blocked) {
 		goto out;
 	}
-	phone_state_lock();
 	update_phone_state(phonelab_tempfreq_mpdecision_coexist_cpu, 1);
-	phone_state_unlock();
 	phonelab_tempfreq_mpdecision_blocked = 0;
 	// We don't need to set policy->max necessarily.
 	// This will happen automatically once binary mode starts to run
@@ -306,10 +306,14 @@ static ssize_t __ref store_mpdecision_coexist_upcall(const char *_buf, size_t co
 		goto out;
 	switch(val) {
 	case 0:
+		phone_state_lock();
 		stop_bg_core_control();
+		phone_state_unlock();
 		break;
 	case 1:
+		phone_state_lock();
 		start_bg_core_control();
+		phone_state_unlock();
 		break;
 	default:
 		err = -EINVAL;
