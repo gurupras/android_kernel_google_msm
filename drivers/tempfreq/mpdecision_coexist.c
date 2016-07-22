@@ -282,7 +282,16 @@ static ssize_t store_mpdecision_bg_cpu(const char *_buf, size_t count)
 	if(val < 0 || val > 3) {
 		err = -EINVAL;
 	}
+
+	phone_state_lock();
+	if(phonelab_tempfreq_mpdecision_blocked) {
+		update_phone_state(phonelab_tempfreq_mpdecision_coexist_cpu, 1);
+	}
 	phonelab_tempfreq_mpdecision_coexist_cpu = val;
+	if(phonelab_tempfreq_mpdecision_blocked) {
+		update_phone_state(phonelab_tempfreq_mpdecision_coexist_cpu, 0);
+	}
+	phone_state_unlock();
 out:
 	kfree(buf);
 	return err != 0 ? err : count;
