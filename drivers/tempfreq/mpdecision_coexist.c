@@ -66,6 +66,11 @@ inline __cpuinit void start_bg_core_control(void)
 	// FIXME: Currently, this is hardcoded to 960000. We may need this to be adjustable
 	// We know that this frequency will only work towards cooling the system
 	policy = cpufreq_cpu_get(phonelab_tempfreq_mpdecision_coexist_cpu);
+	if(policy == NULL) {
+		// Try again after some time
+		phonelab_tempfreq_mpdecision_blocked = 0;
+		goto out;
+	}
 	policy->max = 960000;
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	netlink_send("1");
