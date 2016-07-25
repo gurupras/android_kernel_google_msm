@@ -33,14 +33,15 @@
 static int phonelab_tempfreq_enable = 1;
 
 static DEFINE_MUTEX(phone_state_mutex);
+static DEFINE_MUTEX(thermal_callback_mutex);
 
 void phone_state_lock(void)
 {
-	mutex_lock(&phone_state_mutex);
+	//mutex_lock(&phone_state_mutex);
 }
 void phone_state_unlock(void)
 {
-	mutex_unlock(&phone_state_mutex);
+	//mutex_unlock(&phone_state_mutex);
 }
 
 void update_phone_state(int cpu, int enabled)
@@ -185,7 +186,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
-	phone_state_lock();
+	mutex_lock(&thermal_callback_mutex);
 	if(!phonelab_tempfreq_enable) {
 		goto out;
 	}
@@ -356,7 +357,7 @@ done:
 #endif
 	(void) ret;
 out:
-	phone_state_unlock();
+	mutex_unlock(&thermal_callback_mutex);
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
