@@ -28,6 +28,8 @@ int phonelab_tempfreq_mpdecision_coexist_enable = 1;
 int phonelab_tempfreq_mpdecision_blocked = 0;
 int phonelab_tempfreq_mpdecision_coexist_cpu = 0;
 
+static DEFINE_MUTEX(mpdecision_coexist_mutex);
+
 void start_bg_core_control(void);
 void stop_bg_core_control(void);
 
@@ -38,13 +40,24 @@ static void netlink_send(char *msg);
 static void netlink_recv(struct sk_buff *skb);
 #endif
 
-// Expects phone_state_lock to be held
+static void mpdecision_coexist_lock(void)
+{
+	mutex_lock(&mpdecision_coexist_mutex);
+}
+static void mpdecision_coexist_unlock(void)
+{
+	mutex_unlock(&mpdecision_coexist_mutex);
+}
+
+
 inline __cpuinit void start_bg_core_control(void)
 {
 	struct cpufreq_policy *policy;
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
+	mpdecision_coexist_lock();
+
 	// cpu_hotplug_driver is already locked
 	if(!initialized || phonelab_tempfreq_mpdecision_blocked) {
 		goto out;
@@ -79,6 +92,7 @@ inline __cpuinit void start_bg_core_control(void)
 	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
 #endif
 out:
+	mpdecision_coexist_unlock();
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
@@ -90,6 +104,7 @@ inline void stop_bg_core_control(void)
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
+	mpdecision_coexist_lock();
 	// cpu_hotplug_driver is already locked
 	if(!initialized || !phonelab_tempfreq_mpdecision_blocked) {
 		goto out;
@@ -106,6 +121,7 @@ inline void stop_bg_core_control(void)
 	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
 #endif
 out:
+	mpdecision_coexist_unlock();
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif

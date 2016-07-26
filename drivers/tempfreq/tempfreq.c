@@ -31,6 +31,7 @@
 static int phonelab_tempfreq_enable = 1;
 
 static DEFINE_MUTEX(phone_state_mutex);
+static DEFINE_MUTEX(thermal_callback_mutex);
 
 void phone_state_lock(void)
 {
@@ -39,6 +40,15 @@ void phone_state_lock(void)
 void phone_state_unlock(void)
 {
 	mutex_unlock(&phone_state_mutex);
+}
+
+void thermal_callback_lock(void)
+{
+	mutex_lock(&thermal_callback_mutex);
+}
+void thermal_callback_unlock(void)
+{
+	mutex_unlock(&thermal_callback_mutex);
 }
 
 void update_phone_state(int cpu, int enabled)
@@ -183,7 +193,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
-	phone_state_lock();
+	thermal_callback_lock();
 	if(!phonelab_tempfreq_enable) {
 		goto out;
 	}
@@ -354,7 +364,7 @@ done:
 #endif
 	(void) ret;
 out:
-	phone_state_unlock();
+	thermal_callback_unlock();
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
@@ -682,10 +692,10 @@ static struct hotplug_driver null_hotplug_driver = {
 
 static void __cpuinit hotplug_driver_fn(struct work_struct *w)
 {
-	mutex_lock(&hotplug_driver_mutex);
+	thermal_callback_lock();
 	if(hotplug_driver->hotplug_work_fn)
 		hotplug_driver->hotplug_work_fn(w);
-	mutex_unlock(&hotplug_driver_mutex);
+	thermal_callback_unlock();
 	schedule_delayed_work_on(0, &hotplug_work, msecs_to_jiffies(phonelab_tempfreq_hotplug_epoch_ms));
 }
 
@@ -1071,9 +1081,9 @@ static ssize_t store_tempfreq_hotplug_driver(const char *_buf, size_t count)
 		goto out;
 	}
 
-	mutex_lock(&hotplug_driver_mutex);
+	thermal_callback_lock();
 	hotplug_driver = driver;
-	mutex_unlock(&hotplug_driver_mutex);
+	thermal_callback_unlock();
 out:
 	kfree(buf);
 	return err != 0 ? err : count;
