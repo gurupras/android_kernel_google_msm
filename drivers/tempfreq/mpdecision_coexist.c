@@ -258,6 +258,7 @@ out:
 	return err != 0 ? err : count;
 }
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 static int phonelab_tempfreq_mpdecision_coexist_nl_send = -1;
 static ssize_t store_mpdecision_coexist_nl_send(const char *_buf, size_t count)
 {
@@ -270,6 +271,7 @@ static ssize_t store_mpdecision_coexist_nl_send(const char *_buf, size_t count)
 	netlink_send(buf);
 	return count;
 }
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK */
 
 
 static ssize_t store_mpdecision_bg_cpu(const char *_buf, size_t count)
@@ -336,7 +338,9 @@ struct tempfreq_attr mpdecision_bg_cpu =
 __ATTR(mpdecision_bg_cpu, 0644, show_mpdecision_bg_cpu, store_mpdecision_bg_cpu);
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 export_tempfreq_attr_rw(mpdecision_coexist_nl_send);
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK */
 
 
 int __init init_mpdecision_coexist(void)

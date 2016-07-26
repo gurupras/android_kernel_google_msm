@@ -22,9 +22,7 @@
 #include "hotplug.h"
 #endif
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 #include "tempfreq.h"
-#endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 #include <linux/rq_stats.h>
@@ -508,6 +506,7 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 }
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unthrottling_temp)
 {
 	int i;
@@ -525,7 +524,7 @@ int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unt
 		cgroup_map.cur_idx++;
 	return 0;
 }
-
+#endif
 
 static int __get_frequency_index(int frequency, int start, int end);
 static inline int get_frequency_index(int frequency)
@@ -1219,7 +1218,9 @@ static struct attribute *attrs[] = {
 	&mpdecision_coexist_enable.attr,
 	&mpdecision_coexist_upcall.attr,
 	&mpdecision_bg_cpu.attr,
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	&mpdecision_coexist_nl_send.attr,
+#endif /* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST */
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 	&tempfreq_hotplug_driver.attr,

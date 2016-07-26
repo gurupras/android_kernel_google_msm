@@ -71,15 +71,16 @@ struct file;
 int pidlist_array_load(struct cgroup *cgrp, enum cgroup_filetype type,
 			      struct cgroup_pidlist **lp);
 void cgroup_release_pid_array(struct cgroup_pidlist *l);
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING */
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unthrottling_temp);
-
 #endif
-
 
 #ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
 ssize_t show_ondemand_ignore_bg(char *buf);
 ssize_t set_ondemand_ignore_bg(const char *buf, size_t count);
-#endif
+#endif	/* CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX */
 
 #define __show(name) __show1(name, name);
 
@@ -131,7 +132,7 @@ extern struct tempfreq_attr mpdecision_coexist_enable;
 extern struct tempfreq_attr mpdecision_coexist_upcall;
 extern struct tempfreq_attr mpdecision_coexist_nl_send;
 extern struct tempfreq_attr mpdecision_bg_cpu;
-#endif
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST */
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
 extern struct mutex cgroup_mutex, cgroup_root_mutex;
