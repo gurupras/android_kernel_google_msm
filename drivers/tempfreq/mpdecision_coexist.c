@@ -53,6 +53,7 @@ static void mpdecision_coexist_unlock(void)
 inline __cpuinit void start_bg_core_control(void)
 {
 	struct cpufreq_policy *policy;
+	int ret;
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
@@ -68,7 +69,13 @@ inline __cpuinit void start_bg_core_control(void)
 	// Find this subset
 	// FIXME: For now, we assume that it is only 1 CPU and its hard-coded to CPU 0
 	if(!cpu_online(phonelab_tempfreq_mpdecision_coexist_cpu)) {
-		cpu_up(phonelab_tempfreq_mpdecision_coexist_cpu);
+		printk(KERN_DEBUG "tempfreq: %s: Attempting to bring cpu-%d up\n", __func__, phonelab_tempfreq_mpdecision_coexist_cpu);
+		ret = cpu_up(phonelab_tempfreq_mpdecision_coexist_cpu);
+		if(ret) {
+			printk(KERN_ERR "tempfreq: %s: Failed to bring cpu-%d online\n", __func__, phonelab_tempfreq_mpdecision_coexist_cpu);
+			phonelab_tempfreq_mpdecision_blocked = 0;
+			goto out;
+		}
 		// Hotplug driver will not enable the flag when mpdecision is blocked
 	} else {
 		// We disable this cpu state so that binary mode will not change the frequency limits
@@ -86,6 +93,7 @@ inline __cpuinit void start_bg_core_control(void)
 		goto out;
 	}
 	policy->max = 960000;
+	trace_tempfreq_mpdecision_blocked(1);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	netlink_send("1");
 #else
@@ -111,6 +119,7 @@ inline void stop_bg_core_control(void)
 	}
 	update_phone_state(phonelab_tempfreq_mpdecision_coexist_cpu, 1);
 	phonelab_tempfreq_mpdecision_blocked = 0;
+	trace_tempfreq_mpdecision_blocked(0);
 	// We don't need to set policy->max necessarily.
 	// This will happen automatically once binary mode starts to run
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
@@ -174,14 +183,12 @@ static void netlink_recv(struct sk_buff *skb)
 	} else if(strcmp(payload, "0") == 0) {
 		// Userspace finished handling stop_bg_core_control()
 		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 0\n", __func__);
-		trace_tempfreq_mpdecision_blocked(0);
 	} else if(strcmp(payload, "1") == 0) {
 		// Userspace finished handling start_bg_core_control()
 		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 1\n", __func__);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
 		//schedule_work(&bind_copy_work);
 #endif
-		trace_tempfreq_mpdecision_blocked(1);
 	} else {
 		printk(KERN_DEBUG "tempfreq: %s: Unknown payload: '%s'\n", __func__, payload);
 	}
@@ -300,6 +307,11 @@ static ssize_t store_mpdecision_bg_cpu(const char *_buf, size_t count)
 	if(val < 0 || val > 3) {
 		err = -EINVAL;
 	}
+
+	if(val == phonelab_tempfreq_mpdecision_coexist_cpu) {
+		goto out;
+	}
+	goto out;
 
 	phone_state_lock();
 	if(phonelab_tempfreq_mpdecision_blocked) {
