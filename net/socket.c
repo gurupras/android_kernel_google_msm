@@ -519,6 +519,11 @@ void sock_release(struct socket *sock)
 		module_put(owner);
 	}
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+	if (sk_pid)
+		put_pid(sk_pid);
+#endif
+
 	if (rcu_dereference_protected(sock->wq, 1)->fasync_list)
 		printk(KERN_ERR "sock_release: fasync list not empty!\n");
 
