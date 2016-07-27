@@ -172,20 +172,22 @@ static void netlink_recv(struct sk_buff *skb)
 	payload = kzalloc(real_len, GFP_KERNEL);
 	strncpy(payload, data_ptr, real_len);
 
+	/*
 	printk(KERN_DEBUG "tempfreq: %s: seq=%d pid=%d len=%d real_len=%d payload=%s\n"
 			, __func__,
 			nlh->nlmsg_seq, nlh->nlmsg_pid, nlh->nlmsg_len,
 			real_len, payload);
+	*/
 	// TODO: Handle the message from userspace
 	if(strcmp(payload, "hello") == 0) {
 		userspace_pid = nlh->nlmsg_pid;
 		printk(KERN_DEBUG "tempfreq: %s: Updated pid to %d\n", __func__, userspace_pid);
 	} else if(strcmp(payload, "0") == 0) {
 		// Userspace finished handling stop_bg_core_control()
-		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 0\n", __func__);
+		//printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 0\n", __func__);
 	} else if(strcmp(payload, "1") == 0) {
 		// Userspace finished handling start_bg_core_control()
-		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 1\n", __func__);
+		//printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 1\n", __func__);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
 		//schedule_work(&bind_copy_work);
 #endif
@@ -237,7 +239,7 @@ static void netlink_send(char *msg)
 	if(ret < 0) {
 		printk(KERN_ERR "tempfreq: %s: Failed to broadcast message to userspace\n", __func__);
 	} else {
-		printk(KERN_DEBUG "tempfreq: %s: Successfully sent len=%d '%s'\n", __func__, len, msg);
+		//printk(KERN_DEBUG "tempfreq: %s: Successfully sent len=%d '%s'\n", __func__, len, msg);
 	}
 }
 #endif
