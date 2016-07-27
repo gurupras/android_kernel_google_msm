@@ -217,7 +217,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		// There is a case here where mpdecision has blocked a cpu just before we enter and block mpdecision
 		// Think about whether this needs to be specially handled
-		if(phonelab_tempfreq_mpdecision_coexist_enable) {
+		if(!phonelab_tempfreq_mpdecision_blocked) {
 			start_bg_core_control();
 		}
 #endif
@@ -252,7 +252,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	}
 	else if(temp <= phonelab_tempfreq_binary_lower_threshold) {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-		if(phonelab_tempfreq_mpdecision_coexist_enable) {
+		if(phonelab_tempfreq_mpdecision_blocked) {
 			stop_bg_core_control();
 		}
 #endif
