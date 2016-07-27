@@ -12,6 +12,7 @@
 #include <linux/completion.h>
 #include <linux/mutex.h>
 #include <linux/syscore_ops.h>
+#include <linux/thermal.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/tempfreq.h>
@@ -1379,12 +1380,30 @@ static int __init init_phone_state(void)
 }
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK
 /* Thermal callback initcall */
 extern struct srcu_notifier_head thermal_notifier_list;
 
 static struct notifier_block __refdata tempfreq_temp_notifier = {
     .notifier_call = tempfreq_thermal_callback,
 };
+#else
+static struct delayed_work tempfreq_thermal_work;
+static void __cpuinit tempfreq_thermal_work_fn(struct work_struct *work)
+{
+	long temp;
+	int ret;
+
+	ret = get_temp(&temp);
+	if(ret) {
+		goto out;
+	}
+	tempfreq_thermal_callback(NULL, 0, &temp);
+out:
+	schedule_delayed_work_on(0, &tempfreq_thermal_work, msecs_to_jiffies(100));
+
+}
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK */
 
 static struct notifier_block __refdata tempfreq_cpufreq_notifier = {
     .notifier_call = tempfreq_cpufreq_callback,
@@ -1396,7 +1415,9 @@ static struct notifier_block __cpuinitdata tempfreq_hotplug_notifier = {
 
 static int __init init_tempfreq_callbacks(void)
 {
-	int ret = srcu_notifier_chain_register(
+	int ret;
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK
+	ret = srcu_notifier_chain_register(
 			&thermal_notifier_list, &tempfreq_temp_notifier);
 	if(ret) {
 		printk(KERN_ERR "tempfreq: Failed to register notifier callback: %d\n", ret);
@@ -1404,7 +1425,11 @@ static int __init init_tempfreq_callbacks(void)
 	} else {
 		printk(KERN_DEBUG "tempfreq: Registered notifier: %d\n", ret);
 	}
-
+#else
+	// We create delayed work
+	INIT_DELAYED_WORK(&tempfreq_thermal_work, tempfreq_thermal_work_fn);
+	schedule_delayed_work(&tempfreq_thermal_work, 0);
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK */
 	ret = cpufreq_register_notifier(&tempfreq_cpufreq_notifier, CPUFREQ_TRANSITION_NOTIFIER);
 	if(ret) {
 		printk(KERN_ERR "tempfreq: Failed to register notifier callback: %d\n", ret);

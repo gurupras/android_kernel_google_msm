@@ -58,6 +58,13 @@ config PHONELAB_TEMPFREQ
 menu "TempFreq Features"
 depends on PHONELAB_TEMPFREQ
 
+config PHONELAB_TEMPFREQ_THERMAL_CALLBACK
+	bool "Run by registering thermal callback"
+	help
+	  If enabled, it uses the existing temperature sensing thread to issue
+	  a callback.  This happens every 250ms. If disabled, a delayed work is
+	  scheduled every 100ms.
+
 config PHONELAB_TEMPFREQ_BINARY_MODE
 	bool "Enable increase/decrease by a factor of 2"
 	help
