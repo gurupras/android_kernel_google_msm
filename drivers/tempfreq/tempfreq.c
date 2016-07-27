@@ -484,6 +484,9 @@ EXPORT_SYMBOL_GPL(tempfreq_cpufreq_callback);
 static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
 {
 	int cpu = (int)hcpu;
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
 
 	switch (action) {
 	case CPU_ONLINE:
@@ -513,6 +516,9 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 		phone_state_unlock();
 		break;
 	};
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 	return NOTIFY_OK;
 }
 
