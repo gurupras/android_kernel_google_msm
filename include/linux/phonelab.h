@@ -3,7 +3,6 @@
 
 #include <linux/types.h>
 #include <linux/sched.h>
-#include <linux/pid.h>
 
 #define PHONELAB_MAGIC "<PhoneLab>"
 
@@ -45,9 +44,6 @@ struct periodic_task_stats {
 
 	// Why the process is being context switched out
 	uint32_t dequeue_reasons[4];
-
-	// Network
-	u64 rx_bytes, tx_bytes;
 };
 
 void periodic_ctx_switch_info(struct work_struct *w);

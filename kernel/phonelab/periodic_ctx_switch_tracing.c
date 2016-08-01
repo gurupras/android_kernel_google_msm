@@ -163,20 +163,6 @@ void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *ne
 		} else {
 			stats->dequeue_reasons[3]++;
 		}
-
-		// Network stats are complicated by the fact that the byte count
-		// changes asynchronously. When the task is switched out, we will
-		// both increment the aggregated stats and reset the rx/tx bytes in
-		// the task struct. If we used the same approach of setting the prev
-		// values when the task is switched in, we could lose some data.
-		task_lock(prev);
-		{
-			stats->rx_bytes += prev->rx_bytes;
-			stats->tx_bytes += prev->tx_bytes;
-			prev->rx_bytes = 0;
-			prev->tx_bytes = 0;
-		}
-		task_unlock(prev);
 	} else {
 		snprintf(buf, 128, "periodic_stats: could not find pid %d (%s) cpu: %d\n", prev->pid, prev->comm, cpu);
 		trace_phonelab_periodic_warning_cpu(buf, cpu);
@@ -610,24 +596,3 @@ static int __init init_per_cpu_data(void) {
 	return 0;
 }
 early_initcall(init_per_cpu_data);
-
-void phonelab_update_task_net_stats(struct pid *pid, u32 rx, u32 tx)
-{
-	struct task_struct *task;
-	if (pid) {
-		task = get_pid_task(pid, PIDTYPE_PID);
-		if (task) {
-			task_lock(task);
-			{
-				task->rx_bytes += (u64)rx;
-				task->tx_bytes += (u64)tx;
-			}
-			task_unlock(task);
-			put_task_struct(task);
-		} else {
-			char buf[128];
-			snprintf(buf, 128, "Unable to find task: rx=%u tx=%u", rx, tx);
-			trace_phonelab_periodic_warning_cpu(buf, 0);
-		}
-	}
-}

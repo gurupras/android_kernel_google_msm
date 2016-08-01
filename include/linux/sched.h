@@ -1626,7 +1626,6 @@ struct task_struct {
 #endif
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
 	u32 is_logged[4];
-	u64 rx_bytes, tx_bytes;
 #endif
 };
 

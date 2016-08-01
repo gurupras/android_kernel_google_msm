@@ -368,9 +368,6 @@ struct sock {
 	__u32			sk_mark;
 	u32			sk_classid;
 	struct cg_proto		*sk_cgrp;
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	struct pid *sk_owner_pid;
-#endif
 	void			(*sk_state_change)(struct sock *sk);
 	void			(*sk_data_ready)(struct sock *sk, int bytes);
 	void			(*sk_write_space)(struct sock *sk);
@@ -1587,9 +1584,6 @@ static inline void sock_orphan(struct sock *sk)
 	sock_set_flag(sk, SOCK_DEAD);
 	sk_set_socket(sk, NULL);
 	sk->sk_wq  = NULL;
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	sk->sk_owner_pid = NULL;
-#endif
 	write_unlock_bh(&sk->sk_callback_lock);
 }
 
