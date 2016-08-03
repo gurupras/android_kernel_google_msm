@@ -187,6 +187,9 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	int reason_int = -1;
 	const char *reason_str;
 #endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	static int mpdecision_up_cycles = 0, mpdecision_down_cycles = 0;
+#endif
 	int enabled = 0;
 	int i;
 	int ret = 0;
@@ -217,8 +220,17 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		// There is a case here where mpdecision has blocked a cpu just before we enter and block mpdecision
 		// Think about whether this needs to be specially handled
-		if(!phonelab_tempfreq_mpdecision_blocked) {
-			start_bg_core_control();
+		if(phonelab_tempfreq_mpdecision_coexist_enable) {
+			if(!phonelab_tempfreq_mpdecision_blocked) {
+			       if(mpdecision_up_cycles == 10) {
+					start_bg_core_control();
+					mpdecision_up_cycles = 0;
+					mpdecision_down_cycles = 0;
+					goto out;
+				} else {
+					mpdecision_up_cycles++;
+				}
+			}
 		}
 #endif
 		if(short_epochs_counted == phonelab_tempfreq_binary_short_epochs) {
@@ -252,8 +264,17 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	}
 	else if(temp <= phonelab_tempfreq_binary_lower_threshold) {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-		if(phonelab_tempfreq_mpdecision_blocked) {
-			stop_bg_core_control();
+		if(phonelab_tempfreq_mpdecision_coexist_enable) {
+			if(phonelab_tempfreq_mpdecision_blocked) {
+			       if(mpdecision_down_cycles == 10) {
+					stop_bg_core_control();
+					mpdecision_down_cycles = 0;
+					mpdecision_up_cycles = 0;
+					goto out;
+				} else {
+					mpdecision_down_cycles++;
+				}
+			}
 		}
 #endif
 		// We can now increase the limit on the lowest
