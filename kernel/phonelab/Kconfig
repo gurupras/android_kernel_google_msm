@@ -70,6 +70,13 @@ config PHONELAB_TEMPFREQ_BINARY_MODE
 	help
 	  The scaling logic to increase/decrease frequency is
 	  done by a factor of 2
+config PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+	depends on PHONELAB_TEMPFREQ_BINARY_MODE
+	depends on POST_FOREGROUND_PID
+	bool "Apply separate thresholds during screen off"
+	help
+	  The binary mode thresholds are modified to different values
+	  when the screen is switched off.
 
 config PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	depends on PHONELAB_TEMPFREQ_BINARY_MODE

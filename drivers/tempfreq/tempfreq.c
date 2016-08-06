@@ -70,6 +70,10 @@ int phonelab_tempfreq_binary_long_epochs	= 5;
 int phonelab_tempfreq_binary_long_diff_limit	= 2;
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+struct delayed_work threshold_change_bg_work, threshold_change_fg_work;
+#endif
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 //FIXME: This include is a hack
 #include <linux/../../kernel/sched/sched.h>
@@ -885,6 +889,46 @@ late_initcall(init_tempfreq_hotplug);
 #endif
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+static int fg_threshold_lower, fg_threshold_upper, fg_threshold_critical;
+static int cur_state = 1;
+static void threshold_change_fn(int type)
+{
+	if(cur_state == type) {
+		return;
+	}
+
+	switch(type) {
+	case 0:
+		// Switching to BG
+		fg_threshold_lower = phonelab_tempfreq_binary_lower_threshold;
+		fg_threshold_upper = phonelab_tempfreq_binary_threshold_temp;
+		fg_threshold_critical = phonelab_tempfreq_binary_critical;
+
+		phonelab_tempfreq_binary_lower_threshold = 45;
+		phonelab_tempfreq_binary_threshold_temp = 50;
+		phonelab_tempfreq_binary_critical = 55;
+		break;
+	case 1:
+		// Switching to FG
+		phonelab_tempfreq_binary_lower_threshold = fg_threshold_lower;
+		phonelab_tempfreq_binary_threshold_temp = fg_threshold_upper;
+		phonelab_tempfreq_binary_critical = fg_threshold_critical;
+		break;
+	}
+	cur_state = type;
+}
+
+static void threshold_change_fg_work_fn(struct work_struct *work)
+{
+	return threshold_change_fn(1);
+}
+
+static void threshold_change_bg_work_fn(struct work_struct *work)
+{
+	return threshold_change_fn(0);
+}
+#endif
 
 
 
@@ -1377,6 +1421,17 @@ static int __init early_init_phone_state(void)
 	return 0;
 }
 early_initcall(early_init_phone_state);
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+static int __init early_init_threshold_change_work(void)
+{
+	INIT_DELAYED_WORK(&threshold_change_fg_work, threshold_change_fg_work_fn);
+	INIT_DELAYED_WORK(&threshold_change_bg_work, threshold_change_bg_work_fn);
+	return 0;
+}
+early_initcall(early_init_threshold_change_work);
+#endif
+
 
 /* Phone state initcall */
 static int __init init_phone_state(void)

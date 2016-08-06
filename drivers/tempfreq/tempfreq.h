@@ -180,4 +180,8 @@ extern struct cgroup *cs_fg_bg, *cs_bg_non_interactive, *cs_delay_tolerant;
 extern struct work_struct bind_copy_work;
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND */
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+extern struct delayed_work threshold_change_bg_work, threshold_change_fg_work;
+#endif
+
 #endif	/* __TEMPFREQ_H_ */
