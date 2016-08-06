@@ -12,6 +12,7 @@
 #include <linux/completion.h>
 #include <linux/mutex.h>
 #include <linux/syscore_ops.h>
+#include <linux/thermal.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/tempfreq.h>
@@ -22,9 +23,7 @@
 #include "hotplug.h"
 #endif
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 #include "tempfreq.h"
-#endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 #include <linux/rq_stats.h>
@@ -42,6 +41,15 @@ void phone_state_lock(void)
 void phone_state_unlock(void)
 {
 	//mutex_unlock(&phone_state_mutex);
+}
+
+void thermal_callback_lock(void)
+{
+	mutex_lock(&thermal_callback_mutex);
+}
+void thermal_callback_unlock(void)
+{
+	mutex_unlock(&thermal_callback_mutex);
 }
 
 void update_phone_state(int cpu, int enabled)
@@ -179,6 +187,9 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	int reason_int = -1;
 	const char *reason_str;
 #endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	static int mpdecision_up_cycles = 0, mpdecision_down_cycles = 0;
+#endif
 	int enabled = 0;
 	int i;
 	int ret = 0;
@@ -186,7 +197,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
-	mutex_lock(&thermal_callback_mutex);
+	thermal_callback_lock();
 	if(!phonelab_tempfreq_enable) {
 		goto out;
 	}
@@ -210,7 +221,16 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 		// There is a case here where mpdecision has blocked a cpu just before we enter and block mpdecision
 		// Think about whether this needs to be specially handled
 		if(phonelab_tempfreq_mpdecision_coexist_enable) {
-			start_bg_core_control();
+			if(!phonelab_tempfreq_mpdecision_blocked) {
+			       if(mpdecision_up_cycles == 10) {
+					start_bg_core_control();
+					mpdecision_up_cycles = 0;
+					mpdecision_down_cycles = 0;
+					goto out;
+				} else {
+					mpdecision_up_cycles++;
+				}
+			}
 		}
 #endif
 		if(short_epochs_counted == phonelab_tempfreq_binary_short_epochs) {
@@ -245,7 +265,16 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	else if(temp <= phonelab_tempfreq_binary_lower_threshold) {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		if(phonelab_tempfreq_mpdecision_coexist_enable) {
-			stop_bg_core_control();
+			if(phonelab_tempfreq_mpdecision_blocked) {
+			       if(mpdecision_down_cycles == 10) {
+					stop_bg_core_control();
+					mpdecision_down_cycles = 0;
+					mpdecision_up_cycles = 0;
+					goto out;
+				} else {
+					mpdecision_down_cycles++;
+				}
+			}
 		}
 #endif
 		// We can now increase the limit on the lowest
@@ -357,7 +386,7 @@ done:
 #endif
 	(void) ret;
 out:
-	mutex_unlock(&thermal_callback_mutex);
+	thermal_callback_unlock();
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
@@ -476,6 +505,9 @@ EXPORT_SYMBOL_GPL(tempfreq_cpufreq_callback);
 static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
 {
 	int cpu = (int)hcpu;
+#ifdef DEBUG
+	u64 ns = sched_clock();
+#endif
 
 	switch (action) {
 	case CPU_ONLINE:
@@ -505,10 +537,14 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 		phone_state_unlock();
 		break;
 	};
+#ifdef DEBUG
+	trace_tempfreq_timing(__func__, sched_clock() - ns);
+#endif
 	return NOTIFY_OK;
 }
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
 int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unthrottling_temp)
 {
 	int i;
@@ -526,7 +562,7 @@ int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unt
 		cgroup_map.cur_idx++;
 	return 0;
 }
-
+#endif
 
 static int __get_frequency_index(int frequency, int start, int end);
 static inline int get_frequency_index(int frequency)
@@ -684,10 +720,10 @@ static struct hotplug_driver null_hotplug_driver = {
 
 static void __cpuinit hotplug_driver_fn(struct work_struct *w)
 {
-	mutex_lock(&hotplug_driver_mutex);
+	thermal_callback_lock();
 	if(hotplug_driver->hotplug_work_fn)
 		hotplug_driver->hotplug_work_fn(w);
-	mutex_unlock(&hotplug_driver_mutex);
+	thermal_callback_unlock();
 	schedule_delayed_work_on(0, &hotplug_work, msecs_to_jiffies(phonelab_tempfreq_hotplug_epoch_ms));
 }
 
@@ -1073,9 +1109,9 @@ static ssize_t store_tempfreq_hotplug_driver(const char *_buf, size_t count)
 		goto out;
 	}
 
-	mutex_lock(&hotplug_driver_mutex);
+	thermal_callback_lock();
 	hotplug_driver = driver;
-	mutex_unlock(&hotplug_driver_mutex);
+	thermal_callback_unlock();
 out:
 	kfree(buf);
 	return err != 0 ? err : count;
@@ -1220,7 +1256,9 @@ static struct attribute *attrs[] = {
 	&mpdecision_coexist_enable.attr,
 	&mpdecision_coexist_upcall.attr,
 	&mpdecision_bg_cpu.attr,
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	&mpdecision_coexist_nl_send.attr,
+#endif /* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST */
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 	&tempfreq_hotplug_driver.attr,
@@ -1369,12 +1407,30 @@ static int __init init_phone_state(void)
 }
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK
 /* Thermal callback initcall */
 extern struct srcu_notifier_head thermal_notifier_list;
 
 static struct notifier_block __refdata tempfreq_temp_notifier = {
     .notifier_call = tempfreq_thermal_callback,
 };
+#else
+static struct delayed_work tempfreq_thermal_work;
+static void __cpuinit tempfreq_thermal_work_fn(struct work_struct *work)
+{
+	long temp;
+	int ret;
+
+	ret = get_temp(&temp);
+	if(ret) {
+		goto out;
+	}
+	tempfreq_thermal_callback(NULL, 0, &temp);
+out:
+	schedule_delayed_work_on(0, &tempfreq_thermal_work, msecs_to_jiffies(100));
+
+}
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK */
 
 static struct notifier_block __refdata tempfreq_cpufreq_notifier = {
     .notifier_call = tempfreq_cpufreq_callback,
@@ -1386,7 +1442,9 @@ static struct notifier_block __cpuinitdata tempfreq_hotplug_notifier = {
 
 static int __init init_tempfreq_callbacks(void)
 {
-	int ret = srcu_notifier_chain_register(
+	int ret;
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK
+	ret = srcu_notifier_chain_register(
 			&thermal_notifier_list, &tempfreq_temp_notifier);
 	if(ret) {
 		printk(KERN_ERR "tempfreq: Failed to register notifier callback: %d\n", ret);
@@ -1394,7 +1452,11 @@ static int __init init_tempfreq_callbacks(void)
 	} else {
 		printk(KERN_DEBUG "tempfreq: Registered notifier: %d\n", ret);
 	}
-
+#else
+	// We create delayed work
+	INIT_DELAYED_WORK(&tempfreq_thermal_work, tempfreq_thermal_work_fn);
+	schedule_delayed_work(&tempfreq_thermal_work, 0);
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK */
 	ret = cpufreq_register_notifier(&tempfreq_cpufreq_notifier, CPUFREQ_TRANSITION_NOTIFIER);
 	if(ret) {
 		printk(KERN_ERR "tempfreq: Failed to register notifier callback: %d\n", ret);

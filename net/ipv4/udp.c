@@ -108,9 +108,6 @@
 #include <net/xfrm.h>
 #include <trace/events/udp.h>
 #include "udp_impl.h"
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-#include <linux/phonelab.h>
-#endif
 
 struct udp_table udp_table __read_mostly;
 EXPORT_SYMBOL(udp_table);
@@ -1662,10 +1659,6 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 
 	if (sk != NULL) {
 		int ret = udp_queue_rcv_skb(sk, skb);
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-		if (sk->sk_owner_pid)
-			phonelab_update_task_net_stats(sk->sk_owner_pid, skb->len, 0);
-#endif
 		sock_put(sk);
 
 		/* a return value > 0 means to resubmit the input, but

@@ -40,6 +40,16 @@ static void netlink_send(char *msg);
 static void netlink_recv(struct sk_buff *skb);
 #endif
 
+static void mpdecision_coexist_lock(void)
+{
+	mutex_lock(&mpdecision_coexist_mutex);
+}
+static void mpdecision_coexist_unlock(void)
+{
+	mutex_unlock(&mpdecision_coexist_mutex);
+}
+
+
 inline __cpuinit void start_bg_core_control(void)
 {
 	struct cpufreq_policy *policy;
@@ -90,7 +100,7 @@ inline __cpuinit void start_bg_core_control(void)
 	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
 #endif
 out:
-	mutex_unlock(&mpdecision_coexist_mutex);
+	mpdecision_coexist_unlock();
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
@@ -102,7 +112,7 @@ inline void stop_bg_core_control(void)
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
-	mutex_lock(&mpdecision_coexist_mutex);
+	mpdecision_coexist_lock();
 	// cpu_hotplug_driver is already locked
 	if(!initialized || !phonelab_tempfreq_mpdecision_blocked) {
 		goto out;
@@ -120,7 +130,7 @@ inline void stop_bg_core_control(void)
 	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
 #endif
 out:
-	mutex_unlock(&mpdecision_coexist_mutex);
+	mpdecision_coexist_unlock();
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
 #endif
@@ -162,20 +172,22 @@ static void netlink_recv(struct sk_buff *skb)
 	payload = kzalloc(real_len, GFP_KERNEL);
 	strncpy(payload, data_ptr, real_len);
 
+	/*
 	printk(KERN_DEBUG "tempfreq: %s: seq=%d pid=%d len=%d real_len=%d payload=%s\n"
 			, __func__,
 			nlh->nlmsg_seq, nlh->nlmsg_pid, nlh->nlmsg_len,
 			real_len, payload);
+	*/
 	// TODO: Handle the message from userspace
 	if(strcmp(payload, "hello") == 0) {
 		userspace_pid = nlh->nlmsg_pid;
 		printk(KERN_DEBUG "tempfreq: %s: Updated pid to %d\n", __func__, userspace_pid);
 	} else if(strcmp(payload, "0") == 0) {
 		// Userspace finished handling stop_bg_core_control()
-		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 0\n", __func__);
+		//printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 0\n", __func__);
 	} else if(strcmp(payload, "1") == 0) {
 		// Userspace finished handling start_bg_core_control()
-		printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 1\n", __func__);
+		//printk(KERN_DEBUG "tempfreq: %s: Userspace finished handling 1\n", __func__);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
 		//schedule_work(&bind_copy_work);
 #endif
@@ -227,7 +239,7 @@ static void netlink_send(char *msg)
 	if(ret < 0) {
 		printk(KERN_ERR "tempfreq: %s: Failed to broadcast message to userspace\n", __func__);
 	} else {
-		printk(KERN_DEBUG "tempfreq: %s: Successfully sent len=%d '%s'\n", __func__, len, msg);
+		//printk(KERN_DEBUG "tempfreq: %s: Successfully sent len=%d '%s'\n", __func__, len, msg);
 	}
 }
 #endif
@@ -271,6 +283,7 @@ out:
 	return err != 0 ? err : count;
 }
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 static int phonelab_tempfreq_mpdecision_coexist_nl_send = -1;
 static ssize_t store_mpdecision_coexist_nl_send(const char *_buf, size_t count)
 {
@@ -283,6 +296,7 @@ static ssize_t store_mpdecision_coexist_nl_send(const char *_buf, size_t count)
 	netlink_send(buf);
 	return count;
 }
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK */
 
 
 static ssize_t store_mpdecision_bg_cpu(const char *_buf, size_t count)
@@ -354,7 +368,9 @@ struct tempfreq_attr mpdecision_bg_cpu =
 __ATTR(mpdecision_bg_cpu, 0644, show_mpdecision_bg_cpu, store_mpdecision_bg_cpu);
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 export_tempfreq_attr_rw(mpdecision_coexist_nl_send);
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK */
 
 
 int __init init_mpdecision_coexist(void)

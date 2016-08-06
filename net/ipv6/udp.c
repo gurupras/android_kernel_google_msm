@@ -50,10 +50,6 @@
 #include <linux/seq_file.h>
 #include "udp_impl.h"
 
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-#include <linux/phonelab.h>
-#endif
-
 int ipv6_rcv_saddr_equal(const struct sock *sk, const struct sock *sk2)
 {
 	const struct in6_addr *sk_rcv_saddr6 = &inet6_sk(sk)->rcv_saddr;
@@ -793,11 +789,6 @@ int __udp6_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 	}
 
 	/* deliver */
-
-#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
-	if (sk->sk_owner_pid)
-		phonelab_update_task_net_stats(sk->sk_owner_pid, skb->len, 0);
-#endif
 
 	if (sk_rcvqueues_full(sk, skb)) {
 		sock_put(sk);

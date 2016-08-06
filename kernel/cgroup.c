@@ -1960,7 +1960,7 @@ int cgroup_attach_task(struct cgroup *cgrp, struct task_struct *tsk)
 			}
 		}
 	}
-#endif
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND */
 	newcg = find_css_set(tsk->cgroups, cgrp);
 	if (!newcg) {
 		retval = -ENOMEM;

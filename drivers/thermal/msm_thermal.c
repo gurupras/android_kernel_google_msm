@@ -979,6 +979,17 @@ static void __ref do_freq_control(long temp)
 	put_online_cpus();
 }
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+inline int get_temp(long *temp)
+{
+	int ret;
+	struct tsens_device tsens_dev;
+	tsens_dev.sensor_num = msm_thermal_info.sensor_id;
+	ret = tsens_get_temp(&tsens_dev, temp);
+	return ret;
+}
+#endif
+
 static void __ref check_temp(struct work_struct *work)
 {
 	static int limit_init;
@@ -987,7 +998,11 @@ static void __ref check_temp(struct work_struct *work)
 	int ret = 0;
 
 	tsens_dev.sensor_num = msm_thermal_info.sensor_id;
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	ret = get_temp(&temp);
+#else
 	ret = tsens_get_temp(&tsens_dev, &temp);
+#endif
 	if (ret) {
 		pr_debug("%s: Unable to read TSENS sensor %d\n",
 				KBUILD_MODNAME, tsens_dev.sensor_num);

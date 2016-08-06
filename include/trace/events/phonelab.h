@@ -151,9 +151,7 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 		__field(int, status_interruptible)
 		__field(int, status_uninterruptible)
 		__field(int, status_other)
-		__field(u64, log_idx)
-		__field(u64, rx)
-		__field(u64, tx)
+		__field(u64 , log_idx)
 	),
 
 	TP_fast_assign(
@@ -176,19 +174,16 @@ TRACE_EVENT(phonelab_periodic_ctx_switch_info,
 		__entry->status_uninterruptible = stats->dequeue_reasons[2];
 		__entry->status_other = stats->dequeue_reasons[3];
 		__entry->log_idx	= log_idx;
-		__entry->rx = stats->rx_bytes;
-		__entry->tx = stats->tx_bytes;
 	),
 
 	TP_printk("cpu=%d pid=%d tgid=%d nice=%d comm=%s utime=%llu stime=%llu rtime=%llu bg_utime=%llu "
-		"bg_stime=%llu bg_rtime=%llu s_run=%d s_int=%d s_unint=%d s_oth=%d log_idx=%llu rx=%llu tx=%llu",
+		"bg_stime=%llu bg_rtime=%llu s_run=%d s_int=%d s_unint=%d s_oth=%d log_idx=%llu",
 		__entry->cpu,
 		__entry->pid, __entry->tgid, __entry->nice, __entry->comm,
 		__entry->utime, __entry->stime, __entry->runtime,
 		__entry->bg_utime, __entry->bg_stime, __entry->bg_runtime,
 		__entry->status_running, __entry->status_interruptible,
-		__entry->status_uninterruptible, __entry->status_other, __entry->log_idx,
-		__entry->rx, __entry->tx)
+		__entry->status_uninterruptible, __entry->status_other, __entry->log_idx)
 );
 #endif
 
