@@ -41,8 +41,10 @@ struct user_logger_entry_compat {
 	__s32		tid;
 	__s32		sec;
 	__s32		nsec;
+	__u64		logline;   /* logline id (unique up to reboot) */
+	__u64		tracens;   /* trace timestamp in ns */
 	char		msg[0];
-};
+}__attribute__((__packed__));
 
 /**
  * struct logger_entry - defines a single entry that is given to a logger
@@ -66,9 +68,11 @@ struct logger_entry {
 	__s32		tid;
 	__s32		sec;
 	__s32		nsec;
+	__u64		logline;   /* logline id (unique up to reboot) */
+	__u64		tracens;   /* trace timestamp in ns */
 	kuid_t		euid;
 	char		msg[0];
-};
+}__attribute__((__packed__));
 
 #define LOGGER_LOG_RADIO	"log_radio"	/* radio-related messages */
 #define LOGGER_LOG_EVENTS	"log_events"	/* system/hardware events */

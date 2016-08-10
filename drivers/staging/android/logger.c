@@ -68,6 +68,7 @@ struct logger_log {
 	size_t			w_off;
 	size_t			head;
 	size_t			size;
+	u64				logline; /* Strictly increasing id */
 	struct list_head	logs;
 };
 
@@ -185,6 +186,8 @@ static ssize_t copy_header_to_user(int ver, struct logger_entry *entry,
 		v1.tid      = entry->tid;
 		v1.sec      = entry->sec;
 		v1.nsec     = entry->nsec;
+		v1.logline  = entry->logline;
+		v1.tracens  = entry->tracens;
 		hdr         = &v1;
 		hdr_len     = sizeof(struct user_logger_entry_compat);
 	} else {
@@ -490,6 +493,7 @@ static ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	header.tid = current->pid;
 	header.sec = now.tv_sec;
 	header.nsec = now.tv_nsec;
+	header.tracens = ftrace_now(raw_smp_processor_id());
 	header.euid = current_euid();
 	header.len = min_t(size_t, iocb->ki_left, LOGGER_ENTRY_MAX_PAYLOAD);
 	header.hdr_size = sizeof(struct logger_entry);
@@ -501,6 +505,7 @@ static ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	mutex_lock(&log->mutex);
 
 	orig = log->w_off;
+	header.logline = ++log->logline;
 
 	/*
 	 * Fix up any readers, pulling them forward to the first readable
@@ -789,6 +794,7 @@ static int __init create_log(char *log_name, int size)
 	log->w_off = 0;
 	log->head = 0;
 	log->size = size;
+	log->logline = 0;
 
 	INIT_LIST_HEAD(&log->logs);
 	list_add_tail(&log->logs, &log_list);
