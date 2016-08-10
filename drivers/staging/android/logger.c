@@ -33,8 +33,14 @@
 
 #include <asm/ioctls.h>
 
+#include "../../../kernel/trace/trace.h"
+
 #ifndef CONFIG_LOGCAT_SIZE
-#define CONFIG_LOGCAT_SIZE 16384
+#define CONFIG_LOGCAT_SIZE 256
+#endif
+
+#ifndef CONFIG_LOGCAT_SIZE_MAIN
+#define CONFIG_LOGCAT_SIZE_MAIN 256
 #endif
 
 /**
@@ -812,7 +818,7 @@ static int __init logger_init(void)
 {
 	int ret;
 
-	ret = create_log(LOGGER_LOG_MAIN, CONFIG_LOGCAT_SIZE*1024);
+	ret = create_log(LOGGER_LOG_MAIN, CONFIG_LOGCAT_SIZE_MAIN*1024);
 	if (unlikely(ret))
 		goto out;
 
