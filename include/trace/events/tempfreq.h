@@ -199,6 +199,7 @@ TRACE_EVENT(tempfreq_hotplug_nr_running,
 	TP_printk("nr_running=%d", __entry->nr_running)
 );
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 TRACE_EVENT(tempfreq_hotplug_state,
 
 	TP_PROTO(int elapsed_epochs, int next_state, int expected_next_state),
@@ -223,6 +224,7 @@ TRACE_EVENT(tempfreq_hotplug_state,
 		HOTPLUG_STATE_STR[__entry->expected_next_state]
 	)
 );
+#endif
 
 TRACE_EVENT(tempfreq_hotplug_autosmp_rates,
 

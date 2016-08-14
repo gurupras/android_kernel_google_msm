@@ -89,6 +89,11 @@ enum {
 	PHONELAB_PM_SUSPEND_EXIT,
 };
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+struct cgroup;
+void __set_to_string(int set, char buf[10]);
+#endif
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 extern int phonelab_tempfreq_binary_threshold_temp;
 extern int phonelab_tempfreq_binary_critical;
@@ -135,7 +140,6 @@ struct hotplug_state {
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
 extern const char *HOTPLUG_STATE_STR[];
-void __set_to_string(int set, char buf[10]);
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND

@@ -123,6 +123,8 @@ static const char *reasons[] = {
 	"REASON_COOL",
 	NULL,
 };
+
+static inline int get_new_frequency(int cpu, int relation);
 #endif
 
 const char *HOTPLUG_STATE_STR[] = {
@@ -133,7 +135,6 @@ const char *HOTPLUG_STATE_STR[] = {
 
 static inline int get_cpu_with(int relation);
 static inline int get_frequency_index(int frequency);
-static inline int get_new_frequency(int cpu, int relation);
 static inline int get_next_frequency_index(int idx);
 
 static void cpu_state_string(struct cpu_state *cs, char *str);
@@ -592,6 +593,7 @@ static int __get_frequency_index(int frequency, int start, int end)
 #endif
 }
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 static inline int get_new_frequency(int cpu, int relation)
 {
 	struct cpufreq_policy *policy;
@@ -629,6 +631,7 @@ static inline int get_new_frequency(int cpu, int relation)
 #endif
 	return FREQUENCIES[result_idx];
 }
+#endif
 
 static inline int get_cpu_with(int relation)
 {
