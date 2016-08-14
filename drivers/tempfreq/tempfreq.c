@@ -86,14 +86,6 @@ enum {
 struct cgroup_map cgroup_map;
 
 static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *entry, int temp);
-
-// This function is implemented in kern/sched/core.c
-// Borrowed since this would require header file change => long compilation
-static inline struct task_group *cgroup_tg(struct cgroup *cgrp)
-{
-	return container_of(cgroup_subsys_state(cgrp, cpu_cgroup_subsys_id),
-			    struct task_group, css);
-}
 #endif
 
 DECLARE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);

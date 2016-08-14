@@ -7704,7 +7704,11 @@ int sched_rt_handler(struct ctl_table *table, int write,
 #ifdef CONFIG_CGROUP_SCHED
 
 /* return corresponding task_group object of a cgroup */
-static inline struct task_group *cgroup_tg(struct cgroup *cgrp)
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+#else
+static
+#endif
+inline struct task_group *cgroup_tg(struct cgroup *cgrp)
 {
 	return container_of(cgroup_subsys_state(cgrp, cpu_cgroup_subsys_id),
 			    struct task_group, css);

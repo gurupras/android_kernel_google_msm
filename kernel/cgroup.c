@@ -5459,13 +5459,3 @@ struct cgroup_subsys debug_subsys = {
 	.subsys_id = debug_subsys_id,
 };
 #endif /* CONFIG_CGROUP_DEBUG */
-
-
-#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
-inline struct cgroup_subsys_state *cgroup_subsys_state(
-	struct cgroup *cgrp, int subsys_id)
-{
-	return cgrp->subsys[subsys_id];
-}
-#endif	/* CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND */
-
