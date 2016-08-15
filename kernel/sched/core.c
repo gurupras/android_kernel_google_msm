@@ -77,6 +77,8 @@
 #include <asm/tlb.h>
 #include <asm/irq_regs.h>
 #include <asm/mutex.h>
+#include <linux/cgroup.h>
+
 #ifdef CONFIG_PARAVIRT
 #include <asm/paravirt.h>
 #endif

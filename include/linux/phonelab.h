@@ -143,7 +143,7 @@ extern const char *HOTPLUG_STATE_STR[];
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
-inline struct task_group *cgroup_tg(struct cgroup *cgrp)
+struct task_group *cgroup_tg(struct cgroup *cgrp);
 #endif
 
 #endif	/* __PHONELAB__H_ */
