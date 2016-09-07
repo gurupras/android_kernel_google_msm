@@ -341,4 +341,8 @@ extern void __init acpuclk_krait_debug_init(struct drv_data *drv);
 static inline void acpuclk_krait_debug_init(void) { }
 #endif
 
+
+int write_acpu_table_header(char *buf, int *offset);
+void write_acpu_table_level(char *buf, int *offset, const struct acpu_level *level);
+
 #endif
