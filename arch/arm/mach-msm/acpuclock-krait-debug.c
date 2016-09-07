@@ -14,6 +14,7 @@
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
 #include <linux/kernel.h>
+#include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/debugfs.h>
 #include <linux/module.h>
@@ -249,40 +250,56 @@ static int boost_get(void *data, u64 *val)
 }
 DEFINE_SIMPLE_ATTRIBUTE(boost_fops, boost_get, NULL, "%lld\n");
 
+int write_acpu_table_header(char *buf, int *offset)
+{
+	*offset += sprintf(buf + *offset, "CPU_KHz  PLL_L_Val   L2_KHz  VDD_Dig  VDD_Mem  ");
+	*offset += sprintf(buf + *offset, "BW_Mbps  VDD_Core  UA_Core  AVS\n");
+	return 0;
+}
+
+void write_acpu_table_level(char *buf, int *offset, const struct acpu_level *level)
+{
+	const struct l2_level *l2 =
+				&drv->l2_freq_tbl[level->l2_level];
+	u32 bw = drv->bus_scale->usecase[l2->bw_level].vectors[0].ib;
+
+	if (!level->use_for_scaling)
+		return;
+
+	/* CPU speed information */
+	*offset += sprintf(buf + *offset, "%7lu  %9u  ",
+			level->speed.khz,
+			level->speed.pll_l_val);
+
+	/* L2 level information */
+	*offset += sprintf(buf + *offset, "%7lu  %7d  %7d  %7u  ",
+			l2->speed.khz,
+			l2->vdd_dig,
+			l2->vdd_mem,
+			bw / 1000000);
+
+	/* Core voltage information */
+	*offset += sprintf(buf + *offset, "%8d  %7d  %3d\n",
+			level->vdd_core,
+			level->ua_core,
+			level->avsdscr_setting);
+}
+
 static int acpu_table_show(struct seq_file *m, void *unused)
 {
 	const struct acpu_level *level;
 
-	seq_printf(m, "CPU_KHz  PLL_L_Val   L2_KHz  VDD_Dig  VDD_Mem  ");
-	seq_printf(m, "BW_Mbps  VDD_Core  UA_Core  AVS\n");
+	char *buf = kmalloc(2048, GFP_KERNEL);
+	int offset = 0;
+
+	write_acpu_table_header(buf, &offset);
 
 	for (level = drv->acpu_freq_tbl; level->speed.khz != 0; level++) {
-
-		const struct l2_level *l2 =
-					&drv->l2_freq_tbl[level->l2_level];
-		u32 bw = drv->bus_scale->usecase[l2->bw_level].vectors[0].ib;
-
-		if (!level->use_for_scaling)
-			continue;
-
-		/* CPU speed information */
-		seq_printf(m, "%7lu  %9u  ",
-				level->speed.khz,
-				level->speed.pll_l_val);
-
-		/* L2 level information */
-		seq_printf(m, "%7lu  %7d  %7d  %7u  ",
-				l2->speed.khz,
-				l2->vdd_dig,
-				l2->vdd_mem,
-				bw / 1000000);
-
-		/* Core voltage information */
-		seq_printf(m, "%8d  %7d  %3d\n",
-				level->vdd_core,
-				level->ua_core,
-				level->avsdscr_setting);
+		write_acpu_table_level(buf, &offset, level);
 	}
+
+	seq_printf(m, "%s", buf);
+	kfree(buf);
 
 	return 0;
 }

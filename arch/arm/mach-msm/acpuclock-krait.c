@@ -1227,3 +1227,150 @@ int __init acpuclk_krait_init(struct device *dev,
 
 	return 0;
 }
+
+
+
+
+
+
+
+struct acpuclock_attr {
+	struct attribute attr;
+	ssize_t (*show)(char *);
+	ssize_t (*store)(const char *, size_t count);
+};
+#define acpuclock_to_attr(a) container_of(a, struct acpuclock_attr, attr)
+
+
+static struct acpu_level *cur_level = NULL;
+
+static struct acpu_level *find_level_by_freq(int freq) {
+	struct acpu_level *level = NULL;
+	for (level = drv.acpu_freq_tbl; level->speed.khz != 0; level++) {
+		if(level->speed.khz == freq) {
+			break;
+		}
+	}
+	return level;
+}
+
+static ssize_t store_acpuclock_level(const char *_buf, size_t count)
+{
+	int err = 0;
+	int val;
+	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if(err) {
+		return -EINVAL;
+	}
+	kfree(buf);
+
+	cur_level = find_level_by_freq(val);
+	if(cur_level != NULL) {
+		printk(KERN_DEBUG "acpuclock: Found level for: %d\n", val);
+	} else {
+		printk(KERN_DEBUG "acpuclock: Did not find level for: %d\n", val);
+	}
+	return count;
+}
+
+static ssize_t show_acpuclock_level(char *buf)
+{
+	int offset = 0;
+	write_acpu_table_header(buf, &offset);
+	if(cur_level != NULL) {
+		write_acpu_table_level(buf, &offset, cur_level);
+	}
+	return offset;
+}
+
+static ssize_t store_acpuclock_vdd(const char *_buf, size_t count)
+{
+	int err = 0;
+	int val;
+	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if(cur_level == NULL) {
+		return -EINVAL;
+	}
+	cur_level->vdd_core = val;
+	return err != 0 ? err : count;
+}
+
+static ssize_t show_acpuclock_vdd(char *buf)
+{
+	const struct acpu_level *level;
+	int offset = 0;
+	write_acpu_table_header(buf, &offset);
+	if(cur_level != NULL) {
+		write_acpu_table_level(buf, &offset, cur_level);
+	} else {
+		for (level = drv.acpu_freq_tbl; level->speed.khz != 0; level++) {
+			write_acpu_table_level(buf, &offset, level);
+		}
+	}
+	return offset;
+}
+
+static struct acpuclock_attr level =
+__ATTR(level, 0644, show_acpuclock_level, store_acpuclock_level);
+
+static struct acpuclock_attr vdd =
+__ATTR(vdd, 0644, show_acpuclock_vdd, store_acpuclock_vdd);
+
+
+
+static struct attribute *attrs[] = {
+	&vdd.attr,
+	&level.attr,
+	NULL
+};
+
+int acpuclock_show(struct kobject *kobj, struct attribute *attr, char *buf)
+{
+	ssize_t ret = -EINVAL;
+	struct acpuclock_attr *fattr = acpuclock_to_attr(attr);
+	if (fattr->show)
+		ret = fattr->show(buf);
+	else
+		ret = -EIO;
+	return ret;
+}
+
+ssize_t acpuclock_store(struct kobject *kobj, struct attribute *attr,
+		     const char *buf, size_t count)
+{
+	struct acpuclock_attr *fattr = acpuclock_to_attr(attr);
+	ssize_t ret = -EINVAL;
+	//printk(KERN_DEBUG "acpuclock: %s: %s\n", __func__, buf);
+	if (fattr->store) {
+		ret = fattr->store(buf, count);
+	}
+	else
+		ret = -EIO;
+	return ret;
+}
+
+static const struct sysfs_ops sysfs_ops = {
+	.show	= acpuclock_show,
+	.store	= acpuclock_store,
+};
+
+
+static struct kobj_type acpuclock_ktype = {
+	.sysfs_ops = &sysfs_ops,
+	.default_attrs = attrs,
+};
+
+struct kobject acpuclock_kobj;
+
+/* initcall stuff */
+static int __init init_acpuclock_sysfs(void)
+{
+	int ret = 0;
+	struct kobject *kobj = &acpuclock_kobj;
+	ret = kobject_init_and_add(kobj, &acpuclock_ktype,
+				   NULL, "dvfs");
+	return ret;
+}
+late_initcall(init_acpuclock_sysfs);
