@@ -31,6 +31,10 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/ondemand.h>
 
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+#include <../drivers/tempfreq/tempfreq.h>
+#endif
+
 /*
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
@@ -147,6 +151,9 @@ static struct dbs_tuners {
 	unsigned int sampling_down_factor;
 	int          powersave_bias;
 	unsigned int io_is_busy;
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	unsigned int ignore_bg;
+#endif
 } dbs_tuners_ins = {
 	.up_threshold_multi_core = DEF_FREQUENCY_UP_THRESHOLD,
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
@@ -158,6 +165,9 @@ static struct dbs_tuners {
 	.powersave_bias = 0,
 	.sync_freq = 0,
 	.optimal_freq = 0,
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	.ignore_bg = 0,
+#endif
 };
 
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
@@ -185,11 +195,28 @@ static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
 static inline cputime64_t get_cpu_idle_time(unsigned int cpu, cputime64_t *wall)
 {
 	u64 idle_time = get_cpu_idle_time_us(cpu, NULL);
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	unsigned int idle_ratio_before, idle_ratio_after;
+#endif
 
-	if (idle_time == -1ULL)
-		return get_cpu_idle_time_jiffy(cpu, wall);
-	else
+	if (idle_time == -1ULL) {
+		idle_time = get_cpu_idle_time_jiffy(cpu, wall);
+	}
+	else {
 		idle_time += get_cpu_iowait_time_us(cpu, wall);
+	}
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	if(dbs_tuners_ins.ignore_bg) {
+		idle_ratio_before = (unsigned int) div_u64((idle_time * 100), *wall);
+		idle_time += jiffies_to_usecs(kcpustat_cpu(cpu).cpustat[CPUTIME_BUSY_BG]);
+		//printk(KERN_DEBUG "ondemand: bg: %llu\n", jiffies_to_usecs(kcpustat_cpu(cpu).cpustat[CPUTIME_BUSY_BG]));
+		idle_ratio_after = (unsigned int) div_u64((idle_time * 100), *wall);
+		trace_bg_comparison(idle_ratio_before, idle_ratio_after);
+		if(idle_time > *wall) {
+			printk(KERN_DEBUG "ondemand: idle_time exceeds wall_time (%llu > %llu)\n", idle_time, *wall);
+		}
+	}
+#endif
 
 	return idle_time;
 }
@@ -322,6 +349,9 @@ show_one(ignore_nice_load, ignore_nice);
 show_one(optimal_freq, optimal_freq);
 show_one(up_threshold_any_cpu_load, up_threshold_any_cpu_load);
 show_one(sync_freq, sync_freq);
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+show_one(ignore_bg, ignore_bg);
+#endif
 
 static ssize_t show_powersave_bias
 (struct kobject *kobj, struct attribute *attr, char *buf)
@@ -685,6 +715,31 @@ skip_this_cpu_bypass:
 	return count;
 }
 
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+ssize_t show_ondemand_ignore_bg(char *buf)
+{
+	return sprintf(buf, "%u", dbs_tuners_ins.ignore_bg);
+}
+
+ssize_t set_ondemand_ignore_bg(const char *buf, size_t count)
+{
+	unsigned int old, input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+	old = dbs_tuners_ins.ignore_bg;
+	dbs_tuners_ins.ignore_bg = input;
+	trace_ignore_bg(old, input);
+	return count;
+}
+static ssize_t store_ignore_bg(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
+{
+	return set_ondemand_ignore_bg(buf, count);
+}
+#endif
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(io_is_busy);
 define_one_global_rw(up_threshold);
@@ -696,6 +751,9 @@ define_one_global_rw(up_threshold_multi_core);
 define_one_global_rw(optimal_freq);
 define_one_global_rw(up_threshold_any_cpu_load);
 define_one_global_rw(sync_freq);
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+define_one_global_rw(ignore_bg);
+#endif
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -710,6 +768,9 @@ static struct attribute *dbs_attributes[] = {
 	&optimal_freq.attr,
 	&up_threshold_any_cpu_load.attr,
 	&sync_freq.attr,
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	&ignore_bg.attr,
+#endif
 	NULL
 };
 

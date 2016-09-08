@@ -333,24 +333,26 @@ DEFINE_EVENT(power_domain, power_domain_target,
 
 TRACE_EVENT(cpufreq_scaling,
 
-	TP_PROTO(unsigned int min, unsigned int max, unsigned int cpu),
+	TP_PROTO(char *name, unsigned int min, unsigned int max, unsigned int cpu),
 
-	TP_ARGS(min, max, cpu),
+	TP_ARGS(name, min, max, cpu),
 
 	TP_STRUCT__entry(
+		__string(       name,           name            )
 		__field(	u32,		min		)
 		__field(	u32,		max		)
 		__field(	u32,		cpu		)
 	),
 
 	TP_fast_assign(
+		__assign_str(name, name);
 		__entry->min = min;
 		__entry->max = max;
 		__entry->cpu = cpu;
 	),
 
-	TP_printk("min=%u max=%u cpu=%u",
-		__entry->min, __entry->max, __entry->cpu)
+	TP_printk("name=%s min=%u max=%u cpu=%u",
+		__get_str(name), __entry->min, __entry->max, __entry->cpu)
 );
 
 

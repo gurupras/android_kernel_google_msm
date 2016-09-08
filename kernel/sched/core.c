@@ -77,6 +77,8 @@
 #include <asm/tlb.h>
 #include <asm/irq_regs.h>
 #include <asm/mutex.h>
+#include <linux/cgroup.h>
+
 #ifdef CONFIG_PARAVIRT
 #include <asm/paravirt.h>
 #endif
@@ -2688,6 +2690,11 @@ static inline void task_group_account_field(struct task_struct *p, int index,
 	 *
 	 */
 	__get_cpu_var(kernel_cpustat).cpustat[index] += tmp;
+#ifdef CONFIG_PHONELAB
+	if(is_background_task(p)) {
+		__get_cpu_var(kernel_cpustat).cpustat[CPUTIME_BUSY_BG] += tmp;
+	}
+#endif
 
 #ifdef CONFIG_CGROUP_CPUACCT
 	if (unlikely(!cpuacct_subsys.active))
@@ -7699,7 +7706,11 @@ int sched_rt_handler(struct ctl_table *table, int write,
 #ifdef CONFIG_CGROUP_SCHED
 
 /* return corresponding task_group object of a cgroup */
-static inline struct task_group *cgroup_tg(struct cgroup *cgrp)
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+#else
+static
+#endif
+inline struct task_group *cgroup_tg(struct cgroup *cgrp)
 {
 	return container_of(cgroup_subsys_state(cgrp, cpu_cgroup_subsys_id),
 			    struct task_group, css);
@@ -8076,6 +8087,63 @@ static u64 cpu_rt_period_read_uint(struct cgroup *cgrp, struct cftype *cft)
 }
 #endif /* CONFIG_RT_GROUP_SCHED */
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+static int cpu_tempfreq_thermal_cgroup_throttling_temp_write_uint(struct cgroup *cgrp,
+		struct cftype *cft, u64 val)
+{
+	struct task_group *tg = cgroup_tg(cgrp);
+	if (val >= 110 || val < 30)
+		return -EINVAL;
+
+	tg->tempfreq_thermal_cgroup_throttling_temp = (int) val;
+	tg->tempfreq_thermal_cgroup_unthrottling_temp = val - 5;
+
+	tempfreq_update_cgroup_map(cgrp, tg->tempfreq_thermal_cgroup_throttling_temp, tg->tempfreq_thermal_cgroup_unthrottling_temp);
+	return 0;
+}
+
+static u64 cpu_tempfreq_thermal_cgroup_throttling_temp_read_uint(struct cgroup *cgrp, struct cftype *cft)
+{
+	struct task_group *tg = cgroup_tg(cgrp);
+	return (u64) tg->tempfreq_thermal_cgroup_throttling_temp;
+}
+
+static int cpu_tempfreq_thermal_cgroup_unthrottling_temp_write_uint(struct cgroup *cgrp,
+		struct cftype *cft, u64 val)
+{
+	struct task_group *tg = cgroup_tg(cgrp);
+	if (val >= 110)
+		return -EINVAL;
+
+	tg->tempfreq_thermal_cgroup_unthrottling_temp = (int) val;
+	return 0;
+}
+
+static u64 cpu_tempfreq_thermal_cgroup_unthrottling_temp_read_uint(struct cgroup *cgrp, struct cftype *cft)
+{
+	struct task_group *tg = cgroup_tg(cgrp);
+	return (u64) tg->tempfreq_thermal_cgroup_unthrottling_temp;
+}
+
+static int cpu_tempfreq_thermal_cgroup_throttling_timeout_write_uint(struct cgroup *cgrp,
+		struct cftype *cft, u64 val)
+{
+	struct task_group *tg = cgroup_tg(cgrp);
+	if (val <= 0)
+		return -EINVAL;
+
+	tg->tempfreq_thermal_cgroup_throttling_timeout = val;
+	return 0;
+}
+
+static u64 cpu_tempfreq_thermal_cgroup_throttling_timeout_read_uint(struct cgroup *cgrp, struct cftype *cft)
+{
+	struct task_group *tg = cgroup_tg(cgrp);
+	return (u64) tg->tempfreq_thermal_cgroup_throttling_timeout;
+}
+
+#endif
+
 static struct cftype cpu_files[] = {
 	{
 		.name = "notify_on_migrate",
@@ -8115,6 +8183,23 @@ static struct cftype cpu_files[] = {
 		.name = "rt_period_us",
 		.read_u64 = cpu_rt_period_read_uint,
 		.write_u64 = cpu_rt_period_write_uint,
+	},
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+	{
+		.name = "tempfreq_thermal_cgroup_throttling_temp",
+		.read_u64 = cpu_tempfreq_thermal_cgroup_throttling_temp_read_uint,
+		.write_u64 = cpu_tempfreq_thermal_cgroup_throttling_temp_write_uint,
+	},
+	{
+		.name = "tempfreq_thermal_cgroup_unthrottling_temp",
+		.read_u64 = cpu_tempfreq_thermal_cgroup_unthrottling_temp_read_uint,
+		.write_u64 = cpu_tempfreq_thermal_cgroup_unthrottling_temp_write_uint,
+	},
+	{
+		.name = "tempfreq_thermal_cgroup_throttling_timeout",
+		.read_u64 = cpu_tempfreq_thermal_cgroup_throttling_timeout_read_uint,
+		.write_u64 = cpu_tempfreq_thermal_cgroup_throttling_timeout_write_uint,
 	},
 #endif
 };
@@ -8360,3 +8445,29 @@ struct cgroup_subsys cpuacct_subsys = {
 	.subsys_id = cpuacct_subsys_id,
 };
 #endif	/* CONFIG_CGROUP_CPUACCT */
+
+#ifdef CONFIG_PHONELAB
+inline
+int
+is_background_task(struct task_struct *task)
+{
+#ifdef CONFIG_CGROUPS
+	int bg_task = 0;
+	struct css_set *css;
+
+	// task->cgroups is RCU protected
+	rcu_read_lock();
+	css = rcu_dereference(task->cgroups);
+
+	if (likely(css)) {
+		if(likely(css->subsys[cpu_cgroup_subsys_id]->cgroup)) {
+			bg_task = cgroup_is_bg_task(css->subsys[cpu_cgroup_subsys_id]->cgroup);
+		}
+	}
+
+	rcu_read_unlock();
+	return bg_task;
+#endif
+	return 0;
+}
+#endif

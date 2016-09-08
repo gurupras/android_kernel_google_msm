@@ -125,30 +125,6 @@ add_task_cputime(struct task_cputime *old, struct task_cputime *delta, struct ta
 	res->sum_exec_runtime = old->sum_exec_runtime + delta->sum_exec_runtime;
 }
 
-static inline
-int
-is_background_task(struct task_struct *task)
-{
-#ifdef CONFIG_CGROUPS
-	int bg_task = 0;
-	struct css_set *css;
-
-	// task->cgroups is RCU protected
-	rcu_read_lock();
-	css = rcu_dereference(task->cgroups);
-
-	if (likely(css)) {
-		if(likely(css->subsys[cpu_cgroup_subsys_id]->cgroup)) {
-			bg_task = cgroup_is_bg_task(css->subsys[cpu_cgroup_subsys_id]->cgroup);
-		}
-	}
-
-	rcu_read_unlock();
-	return bg_task;
-#endif
-	return 0;
-}
-
 // Called on context_switch to update statistics for the task that just ran,
 // and initialize state for the task that's about to run.
 void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *next)
@@ -393,13 +369,13 @@ hotplug_handler(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	case CPU_DOWN_FAILED:
 	case CPU_DOWN_FAILED_FROZEN:
 		trace_phonelab_periodic_warning_cpu("notify_up", smp_processor_id());
-		printk(KERN_DEBUG "periodic: notify_up: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
+		//printk(KERN_DEBUG "periodic: notify_up: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
 		setup_periodic_work(cpu);
 		break;
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
 		trace_phonelab_periodic_warning_cpu("notify_down", smp_processor_id());
-		printk(KERN_DEBUG "periodic: notify_down: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
+		//printk(KERN_DEBUG "periodic: notify_down: cpu=%d smp_cpu=%d\n", cpu, smp_processor_id());
 		destroy_periodic_work(cpu);
 		break;
 	};

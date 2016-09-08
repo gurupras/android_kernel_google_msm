@@ -89,12 +89,18 @@ static struct dbs_tuners {
 	unsigned int down_threshold;
 	unsigned int ignore_nice;
 	unsigned int freq_step;
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	unsigned int ignore_bg;
+#endif
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
 	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
 	.freq_step = 5,
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	.ignore_bg = 1,
+#endif
 };
 
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
@@ -128,6 +134,15 @@ static inline cputime64_t get_cpu_idle_time(unsigned int cpu, cputime64_t *wall)
 	else
 		idle_time += get_cpu_iowait_time_us(cpu, wall);
 
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	if(dbs_tuners_ins.ignore_bg) {
+		idle_time += jiffies_to_usecs(kcpustat_cpu(cpu).cpustat[CPUTIME_BUSY_BG]);
+		//printk(KERN_DEBUG "conservative: bg: %llu\n", jiffies_to_usecs(kcpustat_cpu(cpu).cpustat[CPUTIME_BUSY_BG]));
+		if(idle_time > *wall) {
+			printk(KERN_DEBUG "conservative: idle_time exceeds wall_time (%llu > %llu)\n", idle_time, *wall);
+		}
+	}
+#endif
 	return idle_time;
 }
 
@@ -185,6 +200,10 @@ show_one(up_threshold, up_threshold);
 show_one(down_threshold, down_threshold);
 show_one(ignore_nice_load, ignore_nice);
 show_one(freq_step, freq_step);
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+show_one(ignore_bg, ignore_bg);
+#endif
+
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -297,12 +316,31 @@ static ssize_t store_freq_step(struct kobject *a, struct attribute *b,
 	return count;
 }
 
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+static ssize_t store_ignore_bg(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
+{
+	unsigned int old, input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+	old = dbs_tuners_ins.ignore_bg;
+	dbs_tuners_ins.ignore_bg = input;
+	//trace_ignore_bg(old, input);
+	return count;
+}
+#endif
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_down_factor);
 define_one_global_rw(up_threshold);
 define_one_global_rw(down_threshold);
 define_one_global_rw(ignore_nice_load);
 define_one_global_rw(freq_step);
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+define_one_global_rw(ignore_bg);
+#endif
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -312,6 +350,9 @@ static struct attribute *dbs_attributes[] = {
 	&down_threshold.attr,
 	&ignore_nice_load.attr,
 	&freq_step.attr,
+#ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
+	&ignore_bg.attr,
+#endif
 	NULL
 };
 
