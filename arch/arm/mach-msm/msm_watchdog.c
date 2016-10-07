@@ -68,7 +68,7 @@ module_param(enable, int, 0);
  * Watchdog bark reboot timeout in seconds.
  * Can be specified in kernel command line.
  */
-static int reboot_bark_timeout = 22;
+static int reboot_bark_timeout = 600;
 module_param(reboot_bark_timeout, int, 0644);
 /*
  * If the watchdog is enabled at bootup (enable=1),
@@ -428,6 +428,7 @@ static int msm_watchdog_probe(struct platform_device *pdev)
 	}
 
 	bark_time = pdata->bark_time;
+	bark_time = (reboot_bark_timeout * MSEC_PER_SEC) - 1000;
 	/* reboot_bark_timeout (in seconds) might have been supplied as
 	 * module parameter.
 	 */

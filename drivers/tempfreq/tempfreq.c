@@ -9,6 +9,8 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/cpu.h>
+#include <linux/sched.h>
+#include <linux/cpumask.h>
 #include <linux/completion.h>
 #include <linux/mutex.h>
 #include <linux/syscore_ops.h>
@@ -29,7 +31,7 @@
 #include <linux/rq_stats.h>
 #endif
 
-static int phonelab_tempfreq_enable = 1;
+static int phonelab_tempfreq_enable = 0;
 
 static DEFINE_MUTEX(phone_state_mutex);
 static DEFINE_MUTEX(thermal_callback_mutex);
@@ -1248,6 +1250,46 @@ static ssize_t store_ignore_bg(const char *_buf, size_t count)
 }
 #endif
 
+static int phonelab_tempfreq_idle_test;
+static ssize_t store_idle_test(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+
+	int cpu;
+	struct task_struct *idle_task = NULL;
+	struct rq *rq;
+	struct sched_param sp;
+	sp.sched_priority = 90;
+
+	(void) phonelab_tempfreq_idle_test;
+
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+
+	switch(val) {
+	case 0:
+		sp.sched_priority = 0;
+		for_each_possible_cpu(cpu) {
+			rq = cpu_rq(cpu);
+			idle_task = rq->idle;
+			sched_setscheduler(idle_task, SCHED_IDLE, &sp);
+		}
+		break;
+	case 1:
+		for_each_possible_cpu(cpu) {
+			rq = cpu_rq(cpu);
+			idle_task = rq->idle;
+			sched_setscheduler(idle_task, SCHED_FIFO, &sp);
+		}
+		break;
+	}
+	phonelab_tempfreq_idle_test = val;
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
 
 tempfreq_attr_rw(enable);
 tempfreq_attr_plain_ro(cur_phone_state);
@@ -1274,6 +1316,7 @@ tempfreq_attr_rw(hotplug_epochs_up);
 tempfreq_attr_rw(hotplug_epochs_down);
 #endif
 
+tempfreq_attr_rw(idle_test);
 #ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
 tempfreq_attr_plain_rw(ignore_bg);
 #endif
@@ -1311,6 +1354,7 @@ static struct attribute *attrs[] = {
 #ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
 	&ignore_bg.attr,
 #endif
+	&idle_test.attr,
 	NULL
 };
 

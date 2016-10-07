@@ -37,8 +37,8 @@
 #define WDT0_RST	0x04
 #define WDT0_EN		0x08
 #define WDT0_STS	0x0C
-#define WDT0_BARK_TIME	0x10
-#define WDT0_BITE_TIME	0x14
+#define WDT0_BARK_TIME	0xFE
+#define WDT0_BITE_TIME	0xFF
 
 #define MASK_SIZE		32
 #define SCM_SET_REGSAVE_CMD	0x2
@@ -139,6 +139,7 @@ static int panic_wdog_handler(struct notifier_block *this,
 {
 	struct msm_watchdog_data *wdog_dd = container_of(this,
 				struct msm_watchdog_data, panic_blk);
+	panic_timeout = 600;
 	if (panic_timeout == 0) {
 		__raw_writel(0, wdog_dd->base + WDT0_EN);
 		mb();
