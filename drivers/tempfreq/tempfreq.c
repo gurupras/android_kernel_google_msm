@@ -1260,7 +1260,7 @@ static ssize_t store_idle_test(const char *_buf, size_t count)
 	struct task_struct *idle_task = NULL;
 	struct rq *rq;
 	struct sched_param sp;
-	sp.sched_priority = 90;
+	sp.sched_priority = 99;
 
 	(void) phonelab_tempfreq_idle_test;
 
