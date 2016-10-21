@@ -417,4 +417,22 @@ void cpufreq_frequency_table_get_attr(struct cpufreq_frequency_table *table,
 void cpufreq_frequency_table_put_attr(unsigned int cpu);
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+struct cpu_state {
+	int cur_freq;
+	unsigned int cpuid:5;
+	unsigned int cur_idx:4;
+	unsigned int cur_max_idx:4;
+	unsigned int enabled:1;
+	char governor[CPUFREQ_NAME_LEN];
+};
+
+struct phone_state {
+	int ncpus;
+	struct cpu_state **cpu_states;
+};
+
+extern struct phone_state *phone_state;
+#endif
+
 #endif /* _LINUX_CPUFREQ_H */

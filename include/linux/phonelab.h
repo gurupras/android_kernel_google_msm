@@ -79,4 +79,71 @@ u32 __init armv7_read_num_pmnc_events(void);
 void armv7_pmnc_write(u32 val);
 u32 armv7_pmnc_read(void);
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+void phonelab_update_task_net_stats(struct pid *pid, u32 rx, u32 tx);
+#endif
+
+// Enum for phonelab PM tracing
+enum {
+	PHONELAB_PM_SUSPEND_ENTRY,
+	PHONELAB_PM_SUSPEND_EXIT,
+};
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+struct cgroup;
+void __set_to_string(int set, char buf[10]);
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
+extern int phonelab_tempfreq_binary_threshold_temp;
+extern int phonelab_tempfreq_binary_critical;
+extern int phonelab_tempfreq_binary_lower_threshold;
+extern int phonelab_tempfreq_binary_short_epochs;
+extern int phonelab_tempfreq_binary_short_diff_limit;
+extern int phonelab_tempfreq_binary_long_epochs;
+extern int phonelab_tempfreq_binary_long_diff_limit;
+extern int phonelab_tempfreq_binary_jump_lower;
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+#define CGROUP_MAP_MAX		10
+struct cgroup_entry {
+	int cur_idx;
+	struct cgroup *cgroup;
+	int throttling_temp;
+	int unthrottling_temp;
+	u64 cpu_shares;
+	u64 throttle_time;
+	int state;
+};
+
+struct cgroup_map {
+	int cur_idx;
+	struct cgroup_entry entries[CGROUP_MAP_MAX];
+};
+int tempfreq_update_cgroup_map(struct cgroup *cgrp, int throttling_temp, int unthrottling_temp);
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING */
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
+enum {
+	HOTPLUG_UNKNOWN_NEXT = 0,
+	HOTPLUG_INCREASE_NEXT,
+	HOTPLUG_DECREASE_NEXT
+};
+
+struct hotplug_state {
+	int elapsed_epochs;
+	int next_state;
+};
+
+#endif	/* CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER */
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+extern const char *HOTPLUG_STATE_STR[];
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+struct task_group *cgroup_tg(struct cgroup *cgrp);
+#endif
+
 #endif	/* __PHONELAB__H_ */

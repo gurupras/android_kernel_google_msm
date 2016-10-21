@@ -1266,6 +1266,9 @@ enum perf_event_task_context {
 
 struct task_struct {
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_BG_THROTTLING
+	int throttle_state;
+#endif
 	void *stack;
 	atomic_t usage;
 	unsigned int flags;	/* per process flags, defined below */
