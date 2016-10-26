@@ -24,6 +24,9 @@
 #endif
 
 #include "tempfreq.h"
+#ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
+#include "netlink.h"
+#endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
 #include <linux/rq_stats.h>
@@ -1290,6 +1293,9 @@ static struct attribute *attrs[] = {
 	&binary_long_epochs.attr,
 	&binary_long_diff_limit.attr,
 	&binary_jump_lower.attr,
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
+	&netlink_cmd_test.attr,
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	&mpdecision_coexist_enable.attr,

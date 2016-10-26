@@ -12,6 +12,7 @@ struct netlink_cmd {
 	char args[24];
 };
 
+extern struct tempfreq_attr netlink_cmd_test;
 
 extern struct sock *netlink_sk;
 void netlink_send(struct netlink_cmd *cmd);

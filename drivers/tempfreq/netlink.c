@@ -136,3 +136,43 @@ void netlink_send(struct netlink_cmd *cmd)
 		//printk(KERN_DEBUG "tempfreq: %s: Successfully sent len=%d '%s'\n", __func__, len, msg);
 	}
 }
+
+/* sysfs */
+static int phonelab_tempfreq_netlink_cmd_test;
+static ssize_t store_netlink_cmd_test(const char *_buf, size_t count)
+{
+	struct netlink_cmd cmd;
+	int err;
+
+	/* Format is cmd args */
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	char *tmp = buf;
+	char *command, *args;
+
+	memset(&cmd, 0, sizeof(struct netlink_cmd));
+
+	command = strsep(&tmp, " ");
+	if(!command || strlen(command) > 16) {
+		err = -EINVAL;
+		goto out;
+	}
+	args = strsep(&tmp, " ");
+	if(!args) {
+		args = "";
+	}
+
+	cmd.cmd_len = strlen(command);
+	strncpy(cmd.cmd, command, 16);
+
+	cmd.args_len = strlen(args);
+	strncpy(cmd.args, args, 24);
+
+	netlink_send(&cmd);
+
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
+export_tempfreq_attr_rw(netlink_cmd_test);
+
