@@ -5,8 +5,14 @@
 
 struct sk_buff;
 
+struct netlink_cmd {
+	char cmd[16];
+	char args[24];
+};
+
+
 extern struct sock *netlink_sk;
-void netlink_send(char *msg);
+void netlink_send(struct netlink_cmd *cmd);
 void netlink_recv(struct sk_buff *skb);
 
 #endif	/* __TEMPFREQ_NETLINK_H_ */

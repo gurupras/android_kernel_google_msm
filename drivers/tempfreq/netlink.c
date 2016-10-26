@@ -22,6 +22,7 @@
 #include <linux/phonelab.h>
 
 #include "tempfreq.h"
+#include "netlink.h"
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
 struct sock *netlink_sk = NULL;
@@ -86,12 +87,12 @@ void netlink_recv(struct sk_buff *skb)
 	kfree(payload);
 }
 
-void netlink_send(char *msg)
+void netlink_send(struct netlink_cmd *cmd)
 {
 	struct sk_buff *skb;
 	struct nlmsghdr *nlh;
 	int extra_hdr_len = sizeof(int);
-	int real_msg_len = strlen(msg);
+	int real_msg_len = sizeof(struct netlink_cmd);
 	int len = extra_hdr_len + NLMSG_SPACE(real_msg_len);
 	int skblen = NLMSG_SPACE(len);
 	int ret;
@@ -120,7 +121,7 @@ void netlink_send(char *msg)
 	*/
 	memset(NLMSG_DATA(nlh), 0, len);
 	memcpy(NLMSG_DATA(nlh), &real_msg_len, extra_hdr_len);
-	strncpy(NLMSG_DATA(nlh) + extra_hdr_len, msg, strlen(msg));
+	memcpy(NLMSG_DATA(nlh) + extra_hdr_len, cmd, sizeof(struct netlink_cmd));
 	NETLINK_CB(skb).pid = 0;
 	NETLINK_CB(skb).dst_group = 0;
 

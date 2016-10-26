@@ -33,6 +33,8 @@ int phonelab_tempfreq_mpdecision_coexist_cpu = 0;
 
 static DEFINE_MUTEX(mpdecision_coexist_mutex);
 
+static void mpdecision_netlink_send(char *val);
+
 void start_bg_core_control(void);
 void stop_bg_core_control(void);
 
@@ -91,7 +93,7 @@ inline __cpuinit void start_bg_core_control(void)
 	policy->max = 960000;
 	trace_tempfreq_mpdecision_blocked(1);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
-	netlink_send("1");
+	mpdecision_netlink_send("1");
 #else
 	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
 #endif
@@ -121,7 +123,7 @@ inline void stop_bg_core_control(void)
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	// We wait for userspace to inform us that it has set up everything else
 	// Once that's done, the netlink recv() call will update state
-	netlink_send("0");
+	mpdecision_netlink_send("0");
 #else
 	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
 #endif
@@ -134,6 +136,14 @@ out:
 
 
 
+static void mpdecision_netlink_send(char *val)
+{
+	// We need to create a netlink_cmd and send it up
+	struct netlink_cmd cmd;
+	strncpy(cmd.cmd, "mpdecision", 16);
+	strncpy(cmd.args, val, 24);
+	netlink_send(&cmd);
+}
 
 /* sysfs hooks */
 static ssize_t store_mpdecision_coexist_enable(const char *_buf, size_t count)
@@ -170,7 +180,7 @@ static ssize_t store_mpdecision_coexist_nl_send(const char *_buf, size_t count)
 	strncpy(buf, _buf, count);
 	strcpy(buf, strstrip(buf));
 
-	netlink_send(buf);
+	mpdecision_netlink_send(buf);
 	return count;
 }
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK */

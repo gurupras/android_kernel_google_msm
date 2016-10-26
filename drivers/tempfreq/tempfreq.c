@@ -29,7 +29,7 @@
 #include <linux/rq_stats.h>
 #endif
 
-static int phonelab_tempfreq_enable = 1;
+static int phonelab_tempfreq_enable = 0;
 
 static DEFINE_MUTEX(phone_state_mutex);
 static DEFINE_MUTEX(thermal_callback_mutex);
