@@ -78,6 +78,13 @@ config PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
 	  The binary mode thresholds are modified to different values
 	  when the screen is switched off.
 
+config PHONELAB_TEMPFREQ_NETLINK
+	bool "Enable netlink communication with userspace binary"
+	help
+	  Allow tempfreq to communicate with a userspace binary that allows
+	  tasks that are complex to perform in the kernel be carried out
+	  by the userspace binary.
+
 config PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	depends on PHONELAB_TEMPFREQ_BINARY_MODE
 	select PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER
@@ -90,6 +97,7 @@ config PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 
 config PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	depends on PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	depends on PHONELAB_TEMPFREQ_NETLINK
 	bool "Use Netlink sockets to communicate with userspace"
 	help
 	  Use netlink sockets to perform bi-directional communication with
