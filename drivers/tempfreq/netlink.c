@@ -94,6 +94,13 @@ void netlink_send(struct netlink_cmd *cmd)
 	int skblen = NLMSG_SPACE(len);
 	int ret;
 
+	printk(KERN_DEBUG "tempfreq: %s: Sending: %d-%s-%d-%s to userspace\n",
+			__func__,
+			cmd->cmd_len,
+			cmd->cmd,
+			cmd->args_len,
+			cmd->args);
+
 	if(netlink_sk == NULL) {
 		printk(KERN_ERR "tempfreq: %s: Netlink socket not registered\n", __func__);
 		return;
