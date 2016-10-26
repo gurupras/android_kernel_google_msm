@@ -24,11 +24,8 @@
 #include "tempfreq.h"
 #include "netlink.h"
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
 struct sock *netlink_sk = NULL;
-#endif
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
 static int userspace_pid = -1;
 
 void netlink_recv(struct sk_buff *skb)
@@ -132,4 +129,3 @@ void netlink_send(struct netlink_cmd *cmd)
 		//printk(KERN_DEBUG "tempfreq: %s: Successfully sent len=%d '%s'\n", __func__, len, msg);
 	}
 }
-#endif
