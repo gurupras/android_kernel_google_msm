@@ -94,12 +94,14 @@ void netlink_send(struct netlink_cmd *cmd)
 	int skblen = NLMSG_SPACE(len);
 	int ret;
 
-	printk(KERN_DEBUG "tempfreq: %s: Sending: %d-%s-%d-%s to userspace\n",
+	printk(KERN_DEBUG "tempfreq: %s: Sending: %d-%s-%d-%s (tot:%d) (msg:%d) to userspace\n",
 			__func__,
 			cmd->cmd_len,
 			cmd->cmd,
 			cmd->args_len,
-			cmd->args);
+			cmd->args,
+			len,
+			real_msg_len);
 
 	if(netlink_sk == NULL) {
 		printk(KERN_ERR "tempfreq: %s: Netlink socket not registered\n", __func__);
@@ -146,7 +148,8 @@ static ssize_t store_netlink_cmd_test(const char *_buf, size_t count)
 
 	/* Format is cmd args */
 	char *buf = kstrdup(_buf, GFP_KERNEL);
-	char *tmp = buf;
+	char *stripped = strstrip(buf);
+	char *tmp = stripped;
 	char *command, *args;
 
 	memset(&cmd, 0, sizeof(struct netlink_cmd));
