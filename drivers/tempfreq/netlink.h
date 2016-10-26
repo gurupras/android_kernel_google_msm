@@ -6,7 +6,9 @@
 struct sk_buff;
 
 struct netlink_cmd {
+	int cmd_len;
 	char cmd[16];
+	int args_len;
 	char args[24];
 };
 

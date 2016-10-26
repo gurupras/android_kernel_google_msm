@@ -140,7 +140,12 @@ static void mpdecision_netlink_send(char *val)
 {
 	// We need to create a netlink_cmd and send it up
 	struct netlink_cmd cmd;
+	char *_cmd = "mpdecision";
+
+	cmd.cmd_len = strlen(_cmd);
 	strncpy(cmd.cmd, "mpdecision", 16);
+
+	cmd.args_len = strlen(val);
 	strncpy(cmd.args, val, 24);
 	netlink_send(&cmd);
 }
