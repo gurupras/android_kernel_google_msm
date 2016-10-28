@@ -159,7 +159,7 @@ static ssize_t store_netlink_cmd_test(const char *_buf, size_t count)
 		err = -EINVAL;
 		goto out;
 	}
-	args = strsep(&tmp, " ");
+	args = tmp;
 	if(!args) {
 		args = "";
 	}
