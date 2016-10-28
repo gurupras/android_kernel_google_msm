@@ -68,6 +68,8 @@
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ
 #include <../drivers/tempfreq/tempfreq.h>
+#include <../kernel/sched/sched.h>
+#include <linux/phonelab.h>
 #endif
 
 /*
@@ -3903,6 +3905,7 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 	int found = 0;
 	extern struct cgroup *fg_bg, *bg_non_interactive, *delay_tolerant;
 	extern struct cgroup *cs_fg_bg, *cs_bg_non_interactive, *cs_delay_tolerant;
+	struct task_group *tg;
 #endif
 	cgrp = kzalloc(sizeof(*cgrp), GFP_KERNEL);
 	if (!cgrp)
@@ -3983,6 +3986,12 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 		found = 1;
 	} else if(strcmp("delay_tolerant", dentry->d_name.name) == 0) {
 		delay_tolerant = cgrp;
+		// Delay tolerant tasks __never__ run
+		// This cgroup is a dead cgroup that gets no CPU shares
+		// Instead, tasks in this cgroup have individual countdowns
+		// which, when expired moves them to FG/BG/FG_BG cgroups
+		tg = cgroup_tg(cgrp);
+		tg->shares = scale_load(0);
 		found = 1;
 	} else if(strcmp("cs_bg_non_interactive", dentry->d_name.name) == 0) {
 		cs_bg_non_interactive = cgrp;
