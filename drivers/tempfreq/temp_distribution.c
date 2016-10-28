@@ -225,12 +225,14 @@ static int __init init_temp_distribution_callback(void)
 	return 0;
 }
 
+#define MSEC_PER_HOUR (60 * 60 * MSEC_PER_SEC)
+
 static int __init init_temp_distribution(void)
 {
 	// Initialize state before callbacks
 	//init_temp_list(&short_temp_list, 15 * MSEC_PER_SEC);
-	init_temp_list(&short_temp_list, 2 * 60 * 60 * MSEC_PER_SEC);
-	init_temp_list(&long_temp_list, 24 * 60 * 60 * MSEC_PER_SEC);
+	init_temp_list(&short_temp_list, 2 * MSEC_PER_HOUR);
+	init_temp_list(&long_temp_list, 24 * MSEC_PER_HOUR);
 	// Callbacks
 	init_temp_distribution_callback();
 	return 0;
@@ -286,9 +288,35 @@ __ATTR(name##_duration, 0644, show_##name##_duration, store_##name##_duration)
 list_sysfs_hooks(short_temp_list);
 list_sysfs_hooks(long_temp_list);
 
+static ssize_t show_short_term_list(char *buf)
+{
+	int offset = 0;
+	struct temp *entry, *tmp;
+	list_for_each_entry_safe(entry, tmp, &short_temp_list->list, list) {
+		offset += sprintf(buf + offset, "%d ", entry->temp);
+	}
+	return offset;
+}
+
+static ssize_t show_long_term_list(char *buf)
+{
+	int offset = 0;
+	struct temp *entry, *tmp;
+	list_for_each_entry_safe(entry, tmp, &long_temp_list->list, list) {
+		offset += sprintf(buf + offset, "%d ", entry->temp);
+	}
+	return offset;
+}
+
+tempfreq_attr_plain_ro(short_term_list);
+tempfreq_attr_plain_ro(long_term_list);
+
+
 static struct attribute *attrs[] = {
 	&short_temp_list_sysfs.attr,
 	&long_temp_list_sysfs.attr,
+	&short_term_list.attr,
+	&long_term_list.attr,
 	NULL
 };
 
