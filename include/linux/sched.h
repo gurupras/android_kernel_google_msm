@@ -1627,6 +1627,11 @@ struct task_struct {
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
 	u32 is_logged[4];
 #endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	u64 delay_tolerance_ms;
+	s64 remaining_delay_ms;
+	u64 delay_tolerance_start_ns;
+#endif
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */

@@ -395,6 +395,12 @@ done:
 		struct cgroup_entry *entry = &cgroup_map.entries[i];
 		thermal_cgroup_throttling_update_cgroup_entry(entry, temp);
 	}
+	// Now handle delay_tolerant cgroup
+	countdown_delay_tolerant_tick++;
+	if(countdown_delay_tolerant_tick == tempfreq_thermal_periods_per_sec) {
+		countdown_delay_tolerant_tick = 0;
+		countdown_delay_tolerant_timers();
+	}
 #endif
 	(void) ret;
 out:

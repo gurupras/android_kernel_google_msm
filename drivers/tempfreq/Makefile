@@ -3,5 +3,5 @@ ccflags-y += -DDEBUG
 obj-$(CONFIG_PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER) += autosmp.o
 obj-$(CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST) += mpdecision_coexist.o
 obj-$(CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND) += cgroup_cpuset_bind.o
-obj-$(CONFIG_PHONELAB_TEMPFREQ_NETLINK) += netlink.o
+obj-$(CONFIG_PHONELAB_TEMPFREQ_NETLINK) += netlink.o delay_tolerant.o
 
