@@ -32,7 +32,11 @@
 #include <linux/rq_stats.h>
 #endif
 
-static int phonelab_tempfreq_enable = 0;
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+#include "delay_tolerant.h"
+#endif
+
+static int phonelab_tempfreq_enable = 1;
 
 static DEFINE_MUTEX(phone_state_mutex);
 static DEFINE_MUTEX(thermal_callback_mutex);
@@ -59,6 +63,11 @@ void update_phone_state(int cpu, int enabled)
 {
 	phone_state->cpu_states[cpu]->enabled = enabled;
 }
+
+#ifndef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK
+static int tempfreq_thermal_period_ms = 100;
+static int tempfreq_thermal_periods_per_sec = 10;
+#endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 int phonelab_tempfreq_binary_threshold_temp	= 70;
@@ -186,6 +195,9 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	int op;
 	int reason_int = -1;
 	const char *reason_str;
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+	static int countdown_delay_tolerant_tick = 0;
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	static int mpdecision_up_cycles = 0, mpdecision_down_cycles = 0;
@@ -1483,7 +1495,7 @@ static void __cpuinit tempfreq_thermal_work_fn(struct work_struct *work)
 	}
 	tempfreq_thermal_callback(NULL, 0, &temp);
 out:
-	schedule_delayed_work_on(0, &tempfreq_thermal_work, msecs_to_jiffies(100));
+	schedule_delayed_work_on(0, &tempfreq_thermal_work, msecs_to_jiffies(tempfreq_thermal_period_ms));
 
 }
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK */
