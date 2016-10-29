@@ -63,3 +63,11 @@ static void copy_fn(struct work_struct *work)
 DECLARE_WORK(bind_copy_work, copy_fn);
 
 
+// delay tolerant cpuset gets no CPUs
+static int __init init_make_delay_tolerant_dead(void)
+{
+	return 0;
+}
+late_initcall(init_make_delay_tolerant_dead);
+
+

@@ -7,9 +7,9 @@ struct sk_buff;
 
 struct netlink_cmd {
 	int cmd_len;
-	char cmd[16];
+	char cmd[24];
 	int args_len;
-	char args[24];
+	char args[36];
 };
 
 extern struct tempfreq_attr netlink_cmd_test;
