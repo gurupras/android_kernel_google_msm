@@ -3026,9 +3026,9 @@ static ssize_t delay_tolerance_write(struct file *file, const char __user *buf,
 	task->delay_tolerance_ms = duration_ms;
 	task->remaining_delay_ms = duration_ms;
 	task->delay_tolerance_start_ms = time_since_epoch_ms();
-	make_delay_tolerant(task);
 	task_unlock(task);
 	put_task_struct(task);
+	make_delay_tolerant(task);
 out:
 	return err < 0 ? err : count;
 }

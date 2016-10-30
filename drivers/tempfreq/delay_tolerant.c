@@ -75,6 +75,9 @@ static void __make_delay_tolerant(struct work_struct *work) {
 	move_to_cgroup_netlink_cmd(tsk->pid, "delay_tolerant", true);
 
 	// Attempt to make the task unschedulable
+	__set_current_state(TASK_INTERRUPTIBLE);
+	schedule_timeout(MAX_SCHEDULE_TIMEOUT);
+
 //	read_lock(&tasklist_lock);
 //	__set_current_state(TASK_UNINTERRUPTIBLE);
 //	schedule();
@@ -82,7 +85,7 @@ static void __make_delay_tolerant(struct work_struct *work) {
 //	smp_call_function(dequeue_task_from_cpu_rq, tsk, 1);
 	(void) dequeue_task_from_cpu_rq;
 	(void) enqueue_task_from_cpu_rq;
-	deactivate_task(task_rq(tsk), tsk, 0);	// Crashes the kernel
+//	deactivate_task(task_rq(tsk), tsk, 0);	// Crashes the kernel
 //	resched_cpu(task_cpu(tsk));
 }
 
@@ -97,8 +100,8 @@ early_initcall(init_make_dt_work);
 void make_delay_tolerant(struct task_struct *tsk)
 {
 	make_dt_work.tsk = tsk;
-	schedule_work(&make_dt_work.work);
-//	__make_delay_tolerant(&make_dt_work.work);
+//	schedule_work(&make_dt_work.work);
+	__make_delay_tolerant(&make_dt_work.work);
 }
 
 
@@ -150,9 +153,10 @@ void countdown_delay_tolerant_timers(void)
 				// Move to bg_non_interactive cgroup
 				sprintf(cgrp_name, "bg_non_interactive");
 			}
-			read_lock(&tasklist_lock);
-			set_task_state(tsk, TASK_INTERRUPTIBLE);
-			read_unlock(&tasklist_lock);
+//			read_lock(&tasklist_lock);
+//			set_task_state(tsk, TASK_INTERRUPTIBLE);
+//			read_unlock(&tasklist_lock);
+			wake_up_process(tsk);
 			//smp_call_function_single(0, enqueue_task_from_cpu_rq, tsk, 1);
 //			activate_task(task_rq(tsk), tsk, 0);
 			move_to_cgroup_netlink_cmd(tsk->pid, cgrp_name, 1);
