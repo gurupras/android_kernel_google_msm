@@ -380,6 +380,12 @@ done:
 		trace_tempfreq_binary_diff(temp, prev_temp, cpu, freq, is_increase, binary_freq, reason_str);
 		// Write new values
 		policy = cpufreq_cpu_get(cpu);
+		if(policy == NULL) {
+			printk(KERN_ERR "tempfreq: %s: policy was NULL for CPU-%d when attempting to set binary_freq(%d)\n",
+					__func__,
+					cpu,
+					binary_freq);
+		}
 		policy->max = binary_freq;
 		cpufreq_cpu_put(policy);
 		cs->cur_max_idx = get_frequency_index(binary_freq);
