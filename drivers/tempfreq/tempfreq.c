@@ -385,6 +385,7 @@ done:
 					__func__,
 					cpu,
 					binary_freq);
+			goto out;
 		}
 		policy->max = binary_freq;
 		cpufreq_cpu_put(policy);
