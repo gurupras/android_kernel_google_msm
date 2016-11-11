@@ -211,6 +211,8 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	u64 ns = sched_clock();
 #endif
 	thermal_callback_lock();
+	// Log tempfreq_temp regardless
+	trace_tempfreq_temp(temp);
 	if(!phonelab_tempfreq_enable) {
 		goto out;
 	}
@@ -224,7 +226,6 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 
 	// Handle
 //	printk(KERN_DEBUG "tempfreq: Callback!\n");
-	trace_tempfreq_temp(temp);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	short_epochs_counted++;
 	long_epochs_counted++;
