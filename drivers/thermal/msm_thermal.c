@@ -988,6 +988,12 @@ inline int get_temp(long *temp)
 	ret = tsens_get_temp(&tsens_dev, temp);
 	return ret;
 }
+
+inline int set_new_core_control_temp(long temp) {
+	msm_thermal_info.core_limit_temp_degC = temp;
+	printk(KERN_DEBUG "tempfreq: core_limit_temp_degC: %d\n", msm_thermal_info.core_limit_temp_degC);
+	return 0;
+}
 #endif
 
 static void __ref check_temp(struct work_struct *work)

@@ -80,6 +80,7 @@ int phonelab_tempfreq_binary_short_diff_limit	= 3;
 
 int phonelab_tempfreq_binary_long_epochs	= 5;
 int phonelab_tempfreq_binary_long_diff_limit	= 2;
+int phonelab_tempfreq_simulate_tengine_params = 0;
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
@@ -1276,8 +1277,40 @@ static ssize_t store_ignore_bg(const char *_buf, size_t count)
 }
 #endif
 
+static ssize_t store_simulate_tengine_params(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+	switch(val) {
+	case 0:
+		phonelab_tempfreq_simulate_tengine_params = 0;
+		set_new_core_control_temp(80);
+		phonelab_tempfreq_binary_lower_threshold = 65;
+		phonelab_tempfreq_binary_threshold_temp = 70;
+		phonelab_tempfreq_binary_critical = 75;
+		break;
+	case 1:
+		phonelab_tempfreq_simulate_tengine_params = 1;
+		set_new_core_control_temp(85);
+		phonelab_tempfreq_binary_lower_threshold = 70;
+		phonelab_tempfreq_binary_threshold_temp = 75;
+		phonelab_tempfreq_binary_critical = 80;
+		break;
+	default:
+		err = -EINVAL;
+		break;
+	}
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
 
 tempfreq_attr_rw(enable);
+tempfreq_attr_rw(simulate_tengine_params);
 tempfreq_attr_plain_ro(cur_phone_state);
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
@@ -1318,6 +1351,7 @@ static struct attribute *attrs[] = {
 	&binary_long_epochs.attr,
 	&binary_long_diff_limit.attr,
 	&binary_jump_lower.attr,
+	&simulate_tengine_params.attr,
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
 	&netlink_cmd_test.attr,
