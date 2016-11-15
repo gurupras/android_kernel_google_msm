@@ -995,6 +995,26 @@ static ssize_t show_cur_phone_state(char *buf)
 	return offset;
 }
 
+static ssize_t store_period_ms(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+	if(val < 0) {
+		err = -EINVAL;
+		goto out;
+	} else {
+		phonelab_tempfreq_period_ms = val;
+		tempfreq_periods_per_sec = 1000 / val;
+	}
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 static ssize_t store_binary_threshold_temp(const char *_buf, size_t count)
 {
@@ -1285,6 +1305,10 @@ static ssize_t store_simulate_tengine_params(const char *_buf, size_t count)
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if (err)
 		goto out;
+
+	printk(KERN_DEBUG "tempfreq: simulate_tengine_params=%d\n", val);
+
+	thermal_callback_lock();
 	switch(val) {
 	case 0:
 		phonelab_tempfreq_simulate_tengine_params = 0;
@@ -1295,16 +1319,17 @@ static ssize_t store_simulate_tengine_params(const char *_buf, size_t count)
 		break;
 	case 1:
 		phonelab_tempfreq_simulate_tengine_params = 1;
-		set_new_core_control_temp(85);
+		set_new_core_control_temp(90);
 		phonelab_tempfreq_binary_lower_threshold = 70;
-		phonelab_tempfreq_binary_threshold_temp = 75;
-		phonelab_tempfreq_binary_critical = 80;
+		phonelab_tempfreq_binary_threshold_temp = 77;
+		phonelab_tempfreq_binary_critical = 85;
 		break;
 	default:
 		err = -EINVAL;
 		break;
 	}
 out:
+	thermal_callback_unlock();
 	kfree(buf);
 	return err != 0 ? err : count;
 }
