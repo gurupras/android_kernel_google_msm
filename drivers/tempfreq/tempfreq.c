@@ -65,8 +65,8 @@ void update_phone_state(int cpu, int enabled)
 }
 
 #ifndef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK
-static int tempfreq_thermal_period_ms = 100;
-static int tempfreq_thermal_periods_per_sec = 10;
+static int phonelab_tempfreq_period_ms = 100;
+static int tempfreq_periods_per_sec = 10;
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
@@ -406,7 +406,7 @@ done:
 	}
 	// Now handle delay_tolerant cgroup
 	countdown_delay_tolerant_tick++;
-	if(countdown_delay_tolerant_tick == tempfreq_thermal_periods_per_sec) {
+	if(countdown_delay_tolerant_tick >= tempfreq_periods_per_sec) {
 		countdown_delay_tolerant_tick = 0;
 		countdown_delay_tolerant_timers();
 	}
@@ -1311,6 +1311,7 @@ out:
 
 
 tempfreq_attr_rw(enable);
+tempfreq_attr_rw(period_ms);
 tempfreq_attr_rw(simulate_tengine_params);
 tempfreq_attr_plain_ro(cur_phone_state);
 
@@ -1342,6 +1343,7 @@ tempfreq_attr_plain_rw(ignore_bg);
 
 static struct attribute *attrs[] = {
 	&enable.attr,
+	&period_ms.attr,
 	&cur_phone_state.attr,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	&binary_threshold_temp.attr,
@@ -1543,7 +1545,7 @@ static void __cpuinit tempfreq_thermal_work_fn(struct work_struct *work)
 	}
 	tempfreq_thermal_callback(NULL, 0, &temp);
 out:
-	schedule_delayed_work_on(0, &tempfreq_thermal_work, msecs_to_jiffies(tempfreq_thermal_period_ms));
+	schedule_delayed_work_on(0, &tempfreq_thermal_work, msecs_to_jiffies(phonelab_tempfreq_period_ms));
 
 }
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK */
