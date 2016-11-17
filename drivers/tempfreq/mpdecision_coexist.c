@@ -110,11 +110,20 @@ inline void stop_bg_core_control(void)
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
+	struct cpufreq_policy *policy;
+
 	mpdecision_coexist_lock();
 	// cpu_hotplug_driver is already locked
 	if(!initialized || !phonelab_tempfreq_mpdecision_blocked) {
 		goto out;
 	}
+	policy = cpufreq_cpu_get(phonelab_tempfreq_mpdecision_coexist_cpu);
+	if(policy == NULL) {
+		// Try again after some time
+		phonelab_tempfreq_mpdecision_blocked = 0;
+		goto out;
+	}
+	policy->max = 2265600;
 	update_phone_state(phonelab_tempfreq_mpdecision_coexist_cpu, 1);
 	phonelab_tempfreq_mpdecision_blocked = 0;
 	trace_tempfreq_mpdecision_blocked(0);
