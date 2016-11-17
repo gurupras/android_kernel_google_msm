@@ -84,6 +84,7 @@ int phonelab_tempfreq_simulate_tengine_params = 0;
 #endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+int phonelab_tempfreq_separate_bg_thresholds = 1;
 struct delayed_work threshold_change_bg_work, threshold_change_fg_work;
 #endif
 
@@ -1335,6 +1336,33 @@ out:
 }
 
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+static ssize_t store_separate_bg_thresholds(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+	switch(val) {
+	case 0:
+		phonelab_tempfreq_separate_bg_thresholds = 0;
+		break;
+	case 1:
+		phonelab_tempfreq_separate_bg_thresholds = 1;
+		break;
+	default:
+		err = -EINVAL;
+		break;
+	}
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+#endif
+
+
+
 tempfreq_attr_rw(enable);
 tempfreq_attr_rw(period_ms);
 tempfreq_attr_rw(simulate_tengine_params);
@@ -1364,6 +1392,10 @@ tempfreq_attr_rw(hotplug_epochs_down);
 
 #ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
 tempfreq_attr_plain_rw(ignore_bg);
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+tempfreq_attr_rw(separate_bg_thresholds);
 #endif
 
 static struct attribute *attrs[] = {
@@ -1403,6 +1435,9 @@ static struct attribute *attrs[] = {
 #endif
 #ifdef CONFIG_PHONELAB_CPUFREQ_GOVERNOR_FIX
 	&ignore_bg.attr,
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+	&separate_bg_thresholds.attr,
 #endif
 	NULL
 };

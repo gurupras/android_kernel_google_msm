@@ -181,6 +181,7 @@ extern struct work_struct bind_copy_work;
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND */
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+extern int phonelab_tempfreq_separate_bg_thresholds;
 extern struct delayed_work threshold_change_bg_work, threshold_change_fg_work;
 #endif
 

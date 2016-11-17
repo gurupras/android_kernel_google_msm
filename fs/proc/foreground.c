@@ -74,15 +74,17 @@ static ssize_t write_file(struct file *file, const char __user *buf, size_t coun
 		}
 	}
 #ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
-	if(android_foreground_pid == 0) {
-		// Change the limits..
-		cancel_delayed_work_sync(&threshold_change_fg_work);
-		cancel_delayed_work_sync(&threshold_change_bg_work);
-		schedule_delayed_work_on(0, &threshold_change_bg_work, msecs_to_jiffies(1000));
-	} else {
-		cancel_delayed_work_sync(&threshold_change_fg_work);
-		cancel_delayed_work_sync(&threshold_change_bg_work);
-		schedule_delayed_work_on(0, &threshold_change_fg_work, msecs_to_jiffies(1000));
+	if(phonelab_tempfreq_separate_bg_thresholds) {
+		if(android_foreground_pid == 0) {
+			// Change the limits..
+			cancel_delayed_work_sync(&threshold_change_fg_work);
+			cancel_delayed_work_sync(&threshold_change_bg_work);
+			schedule_delayed_work_on(0, &threshold_change_bg_work, msecs_to_jiffies(1000));
+		} else {
+			cancel_delayed_work_sync(&threshold_change_fg_work);
+			cancel_delayed_work_sync(&threshold_change_bg_work);
+			schedule_delayed_work_on(0, &threshold_change_fg_work, msecs_to_jiffies(1000));
+		}
 	}
 #endif
 	trace_phonelab_proc_foreground(task);
