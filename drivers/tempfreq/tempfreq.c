@@ -13,6 +13,7 @@
 #include <linux/mutex.h>
 #include <linux/syscore_ops.h>
 #include <linux/thermal.h>
+#include <linux/msm_thermal.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/tempfreq.h>
@@ -1353,6 +1354,31 @@ out:
 	return err != 0 ? err : count;
 }
 
+static int phonelab_tempfreq_reset_tengine_limits = 0;
+static ssize_t store_reset_tengine_limits(const char *_buf, size_t count)
+{
+	int val, err, cpu;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+	switch(val) {
+	case 1:
+		for(cpu = 0; cpu < 4; cpu++) {
+			msm_thermal_set_frequency(cpu, 300000, false);
+			msm_thermal_set_frequency(cpu, 2265600, true);
+		}
+		break;
+	default:
+		err = -EINVAL;
+		break;
+	}
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
+
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
 static ssize_t store_separate_bg_thresholds(const char *_buf, size_t count)
@@ -1385,6 +1411,7 @@ tempfreq_attr_rw(enable);
 tempfreq_attr_rw(period_ms);
 tempfreq_attr_rw(simulate_tengine_params);
 tempfreq_attr_rw(msm_core_critical);
+tempfreq_attr_rw(reset_tengine_limits);
 tempfreq_attr_plain_ro(cur_phone_state);
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
@@ -1422,6 +1449,7 @@ static struct attribute *attrs[] = {
 	&period_ms.attr,
 	&cur_phone_state.attr,
 	&msm_core_critical.attr,
+	&reset_tengine_limits.attr,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	&binary_threshold_temp.attr,
 	&binary_critical.attr,
