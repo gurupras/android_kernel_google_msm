@@ -171,6 +171,7 @@ static ssize_t store_mpdecision_coexist_enable(const char *_buf, size_t count)
 	case 0:
 		phonelab_tempfreq_mpdecision_coexist_enable = 0;
 		stop_bg_core_control();
+		mpdecision_netlink_send("0");
 		break;
 	case 1:
 		phonelab_tempfreq_mpdecision_coexist_enable = 1;
