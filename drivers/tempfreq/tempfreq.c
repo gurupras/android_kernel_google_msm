@@ -1335,6 +1335,24 @@ out:
 	return err != 0 ? err : count;
 }
 
+static int phonelab_tempfreq_msm_core_critical = 0;
+static ssize_t store_msm_core_critical(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+	if(val < 0) {
+		err = -EINVAL;
+		goto out;
+	}
+	set_new_core_control_temp(val);
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
 static ssize_t store_separate_bg_thresholds(const char *_buf, size_t count)
@@ -1366,6 +1384,7 @@ out:
 tempfreq_attr_rw(enable);
 tempfreq_attr_rw(period_ms);
 tempfreq_attr_rw(simulate_tengine_params);
+tempfreq_attr_rw(msm_core_critical);
 tempfreq_attr_plain_ro(cur_phone_state);
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
@@ -1402,6 +1421,7 @@ static struct attribute *attrs[] = {
 	&enable.attr,
 	&period_ms.attr,
 	&cur_phone_state.attr,
+	&msm_core_critical.attr,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	&binary_threshold_temp.attr,
 	&binary_critical.attr,
