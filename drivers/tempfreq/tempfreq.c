@@ -282,7 +282,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		if(phonelab_tempfreq_mpdecision_coexist_enable) {
 			if(phonelab_tempfreq_mpdecision_blocked) {
-			       if(mpdecision_down_cycles == 10) {
+			       if(mpdecision_down_cycles == 20) {
 					stop_bg_core_control();
 					mpdecision_down_cycles = 0;
 					mpdecision_up_cycles = 0;
