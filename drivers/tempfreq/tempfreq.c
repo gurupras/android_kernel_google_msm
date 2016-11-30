@@ -1470,6 +1470,10 @@ static struct attribute *attrs[] = {
 	&mpdecision_bg_cpu.attr,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	&mpdecision_coexist_nl_send.attr,
+	&cs_attr_default.attr,
+	&cs_attr_bg_non_interactive.attr,
+	&cs_attr_fg_bg.attr,
+	&cs_attr_delay_tolerant.attr,
 #endif /* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST */
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
