@@ -1960,6 +1960,12 @@ int cgroup_attach_task(struct cgroup *cgrp, struct task_struct *tsk)
 					retval = 0;
 				}
 			}
+		} else if(cgrp == fg_bg) {
+			retval = cgroup_attach_task(cs_fg_bg, tsk);
+			if(retval) {
+				printk(KERN_DEBUG "tempfreq: %s: Failed to attach task to cs_fg_bg\n", __func__);
+				retval = 0;
+			}
 		}
 	}
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND */
@@ -2363,12 +2369,61 @@ static
 #endif
 int cgroup_tasks_write(struct cgroup *cgrp, struct cftype *cft, u64 pid)
 {
+#ifndef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
 	return attach_task_by_pid(cgrp, pid, false);
+#else
+	int ret = 0;
+	ret = attach_task_by_pid(cgrp, pid, false);
+	if(ret != 0) {
+		return ret;
+	}
+
+	if(phonelab_tempfreq_mpdecision_blocked) {
+		if(cgrp == &rootnode.top_cgroup) {
+			if(top_cpuset.css.cgroup != NULL) {
+				ret = attach_task_by_pid(top_cpuset.css.cgroup, pid, false);
+			} else {
+				printk(KERN_ERR "tempfreq: %s: top_cpuset.css.cgroup == NULL\n", __func__);
+			}
+		} else if(cgrp == bg_non_interactive) {
+			ret = attach_task_by_pid(cs_bg_non_interactive, pid, false);
+		} else if(cgrp == fg_bg) {
+			ret = attach_task_by_pid(cs_fg_bg, pid, false);
+		} else if(cgrp == delay_tolerant) {
+			ret = attach_task_by_pid(cs_delay_tolerant, pid, false);
+		}
+	}
+	return ret;
+#endif
 }
 
 static int cgroup_procs_write(struct cgroup *cgrp, struct cftype *cft, u64 tgid)
 {
+#ifndef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
 	return attach_task_by_pid(cgrp, tgid, true);
+#else
+	int ret = 0;
+	ret = attach_task_by_pid(cgrp, tgid, true);
+	if(ret != 0) {
+		return ret;
+	}
+	if(phonelab_tempfreq_mpdecision_blocked) {
+		if(cgrp == &rootnode.top_cgroup) {
+			if(top_cpuset.css.cgroup != NULL) {
+				ret = attach_task_by_pid(top_cpuset.css.cgroup, tgid, false);
+			} else {
+				printk(KERN_ERR "tempfreq: %s: top_cpuset.css.cgroup == NULL\n", __func__);
+			}
+		} else if(cgrp == bg_non_interactive) {
+			ret = attach_task_by_pid(cs_bg_non_interactive, tgid, false);
+		} else if(cgrp == fg_bg) {
+			ret = attach_task_by_pid(cs_fg_bg, tgid, false);
+		} else if(cgrp == delay_tolerant) {
+			ret = attach_task_by_pid(cs_delay_tolerant, tgid, false);
+		}
+	}
+	return ret;
+#endif
 }
 
 /**
