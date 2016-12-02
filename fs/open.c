@@ -1001,6 +1001,7 @@ inline int plsc_pathname_filter(const char* path) {
 	char sysdir[] = "/sys";
 	char procdir[] = "/proc";
 
+	int dummy = 0;
 	int i = 0;
 	while(whitelist[i] != NULL) {
 		if(strncmp(path, whitelist[i], strlen(whitelist[i])) == 0) {
@@ -1010,7 +1011,7 @@ inline int plsc_pathname_filter(const char* path) {
 	}
 
 	// Edit / comment out to adjust path filtering:
-	return (strncmp(path, devpath, strlen(devpath)) && \
+	dummy = (strncmp(path, devpath, strlen(devpath)) && \
 		strncmp(path, syspath, strlen(syspath)) && \
 		strncmp(path, procpath, strlen(procpath)) && \
 		strncmp(path, debugpath, strlen(debugpath)) && \
@@ -1018,16 +1019,22 @@ inline int plsc_pathname_filter(const char* path) {
 		strcmp(path, devdir) && \
 		strcmp(path, sysdir) && \
 		strcmp(path, procdir) );
-
+	(void) dummy;
+	if(strncmp(current->comm, "thermal", 7) == 0 ||
+		strncmp(current->comm, "msm", 3) == 0) {
+		return 1;
+	}
+	return 0;
 }
 
 
 // PL:  Session logging type:  Return ==0 to greylist file (log summary at close rather than every r/w event); !=0 for full logging (log all session events)
 static inline int plsc_logtype_filter(const char* path) {
 
-	char dbpath[] = "/sys/devices/system/cpu";
+	//char dbpath[] = "/sys/devices/system/cpu";
 
-	return ((bool)strncmp(path, dbpath, strlen(dbpath)) );
+	//return ((bool)strncmp(path, dbpath, strlen(dbpath)) );
+	return -1;
 
 }
 
