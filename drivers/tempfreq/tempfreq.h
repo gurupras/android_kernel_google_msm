@@ -185,4 +185,7 @@ extern int phonelab_tempfreq_separate_bg_thresholds;
 extern struct delayed_work threshold_change_bg_work, threshold_change_fg_work;
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+int get_skin_temperature(void);
+#endif
 #endif	/* __TEMPFREQ_H_ */

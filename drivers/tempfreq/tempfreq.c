@@ -1405,6 +1405,11 @@ out:
 }
 #endif
 
+static ssize_t show_skin_temperature(char *buf)
+{
+	return sprintf(buf, "%d", get_skin_temperature());
+}
+
 
 
 tempfreq_attr_rw(enable);
@@ -1413,6 +1418,7 @@ tempfreq_attr_rw(simulate_tengine_params);
 tempfreq_attr_rw(msm_core_critical);
 tempfreq_attr_rw(reset_tengine_limits);
 tempfreq_attr_plain_ro(cur_phone_state);
+tempfreq_attr_plain_ro(skin_temperature);
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 tempfreq_attr_rw(binary_threshold_temp);
@@ -1450,6 +1456,7 @@ static struct attribute *attrs[] = {
 	&cur_phone_state.attr,
 	&msm_core_critical.attr,
 	&reset_tengine_limits.attr,
+	&skin_temperature.attr,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	&binary_threshold_temp.attr,
 	&binary_critical.attr,

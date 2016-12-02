@@ -31,6 +31,10 @@
 #include <linux/qpnp/qpnp-adc.h>
 #include <linux/platform_device.h>
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+#include <../drivers/tempfreq/tempfreq.h>
+#endif
+
 /* QPNP VADC register definition */
 #define QPNP_VADC_REVISION1				0x0
 #define QPNP_VADC_REVISION2				0x1
@@ -1102,6 +1106,24 @@ static ssize_t qpnp_adc_show(struct device *dev,
 		"Result:%lld Raw:%d\n", result.physical, result.adc_code);
 }
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+static struct device_attribute *skin_sensor_devattr;
+
+int get_skin_temperature()
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(skin_sensor_devattr);
+	struct qpnp_vadc_result result;
+	int err = -1;
+
+	err = qpnp_vadc_read(attr->index, &result);
+	if(err) {
+		printk(KERN_DEBUG "tempfreq: hwmon: VADC read error with %d\n", err);
+		return 0;
+	}
+	return result.physical;
+}
+#endif
+
 static struct sensor_device_attribute qpnp_adc_attr =
 	SENSOR_ATTR(NULL, S_IRUGO, qpnp_adc_show, NULL, 0);
 
@@ -1120,6 +1142,12 @@ static int32_t qpnp_vadc_init_hwmon(struct spmi_device *spmi)
 		memcpy(&vadc->sens_attr[i], &qpnp_adc_attr,
 						sizeof(qpnp_adc_attr));
 		sysfs_attr_init(&vadc->sens_attr[i].dev_attr.attr);
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+		if(strcmp(vadc->adc->adc_channels[i].name, "xo_therm_pu2") == 0) {
+			skin_sensor_devattr = &vadc->sens_attr[i].dev_attr;
+		}
+		printk(KERN_DEBUG "tempfreq: hwmon name=%s\n", vadc->adc->adc_channels[i].name);
+#endif
 		rc = device_create_file(&spmi->dev,
 				&vadc->sens_attr[i].dev_attr);
 		if (rc) {
