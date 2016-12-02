@@ -77,6 +77,12 @@ config PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
 	help
 	  The binary mode thresholds are modified to different values
 	  when the screen is switched off.
+config PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+	bool "Enable throttling based on skin temperature"
+	help
+	  Allow tempfreq to throttle CPUs based on sensor xo_therm_pu2
+	  (skin temperature).
+
 
 config PHONELAB_TEMPFREQ_NETLINK
 	bool "Enable netlink communication with userspace binary"

@@ -1106,7 +1106,7 @@ static ssize_t qpnp_adc_show(struct device *dev,
 		"Result:%lld Raw:%d\n", result.physical, result.adc_code);
 }
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
 static struct device_attribute *skin_sensor_devattr;
 
 int get_skin_temperature()
@@ -1142,7 +1142,7 @@ static int32_t qpnp_vadc_init_hwmon(struct spmi_device *spmi)
 		memcpy(&vadc->sens_attr[i], &qpnp_adc_attr,
 						sizeof(qpnp_adc_attr));
 		sysfs_attr_init(&vadc->sens_attr[i].dev_attr.attr);
-#ifdef CONFIG_PHONELAB_TEMPFREQ
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
 		if(strcmp(vadc->adc->adc_channels[i].name, "xo_therm_pu2") == 0) {
 			skin_sensor_devattr = &vadc->sens_attr[i].dev_attr;
 		}

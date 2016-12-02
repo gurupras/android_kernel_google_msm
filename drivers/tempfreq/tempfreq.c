@@ -103,6 +103,11 @@ struct cgroup_map cgroup_map;
 static void thermal_cgroup_throttling_update_cgroup_entry(struct cgroup_entry *entry, int temp);
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+static int phonelab_tempfreq_skin_temp_critical = 44;
+static int phonelab_tempfreq_skin_temp_epochs = 20;
+#endif
+
 DECLARE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);
 DECLARE_PER_CPU(struct cpufreq_frequency_table *, cpufreq_show_table);
 
@@ -129,6 +134,7 @@ enum {
 	REASON_LONG_EPOCH_DIFF,
 	REASON_CRITICAL,
 	REASON_COOL,
+	REASON_SKIN_CRITICAL,
 	NR_REASONS,
 };
 static const char *reasons[] = {
@@ -136,6 +142,7 @@ static const char *reasons[] = {
 	"REASON_LONG_EPOCH_DIFF",
 	"REASON_CRITICAL",
 	"REASON_COOL",
+	"REASON_SKIN_CRITICAL",
 	NULL,
 };
 
@@ -205,10 +212,13 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	static int mpdecision_up_cycles = 0, mpdecision_down_cycles = 0;
 #endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+	static int skin_temp_epochs_counted = 0;
+	int skin_temp;
+#endif
 	int enabled = 0;
 	int i;
 	int ret = 0;
-
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
@@ -228,6 +238,25 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 
 	// Handle
 //	printk(KERN_DEBUG "tempfreq: Callback!\n");
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+	skin_temp_epochs_counted++;
+	skin_temp = get_skin_temperature();
+	if(skin_temp >= phonelab_tempfreq_skin_temp_critical &&
+			skin_temp_epochs_counted == phonelab_tempfreq_skin_temp_epochs) {
+		int next_idx;
+		cpu = get_cpu_with(HIGHEST);
+		op = LOWER;
+		is_increase = 0;
+		prev_temp = 0;
+		reason_int = REASON_SKIN_CRITICAL;
+		temp = skin_temp;
+		next_idx = phone_state->cpu_states[cpu]->cur_idx - 3;
+		next_idx = next_idx >= 0 ? next_idx : 0;
+		binary_freq = FREQUENCIES[next_idx];
+		goto done;
+	}
+#endif
+
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	short_epochs_counted++;
 	long_epochs_counted++;
@@ -308,6 +337,12 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 		// Regardless of frequency
 		if(temp - prev_long_epoch_temp < phonelab_tempfreq_binary_long_diff_limit) {
 			if(temp < phonelab_tempfreq_binary_threshold_temp) {
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+				if(skin_temp >= phonelab_tempfreq_skin_temp_critical) {
+					// We can't increase frequency..just finish
+					goto done;
+				}
+#endif
 				cpu = get_cpu_with(LOWEST);
 				op = HIGHER;
 				is_increase = 1;
@@ -337,6 +372,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 		prev_long_epoch_temp = temp;
 		goto done;
 	}
+#endif
 
 done:
 	if(cpu == -1) {
@@ -375,11 +411,16 @@ done:
 		if(freq == FREQUENCIES[cs->cur_max_idx]) {
 			// If frequency was currently at the max, then,
 			// when we're changing limits, we need to reset the long and short
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 			short_epochs_counted = 0;
 			prev_short_epoch_temp = temp;
 
 			long_epochs_counted = 0;
 			prev_long_epoch_temp = temp;
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+			skin_temp_epochs_counted = 0;
+#endif
 		}
 		trace_tempfreq_binary_diff(temp, prev_temp, cpu, freq, is_increase, binary_freq, reason_str);
 		// Write new values
@@ -395,7 +436,7 @@ done:
 		cpufreq_cpu_put(policy);
 		cs->cur_max_idx = get_frequency_index(binary_freq);
 	}
-#else
+#ifndef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	(void) cs;
 	(void) policy;
 	cpu_state_string(NULL, NULL);
@@ -651,10 +692,11 @@ static inline int get_new_frequency(int cpu, int relation)
 
 	switch(relation) {
 		case HIGHER:
-			result_idx = (cur_idx + num_frequencies) / 2;	// FIXME: Change this to find ceiling
+			result_idx = ((cur_idx + num_frequencies) / 2);	// FIXME: Change this to find ceiling
+			result_idx = result_idx >= num_frequencies ? num_frequencies - 1 : result_idx;
 			break;
 		case LOWER:
-			tmp = cur_idx - phonelab_tempfreq_binary_jump_lower;
+			tmp = (cur_idx - phonelab_tempfreq_binary_jump_lower);
 			result_idx = tmp >= 0 ? tmp : 0;
 			break;
 	}
@@ -1405,10 +1447,50 @@ out:
 }
 #endif
 
-static ssize_t show_skin_temperature(char *buf)
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+static ssize_t show_skin_temp(char *buf)
 {
 	return sprintf(buf, "%d", get_skin_temperature());
 }
+
+static ssize_t store_skin_temp_critical(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	phonelab_tempfreq_skin_temp_critical = val;
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
+static ssize_t store_skin_temp_epochs(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+
+	if(val <= 0) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	phonelab_tempfreq_skin_temp_epochs = val;
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+#endif
 
 
 
@@ -1418,7 +1500,11 @@ tempfreq_attr_rw(simulate_tengine_params);
 tempfreq_attr_rw(msm_core_critical);
 tempfreq_attr_rw(reset_tengine_limits);
 tempfreq_attr_plain_ro(cur_phone_state);
-tempfreq_attr_plain_ro(skin_temperature);
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+tempfreq_attr_plain_ro(skin_temp);
+tempfreq_attr_rw(skin_temp_critical);
+tempfreq_attr_rw(skin_temp_epochs);
+#endif
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 tempfreq_attr_rw(binary_threshold_temp);
@@ -1456,7 +1542,6 @@ static struct attribute *attrs[] = {
 	&cur_phone_state.attr,
 	&msm_core_critical.attr,
 	&reset_tengine_limits.attr,
-	&skin_temperature.attr,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	&binary_threshold_temp.attr,
 	&binary_critical.attr,
@@ -1497,6 +1582,11 @@ static struct attribute *attrs[] = {
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
 	&separate_bg_thresholds.attr,
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+	&skin_temp.attr,
+	&skin_temp_critical.attr,
+	&skin_temp_epochs.attr,
 #endif
 	NULL
 };
