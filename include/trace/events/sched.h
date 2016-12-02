@@ -507,6 +507,25 @@ TRACE_EVENT(sched_pi_setprio,
 			__entry->oldprio, __entry->newprio)
 );
 
+TRACE_EVENT(sched_pid_cgroup,
+
+	TP_PROTO(pid_t pid, char *buf),
+
+	TP_ARGS(pid, buf),
+
+	TP_STRUCT__entry(
+		__field( pid_t,	pid			)
+		__array( char,	buf,	64		)
+	),
+
+	TP_fast_assign(
+		__entry->pid		= pid;
+		memcpy(__entry->buf, buf, 64);
+	),
+
+	TP_printk("pid=%d cgroup=%s", __entry->pid, __entry->buf)
+);
+
 #endif /* _TRACE_SCHED_H */
 
 /* This part must be outside protection */

@@ -90,6 +90,10 @@
 #include <trace/events/oom.h>
 #include "internal.h"
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
+#include "../drivers/tempfreq/delay_tolerant.h"
+#endif
+
 /* NOTE:
  *	Implementing inode permission operations in /proc is almost
  *	certainly an error.  Permission checks need to happen during
@@ -3021,6 +3025,83 @@ static int proc_pid_personality(struct seq_file *m, struct pid_namespace *ns,
 	return err;
 }
 
+
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
+static ssize_t delay_tolerance_read(struct file *file, char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+	char buffer[PROC_NUMBUF];
+	u64 duration_ms;
+	size_t len;
+
+	if (!task)
+		return -ESRCH;
+
+	task_lock(task);
+       	duration_ms = task->delay_tolerance_ms;
+	task_unlock(task);
+	put_task_struct(task);
+	len = snprintf(buffer, sizeof(buffer), "%llu\n", duration_ms);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t delay_tolerance_write(struct file *file, const char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	char buffer[32];
+	u64 duration_ms;
+	int err;
+
+	memset(buffer, 0, sizeof(buffer));
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		err = -EFAULT;
+		goto out;
+	}
+
+	err = kstrtoull(strstrip(buffer), 0, &duration_ms);
+	if (err)
+		goto out;
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (!task) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	task_lock(task);
+	task->delay_tolerance_ms = duration_ms;
+	task->remaining_delay_ms = duration_ms;
+	task->delay_tolerance_start_ms = time_since_epoch_ms();
+	task_unlock(task);
+	put_task_struct(task);
+	make_delay_tolerant(task);
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_delay_tolerance_operations = {
+	.read		= delay_tolerance_read,
+	.write		= delay_tolerance_write,
+	.llseek		= default_llseek,
+};
+
+static int remaining_delay_read(struct task_struct *task, char *buffer)
+{
+	u64 remaining_delay_ms;
+	task_lock(task);
+	remaining_delay_ms = task->remaining_delay_ms;
+	task_unlock(task);
+	return sprintf(buffer, "%llu\n", remaining_delay_ms);
+}
+
+#endif
+
+
 /*
  * Thread groups
  */
@@ -3111,6 +3192,10 @@ static const struct pid_entry tgid_base_stuff[] = {
 #endif
 #ifdef CONFIG_HARDWALL
 	INF("hardwall",   S_IRUGO, proc_pid_hardwall),
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
+	REG("delay_tolerance", S_IRUGO|S_IWUSR, proc_delay_tolerance_operations),
+	INF("remaining_delay", S_IRUGO, remaining_delay_read),
 #endif
 };
 
@@ -3466,6 +3551,10 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_HARDWALL
 	INF("hardwall",   S_IRUGO, proc_pid_hardwall),
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_NETLINK
+	REG("delay_tolerance", S_IRUGO|S_IWUSR, proc_delay_tolerance_operations),
+	INF("remaining_delay", S_IRUGO, remaining_delay_read),
 #endif
 };
 

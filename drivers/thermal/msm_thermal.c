@@ -15,6 +15,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kthread.h>
+#include <linux/notifier.h>
 #include <linux/mutex.h>
 #include <linux/msm_tsens.h>
 #include <linux/workqueue.h>
@@ -43,6 +44,11 @@
 
 #define MAX_RAILS 5
 #define MAX_THRESHOLD 2
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+struct srcu_notifier_head thermal_notifier_list;
+static bool init_thermal_notifier_list_called;
+#endif
 
 static struct msm_thermal_data msm_thermal_info;
 static struct delayed_work check_temp_work;
@@ -973,6 +979,23 @@ static void __ref do_freq_control(long temp)
 	put_online_cpus();
 }
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+inline int get_temp(long *temp)
+{
+	int ret;
+	struct tsens_device tsens_dev;
+	tsens_dev.sensor_num = msm_thermal_info.sensor_id;
+	ret = tsens_get_temp(&tsens_dev, temp);
+	return ret;
+}
+
+inline int set_new_core_control_temp(long temp) {
+	msm_thermal_info.core_limit_temp_degC = temp;
+	printk(KERN_DEBUG "tempfreq: core_limit_temp_degC: %d\n", msm_thermal_info.core_limit_temp_degC);
+	return 0;
+}
+#endif
+
 static void __ref check_temp(struct work_struct *work)
 {
 	static int limit_init;
@@ -981,7 +1004,11 @@ static void __ref check_temp(struct work_struct *work)
 	int ret = 0;
 
 	tsens_dev.sensor_num = msm_thermal_info.sensor_id;
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	ret = get_temp(&temp);
+#else
 	ret = tsens_get_temp(&tsens_dev, &temp);
+#endif
 	if (ret) {
 		pr_debug("%s: Unable to read TSENS sensor %d\n",
 				KBUILD_MODNAME, tsens_dev.sensor_num);
@@ -997,7 +1024,9 @@ static void __ref check_temp(struct work_struct *work)
 	}
 
 	trace_thermal_temp(msm_thermal_info.sensor_id, temp);
-
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	srcu_notifier_call_chain(&thermal_notifier_list, 0, &temp);
+#endif
 	do_core_control(temp);
 	do_vdd_restriction();
 	do_psm();
@@ -2288,3 +2317,13 @@ int __init msm_thermal_late_init(void)
 }
 late_initcall(msm_thermal_late_init);
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+static int __init init_thermal_notifier_list(void)
+{
+	srcu_init_notifier_head(&thermal_notifier_list);
+	init_thermal_notifier_list_called = true;
+	printk(KERN_DEBUG "tempfreq: Initialized thermal notifier list\n");
+	return 0;
+}
+pure_initcall(init_thermal_notifier_list);
+#endif

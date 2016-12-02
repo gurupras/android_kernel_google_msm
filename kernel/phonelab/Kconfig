@@ -1,0 +1,168 @@
+config PHONELAB
+	bool
+	help
+	  Hidden open that includes the Makefile located at
+	  kernel/phonelab/Makefile.
+
+choice
+	prompt "Periodic Context Switch Tracing"
+	default PERIODIC_CTX_SWITCH_TRACING_NONE
+	help
+	  Enable periodic event tracing of context switches.
+	  These events are logged every 100ms.
+
+config PERIODIC_CTX_SWITCH_TRACING_NONE
+	bool "No Periodic Tracing"
+	help
+	  No tracing.
+
+config PERIODIC_CTX_SWITCH_TRACING_ORIG
+	select PERIODIC_CTX_SWITCH_TRACING
+	bool "Original Tracing"
+	help
+	  Uses a fixed-size array per CPU.
+
+config PERIODIC_CTX_SWITCH_TRACING_HASH
+	select PERIODIC_CTX_SWITCH_TRACING
+	bool "Hash based tracing"
+	help
+	  Uses a hash table implementation.
+
+endchoice
+
+config PERIODIC_CTX_SWITCH_TRACING
+	bool
+	help
+	  Hidden option
+
+config POST_FOREGROUND_PID
+	select PHONELAB
+	bool "Enable /proc/foreground"
+	help
+	  Enable /proc/foreground that Android publishes to to acquire
+	  PID of the task that is in the foreground.
+
+config PHONELAB_CPUFREQ_GOVERNOR_FIX
+	select PHONELAB
+	bool "Fix governor load calculation"
+	help
+	  Ignore BG tasks during governor load calculation
+
+config PHONELAB_TEMPFREQ
+	select PHONELAB
+	bool "Enable tempfreq thermal governor"
+	help
+	  Enable the tempfreq module to control frequencies
+
+
+menu "TempFreq Features"
+depends on PHONELAB_TEMPFREQ
+
+config PHONELAB_TEMPFREQ_THERMAL_CALLBACK
+	bool "Run by registering thermal callback"
+	help
+	  If enabled, it uses the existing temperature sensing thread to issue
+	  a callback.  This happens every 250ms. If disabled, a delayed work is
+	  scheduled every 100ms.
+
+config PHONELAB_TEMPFREQ_BINARY_MODE
+	bool "Enable increase/decrease by a factor of 2"
+	help
+	  The scaling logic to increase/decrease frequency is
+	  done by a factor of 2
+config PHONELAB_TEMPFREQ_SEPARATE_BG_THRESHOLDS
+	depends on PHONELAB_TEMPFREQ_BINARY_MODE
+	depends on POST_FOREGROUND_PID
+	bool "Apply separate thresholds during screen off"
+	help
+	  The binary mode thresholds are modified to different values
+	  when the screen is switched off.
+
+config PHONELAB_TEMPFREQ_NETLINK
+	bool "Enable netlink communication with userspace binary"
+	help
+	  Allow tempfreq to communicate with a userspace binary that allows
+	  tasks that are complex to perform in the kernel be carried out
+	  by the userspace binary.
+
+config PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	depends on PHONELAB_TEMPFREQ_BINARY_MODE
+	select PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER
+	bool "Coexist tempfreq with mpdecision"
+	help
+	  Allow tempfreq to coexist with mpdecision. This option leaves
+	  hotplug control to mpdecision while temperature is below thresholds.
+	  Once temperature crosses the threshold, tempfreq takes over core control
+	  until temperature drops back down.
+
+config PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
+	depends on PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	depends on PHONELAB_TEMPFREQ_NETLINK
+	bool "Use Netlink sockets to communicate with userspace"
+	help
+	  Use netlink sockets to perform bi-directional communication with
+	  userspace binary
+
+config PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+	depends on PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	bool "Add capability to bind android cgroups to cpusets"
+	select CPUSETS
+	select PROC_PID_CPUSET
+	help
+	  When tasks are assigned to a cgroup, add them to the corresponding
+	  cpuset.
+
+config PHONELAB_TEMPFREQ_THERMAL_CGROUP_THROTTLING
+	bool "Enable background work throttling based on temperature"
+	select CPUSETS
+	select PROC_PID_CPUSET
+	help
+	  Background work is throttled based on temperature. This temperature
+          is configurable via sysfs.
+
+config PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+	bool "Enable hotplug driver"
+	help
+	  Enable tempfreq hotplug drivers
+
+menu "Hotplug Drivers"
+depends on PHONELAB_TEMPFREQ_HOTPLUG_DRIVER
+
+config PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
+	bool "Enable tempfreq hotplug driver"
+	help
+	  Enable custom hotplug driver based on number of runnable tasks
+	  in the system.
+
+config PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER
+	bool "Enable autosmp hotplug driver"
+	help
+	  Use the open source AutoSMP hotplug driver.
+	  Source can be found at:
+	  https://github.com/mrg666/android_kernel_mako/blob/master/arch/arm/kernel/autosmp.c
+endmenu
+
+choice
+	prompt "Default hotplug driver"
+	default PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	default PHONELAB_TEMPFREQ_DEFAULT_TASK_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
+	default PHONELAB_TEMPFREQ_DEFAULT_AUTOSMP_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER
+	default PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER if PHONELAB_TEMPFREQ_NULL_HOTPLUG_DRIVER
+	help
+	  Select default hotplug driver to use
+
+config PHONELAB_TEMPFREQ_DEFAULT_NULL_HOTPLUG_DRIVER
+	bool "null hotplug driver"
+	help
+	  No kernel hotplugging. Left to userspace.
+
+config PHONELAB_TEMPFREQ_DEFAULT_TASK_HOTPLUG_DRIVER
+	bool "task hotplug driver"
+	depends on PHONELAB_TEMPFREQ_TASK_HOTPLUG_DRIVER
+
+config PHONELAB_TEMPFREQ_DEFAULT_AUTOSMP_HOTPLUG_DRIVER
+	bool "autosmp hotplug driver"
+	depends on PHONELAB_TEMPFREQ_AUTOSMP_HOTPLUG_DRIVER
+endchoice
+
+endmenu

@@ -204,4 +204,8 @@ static inline int thermal_generate_netlink_event(u32 orig, enum events event)
 }
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+int get_temp(long *);
+int set_new_core_control_temp(long temp);
+#endif
 #endif /* __THERMAL_H__ */

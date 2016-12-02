@@ -16,6 +16,8 @@
  *  counter and all 4 performance counters together can be reset separately.
  */
 
+#include <linux/phonelab.h>
+
 #ifdef CONFIG_CPU_V7
 
 static struct arm_pmu armv7pmu;
@@ -785,14 +787,14 @@ static unsigned armv7_a7_perf_cache_map[PERF_COUNT_HW_CACHE_MAX]
 #define	ARMV7_EXCLUDE_USER	(1 << 30)
 #define	ARMV7_INCLUDE_HYP	(1 << 27)
 
-static inline u32 armv7_pmnc_read(void)
+inline u32 armv7_pmnc_read(void)
 {
 	u32 val;
 	asm volatile("mrc p15, 0, %0, c9, c12, 0" : "=r"(val));
 	return val;
 }
 
-static inline void armv7_pmnc_write(u32 val)
+inline void armv7_pmnc_write(u32 val)
 {
 	val &= ARMV7_PMNC_MASK;
 	isb();
@@ -825,7 +827,7 @@ static inline int armv7_pmnc_counter_has_overflowed(u32 pmnc, int idx)
 	return ret;
 }
 
-static inline int armv7_pmnc_select_counter(int idx)
+inline int armv7_pmnc_select_counter(int idx)
 {
 	u32 counter;
 
@@ -842,7 +844,7 @@ static inline int armv7_pmnc_select_counter(int idx)
 	return idx;
 }
 
-static inline u32 armv7pmu_read_counter(int idx)
+inline u32 armv7pmu_read_counter(int idx)
 {
 	u32 value = 0;
 
@@ -857,7 +859,7 @@ static inline u32 armv7pmu_read_counter(int idx)
 	return value;
 }
 
-static inline void armv7pmu_write_counter(int idx, u32 value)
+inline void armv7pmu_write_counter(int idx, u32 value)
 {
 	if (!armv7_pmnc_counter_valid(idx))
 		pr_err("CPU%u writing wrong counter %d\n",
@@ -868,7 +870,7 @@ static inline void armv7pmu_write_counter(int idx, u32 value)
 		asm volatile("mcr p15, 0, %0, c9, c13, 2" : : "r" (value));
 }
 
-static inline void armv7_pmnc_write_evtsel(int idx, u32 val)
+inline void armv7_pmnc_write_evtsel(int idx, u32 val)
 {
 	if (armv7_pmnc_select_counter(idx) == idx) {
 		val &= ARMV7_EVTYPE_MASK;
@@ -876,7 +878,7 @@ static inline void armv7_pmnc_write_evtsel(int idx, u32 val)
 	}
 }
 
-static inline int armv7_pmnc_enable_counter(int idx)
+inline int armv7_pmnc_enable_counter(int idx)
 {
 	u32 counter;
 
@@ -891,7 +893,7 @@ static inline int armv7_pmnc_enable_counter(int idx)
 	return idx;
 }
 
-static inline int armv7_pmnc_disable_counter(int idx)
+inline int armv7_pmnc_disable_counter(int idx)
 {
 	u32 counter;
 
@@ -1276,7 +1278,7 @@ static struct arm_pmu armv7pmu = {
 	.restore_pm_registers	= armv7pmu_restore_pm_registers,
 };
 
-static u32 __init armv7_read_num_pmnc_events(void)
+u32 __init armv7_read_num_pmnc_events(void)
 {
 	u32 nb_cnt;
 

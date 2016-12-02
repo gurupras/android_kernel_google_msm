@@ -29,6 +29,10 @@
 
 #include "power.h"
 
+#ifdef CONFIG_PHONELAB
+#include <trace/events/phonelab.h>
+#endif
+
 const char *const pm_states[PM_SUSPEND_MAX] = {
 #ifdef CONFIG_EARLYSUSPEND
 	[PM_SUSPEND_ON]		= "on",
@@ -311,6 +315,9 @@ static void pm_suspend_marker(char *annotation)
 
 	getnstimeofday(&ts);
 	rtc_time_to_tm(ts.tv_sec, &tm);
+#ifdef CONFIG_PHONELAB
+	trace_phonelab_suspend(annotation, ts, tm);
+#endif
 	pr_info("PM: suspend %s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
 		annotation, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);

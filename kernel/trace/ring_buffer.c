@@ -443,8 +443,8 @@ int ring_buffer_print_page_header(struct trace_seq *s)
 	return !trace_seq_has_overflowed(s);
 }
 
-struct rb_irq_work {
-	struct irq_work			work;
+struct rb_work {
+	struct work_struct		work;
 	wait_queue_head_t		waiters;
 	bool				waiters_pending;
 };
@@ -484,7 +484,7 @@ struct ring_buffer_per_cpu {
 	struct work_struct		update_pages_work;
 	struct completion		update_done;
 
-	struct rb_irq_work		irq_work;
+	struct rb_work			rb_work;
 };
 
 struct ring_buffer {
@@ -505,7 +505,7 @@ struct ring_buffer {
 #endif
 	u64				(*clock)(void);
 
-	struct rb_irq_work		irq_work;
+	struct rb_work		rb_work;
 };
 
 struct ring_buffer_iter {
@@ -523,9 +523,9 @@ struct ring_buffer_iter {
  * Schedules a delayed work to wake up any task that is blocked on the
  * ring buffer waiters queue.
  */
-static void rb_wake_up_waiters(struct irq_work *work)
+static void rb_wake_up_waiters(struct work_struct *work)
 {
-	struct rb_irq_work *rbwork = container_of(work, struct rb_irq_work, work);
+	struct rb_work *rbwork = container_of(work, struct rb_work, work);
 
 	wake_up_all(&rbwork->waiters);
 }
@@ -544,7 +544,7 @@ int ring_buffer_wait(struct ring_buffer *buffer, int cpu, bool full)
 {
 	struct ring_buffer_per_cpu *uninitialized_var(cpu_buffer);
 	DEFINE_WAIT(wait);
-	struct rb_irq_work *work;
+	struct rb_work *work;
 	int ret = 0;
 
 	/*
@@ -553,12 +553,12 @@ int ring_buffer_wait(struct ring_buffer *buffer, int cpu, bool full)
 	 * caller on the appropriate wait queue.
 	 */
 	if (cpu == RING_BUFFER_ALL_CPUS)
-		work = &buffer->irq_work;
+		work = &buffer->rb_work;
 	else {
 		if (!cpumask_test_cpu(cpu, buffer->cpumask))
 			return -ENODEV;
 		cpu_buffer = buffer->buffers[cpu];
-		work = &cpu_buffer->irq_work;
+		work = &cpu_buffer->rb_work;
 	}
 
 
@@ -570,17 +570,17 @@ int ring_buffer_wait(struct ring_buffer *buffer, int cpu, bool full)
 		 * checking a work queue can cause deadlocks.
 		 * After adding a task to the queue, this flag is set
 		 * only to notify events to try to wake up the queue
-		 * using irq_work.
+		 * using work.
 		 *
 		 * We don't clear it even if the buffer is no longer
 		 * empty. The flag only causes the next event to run
-		 * irq_work to do the work queue wake up. The worse
+		 * work to do the work queue wake up. The worse
 		 * that can happen if we race with !trace_empty() is that
-		 * an event will cause an irq_work to try to wake up
+		 * an event will cause a work to try to wake up
 		 * an empty queue.
 		 *
 		 * There's no reason to protect this flag either, as
-		 * the work queue and irq_work logic will do the necessary
+		 * the work queue and work logic will do the necessary
 		 * synchronization for the wake ups. The only thing
 		 * that is necessary is that the wake up happens after
 		 * a task has been queued. It's OK for spurious wake ups.
@@ -637,20 +637,20 @@ int ring_buffer_poll_wait(struct ring_buffer *buffer, int cpu,
 			  struct file *filp, poll_table *poll_table)
 {
 	struct ring_buffer_per_cpu *cpu_buffer;
-	struct rb_irq_work *work;
+	struct rb_work *rbwork;
 
 	if (cpu == RING_BUFFER_ALL_CPUS)
-		work = &buffer->irq_work;
+		rbwork = &buffer->rb_work;
 	else {
 		if (!cpumask_test_cpu(cpu, buffer->cpumask))
 			return -EINVAL;
 
 		cpu_buffer = buffer->buffers[cpu];
-		work = &cpu_buffer->irq_work;
+		rbwork = &cpu_buffer->rb_work;
 	}
 
-	poll_wait(filp, &work->waiters, poll_table);
-	work->waiters_pending = true;
+	poll_wait(filp, &rbwork->waiters, poll_table);
+	rbwork->waiters_pending = true;
 	/*
 	 * There's a tight race between setting the waiters_pending and
 	 * checking if the ring buffer is empty.  Once the waiters_pending bit
@@ -1227,8 +1227,8 @@ rb_allocate_cpu_buffer(struct ring_buffer *buffer, int nr_pages, int cpu)
 	cpu_buffer->lock = (arch_spinlock_t)__ARCH_SPIN_LOCK_UNLOCKED;
 	INIT_WORK(&cpu_buffer->update_pages_work, update_pages_handler);
 	init_completion(&cpu_buffer->update_done);
-	init_irq_work(&cpu_buffer->irq_work.work, rb_wake_up_waiters);
-	init_waitqueue_head(&cpu_buffer->irq_work.waiters);
+	INIT_WORK(&cpu_buffer->rb_work.work, rb_wake_up_waiters);
+	init_waitqueue_head(&cpu_buffer->rb_work.waiters);
 
 	bpage = kzalloc_node(ALIGN(sizeof(*bpage), cache_line_size()),
 			    GFP_KERNEL, cpu_to_node(cpu));
@@ -1324,8 +1324,8 @@ struct ring_buffer *__ring_buffer_alloc(unsigned long size, unsigned flags,
 	buffer->clock = trace_clock_local;
 	buffer->reader_lock_key = key;
 
-	init_irq_work(&buffer->irq_work.work, rb_wake_up_waiters);
-	init_waitqueue_head(&buffer->irq_work.waiters);
+	INIT_WORK(&buffer->rb_work.work, rb_wake_up_waiters);
+	init_waitqueue_head(&buffer->rb_work.waiters);
 
 	/* need at least two pages */
 	if (nr_pages < 2)
@@ -2802,16 +2802,14 @@ static void rb_commit(struct ring_buffer_per_cpu *cpu_buffer,
 static __always_inline void
 rb_wakeups(struct ring_buffer *buffer, struct ring_buffer_per_cpu *cpu_buffer)
 {
-	if (buffer->irq_work.waiters_pending) {
-		buffer->irq_work.waiters_pending = false;
-		/* irq_work_queue() supplies it's own memory barriers */
-		irq_work_queue(&buffer->irq_work.work);
+	if (buffer->rb_work.waiters_pending) {
+		buffer->rb_work.waiters_pending = false;
+		schedule_work(&buffer->rb_work.work);
 	}
 
-	if (cpu_buffer->irq_work.waiters_pending) {
-		cpu_buffer->irq_work.waiters_pending = false;
-		/* irq_work_queue() supplies it's own memory barriers */
-		irq_work_queue(&cpu_buffer->irq_work.work);
+	if (cpu_buffer->rb_work.waiters_pending) {
+		cpu_buffer->rb_work.waiters_pending = false;
+		schedule_work_on(cpu_buffer->cpu, &cpu_buffer->rb_work.work);
 	}
 }
 

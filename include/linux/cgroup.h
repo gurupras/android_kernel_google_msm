@@ -150,6 +150,8 @@ enum {
 	 * Clone cgroup values when creating a new child cgroup
 	 */
 	CGRP_CLONE_CHILDREN,
+	/* Android BG task*/
+	CGRP_IS_BG_TASK,
 };
 
 struct cgroup {
@@ -502,12 +504,16 @@ struct cgroup_subsys {
 #include <linux/cgroup_subsys.h>
 #undef SUBSYS
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+struct cgroup_subsys_state *cgroup_subsys_state(
+	struct cgroup *cgrp, int subsys_id);
+#else
 static inline struct cgroup_subsys_state *cgroup_subsys_state(
 	struct cgroup *cgrp, int subsys_id)
 {
 	return cgrp->subsys[subsys_id];
 }
-
+#endif
 /*
  * function to get the cgroup_subsys_state which allows for extra
  * rcu_dereference_check() conditions, such as locks used during the
@@ -598,6 +604,10 @@ unsigned short css_id(struct cgroup_subsys_state *css);
 unsigned short css_depth(struct cgroup_subsys_state *css);
 struct cgroup_subsys_state *cgroup_css_from_dir(struct file *f, int id);
 
+static inline int cgroup_is_bg_task(struct cgroup *cgp) {
+	return test_bit(CGRP_IS_BG_TASK, &cgp->flags);
+}
+
 #else /* !CONFIG_CGROUPS */
 
 static inline int cgroup_init_early(void) { return 0; }
@@ -622,6 +632,14 @@ static inline int cgroup_attach_task_all(struct task_struct *from,
 	return 0;
 }
 
+static inline int cgroup_is_bg_task(struct cgroup *cgp) {
+	return 0;
+}
+
 #endif /* !CONFIG_CGROUPS */
+
+#ifdef CONFIG_PHONELAB
+int is_background_task(struct task_struct *task);
+#endif	/* CONFIG_PHONELAB */
 
 #endif /* _LINUX_CGROUP_H */

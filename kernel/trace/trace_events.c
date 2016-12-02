@@ -1550,6 +1550,12 @@ event_subsystem_dir(struct trace_array *tr, const char *name,
 	trace_create_file("enable", 0644, dir->entry, dir,
 			  &ftrace_system_enable_fops);
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+	if (strcmp(name, "phonelab") == 0) {
+		create_phonelab_options(dir->entry);
+	}
+#endif
+
 	list_add(&dir->list, &tr->systems);
 
 	return dir->entry;
@@ -1623,6 +1629,7 @@ event_create_dir(struct dentry *parent, struct ftrace_event_file *file)
 
 	trace_create_file("format", 0444, file->dir, call,
 			  &ftrace_event_format_fops);
+
 
 	return 0;
 }

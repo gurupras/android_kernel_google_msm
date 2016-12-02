@@ -2335,6 +2335,10 @@ config CPU_FREQ_MSM
           This enables the CPUFreq driver for Qualcomm CPUs.
           If in doubt, say Y.
 
+menu "PhoneLab Features"
+source "kernel/phonelab/Kconfig"
+endmenu
+
 menu "Floating point emulation"
 
 comment "At least one emulation must be selected"

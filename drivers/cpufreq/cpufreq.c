@@ -38,7 +38,12 @@
  * also protects the cpufreq_cpu_data array.
  */
 static struct cpufreq_driver *cpufreq_driver;
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+DEFINE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);
+EXPORT_PER_CPU_SYMBOL_GPL(cpufreq_cpu_data);
+#else
 static DEFINE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);
+#endif
 #ifdef CONFIG_HOTPLUG_CPU
 /* This one keeps track of the previously set governor of a removed CPU */
 struct cpufreq_cpu_save_data {
@@ -444,7 +449,8 @@ static ssize_t store_##file_name					\
 									\
 	policy->user_policy.min = new_policy.min;			\
 	policy->user_policy.max = new_policy.max;			\
-									\
+	trace_cpufreq_scaling(#file_name, new_policy.min, new_policy.max,		\
+			policy->cpu);					\
 	ret = __cpufreq_set_policy(policy, &new_policy);		\
 									\
 	return ret ? ret : count;					\
@@ -512,6 +518,21 @@ static ssize_t store_scaling_governor(struct cpufreq_policy *policy,
 	policy->user_policy.governor = policy->governor;
 
 	sysfs_notify(&policy->kobj, NULL, "scaling_governor");
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	if(strncmp(new_policy.governor->name, "ondemand", strlen("ondemand")) == 0) {
+		printk(KERN_DEBUG "tempfreq: %s: Enabling... cpu=%d\n", __func__, new_policy.cpu);
+		if(phone_state != NULL && phone_state->cpu_states != NULL &&
+				phone_state->cpu_states[new_policy.cpu] != NULL) {
+			phone_state->cpu_states[new_policy.cpu]->enabled = 1;
+		}
+	} else {
+		printk(KERN_DEBUG "tempfreq: %s: Disabling... cpu=%d\n", __func__, new_policy.cpu);
+		if(phone_state != NULL && phone_state->cpu_states != NULL &&
+				phone_state->cpu_states[new_policy.cpu] != NULL) {
+			phone_state->cpu_states[new_policy.cpu]->enabled = 0;
+		}
+	}
+#endif
 
 	if (ret)
 		return ret;
@@ -627,6 +648,7 @@ static ssize_t show_bios_limit(struct cpufreq_policy *policy, char *buf)
 	}
 	return sprintf(buf, "%u\n", policy->cpuinfo.max_freq);
 }
+
 
 cpufreq_freq_attr_ro_perm(cpuinfo_cur_freq, 0400);
 cpufreq_freq_attr_ro(cpuinfo_min_freq);
@@ -1632,6 +1654,9 @@ static int __cpufreq_governor(struct cpufreq_policy *policy,
 
 int cpufreq_register_governor(struct cpufreq_governor *governor)
 {
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	int cpu;
+#endif
 	int err;
 
 	if (!governor)
@@ -1647,7 +1672,18 @@ int cpufreq_register_governor(struct cpufreq_governor *governor)
 		err = 0;
 		list_add(&governor->governor_list, &cpufreq_governor_list);
 	}
-
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	(void) cpu;
+	if(strncmp(governor->name, "ondemand", strlen("ondemand")) == 0) {
+		printk(KERN_DEBUG "tempfreq: %s: Enabling...\n", __func__);
+		for_each_possible_cpu(cpu) {
+			if(phone_state != NULL && phone_state->cpu_states != NULL &&
+					phone_state->cpu_states[cpu] != NULL) {
+				phone_state->cpu_states[cpu]->enabled = 1;
+			}
+		}
+	}
+#endif
 	mutex_unlock(&cpufreq_governor_mutex);
 	return err;
 }
@@ -1678,6 +1714,15 @@ void cpufreq_unregister_governor(struct cpufreq_governor *governor)
 	}
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ
+	printk(KERN_DEBUG "tempfreq: %s: Disabling...\n", __func__);
+	for_each_possible_cpu(cpu) {
+		if(phone_state != NULL && phone_state->cpu_states != NULL &&
+				phone_state->cpu_states[cpu] != NULL) {
+			phone_state->cpu_states[cpu]->enabled = 0;
+		}
+	}
+#endif
 	mutex_lock(&cpufreq_governor_mutex);
 	list_del(&governor->governor_list);
 	mutex_unlock(&cpufreq_governor_mutex);
