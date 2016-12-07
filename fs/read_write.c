@@ -529,6 +529,34 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	return ret;
 }
 
+static int get_path(struct file *file, char *buf)
+{
+	char *pathname;
+	struct path *path;
+	char *tmp;
+
+	path = &file->f_path;
+	path_get(path);
+
+	tmp = (char *)__get_free_page(GFP_TEMPORARY);
+
+	if (!tmp) {
+		path_put(path);
+		return -ENOMEM;
+	}
+
+	pathname = d_path(path, tmp, PAGE_SIZE);
+	path_put(path);
+
+	if (IS_ERR(pathname)) {
+		free_page((unsigned long)tmp);
+		return PTR_ERR(pathname);
+	}
+	strncpy(buf, pathname, PLSC_PATHMAX);
+	free_page((unsigned long)tmp);
+	return 0;
+}
+
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 		size_t, count)
 {
@@ -560,6 +588,11 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 
 		// PL:  (Possibly) log the call():
 		if (f_logrw) {
+			char path[512];
+			if(strncmp(current->comm, "thermal", 7) == 0) {
+				get_path(file, path);
+				printk(KERN_DEBUG "tempfreq: tengine: %s > %s\n", buf, path);
+			}
 			trace_plsc_rw("write", time_start, sched_clock() - time_start, ret, f_session, fd, count, pos_old);
 		}
 
