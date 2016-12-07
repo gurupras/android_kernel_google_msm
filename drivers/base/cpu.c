@@ -13,6 +13,7 @@
 #include <linux/gfp.h>
 #include <linux/slab.h>
 #include <linux/percpu.h>
+#include <linux/cpumask.h>
 
 #include "base.h"
 
@@ -52,13 +53,13 @@ static ssize_t __ref store_online(struct device *dev,
 	ssize_t ret;
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-	extern int phonelab_tempfreq_mpdecision_coexist_cpu;
+	extern struct cpumask phonelab_tempfreq_mpdecision_coexist_cpu;
 #endif
 	cpu_hotplug_driver_lock();
 	switch (buf[0]) {
 	case '0':
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-		if((cpu->dev.id == phonelab_tempfreq_mpdecision_coexist_cpu && phonelab_tempfreq_mpdecision_blocked) || num_online_cpus() == 2 || phonelab_tempfreq_mpdecision_block_offline) {
+		if((cpu_isset(cpu->dev.id, phonelab_tempfreq_mpdecision_coexist_cpu) && phonelab_tempfreq_mpdecision_blocked) || num_online_cpus() == 2 || phonelab_tempfreq_mpdecision_block_offline) {
 			ret = -EPERM;
 			goto out;
 		}

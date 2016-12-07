@@ -327,6 +327,28 @@ TRACE_EVENT(tempfreq_log,
 	TP_printk("msg=%s", __get_str(message))
 );
 
+TRACE_EVENT(tempfreq_cpuset_change,
+
+	TP_PROTO(int is_bg, char *bits, char *extra),
+
+	TP_ARGS(is_bg, bits, extra),
+
+	TP_STRUCT__entry(
+		__field(	int,		is_bg	)
+		__string(	bits,		bits	)
+		__string(	extra,		extra	)
+	),
+
+	TP_fast_assign(
+		__entry->is_bg		= is_bg;
+		__assign_str(bits, bits);
+		__assign_str(extra, extra);
+	),
+
+	TP_printk("cpuset=%s cpus=%s extra=%s", __entry->is_bg == 1 ? "BG" : "FG", __get_str(bits), __get_str(extra))
+);
+
+
 #endif
 /* This part must be outside protection */
 #include <trace/define_trace.h>

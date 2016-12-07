@@ -631,7 +631,7 @@ static int tempfreq_hotplug_callback(struct notifier_block *nfb, unsigned long a
 		// may have been brought up by the kernel as temperature dropped
 		phone_state_lock();
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-		if(!phonelab_tempfreq_mpdecision_blocked || cpu != phonelab_tempfreq_mpdecision_coexist_cpu) {
+		if(!phonelab_tempfreq_mpdecision_blocked || !cpu_isset(cpu, phonelab_tempfreq_mpdecision_coexist_cpu)) {
 #endif
 			update_phone_state(cpu, 1);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST

@@ -128,7 +128,7 @@ void handle_bg_update(u64 last_bg_busy, u64 avg_fg_busy);
 
 extern int phonelab_tempfreq_mpdecision_coexist_enable;
 extern int phonelab_tempfreq_mpdecision_blocked;
-extern int phonelab_tempfreq_mpdecision_coexist_cpu;
+extern struct cpumask phonelab_tempfreq_mpdecision_coexist_cpu;
 extern int phonelab_tempfreq_mpdecision_block_offline;
 void start_bg_core_control(void);
 void stop_bg_core_control(void);
