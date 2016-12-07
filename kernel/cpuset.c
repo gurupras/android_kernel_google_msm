@@ -1548,7 +1548,10 @@ static int cpuset_write_s64(struct cgroup *cgrp, struct cftype *cft, s64 val)
 /*
  * Common handling for a write to a "cpus" or "mems" file.
  */
-static int cpuset_write_resmask(struct cgroup *cgrp, struct cftype *cft,
+#ifndef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+static
+#endif
+int cpuset_write_resmask(struct cgroup *cgrp, struct cftype *cft,
 				const char *buf)
 {
 	int retval = 0;

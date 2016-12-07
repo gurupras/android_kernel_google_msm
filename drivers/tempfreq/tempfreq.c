@@ -74,7 +74,7 @@ static int tempfreq_periods_per_sec = 10;
 int phonelab_tempfreq_binary_threshold_temp	= 70;
 int phonelab_tempfreq_binary_critical		= 75;
 int phonelab_tempfreq_binary_lower_threshold	= 65;
-int phonelab_tempfreq_binary_jump_lower		= 2;
+int phonelab_tempfreq_binary_jump_lower		= 1;
 
 int phonelab_tempfreq_binary_short_epochs	= 2;
 int phonelab_tempfreq_binary_short_diff_limit	= 3;
@@ -211,6 +211,7 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	static int mpdecision_up_cycles = 0, mpdecision_down_cycles = 0;
+	int should_block = 0;
 #endif
 #ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
 	static int skin_temp_epochs_counted = 0;
@@ -225,6 +226,10 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	thermal_callback_lock();
 	// Log tempfreq_temp regardless
 	trace_tempfreq_temp(temp);
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+	skin_temp = get_skin_temperature();
+	trace_tempfreq_skin_temp(skin_temp);
+#endif
 	if(!phonelab_tempfreq_enable) {
 		goto out;
 	}
@@ -238,31 +243,16 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 
 	// Handle
 //	printk(KERN_DEBUG "tempfreq: Callback!\n");
-#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
-	skin_temp_epochs_counted++;
-	skin_temp = get_skin_temperature();
-	if(skin_temp >= phonelab_tempfreq_skin_temp_critical &&
-			skin_temp_epochs_counted == phonelab_tempfreq_skin_temp_epochs) {
-		int next_idx;
-		cpu = get_cpu_with(HIGHEST);
-		op = LOWER;
-		is_increase = 0;
-		prev_temp = 0;
-		reason_int = REASON_SKIN_CRITICAL;
-		temp = skin_temp;
-		next_idx = phone_state->cpu_states[cpu]->cur_idx - 3;
-		next_idx = next_idx >= 0 ? next_idx : 0;
-		binary_freq = FREQUENCIES[next_idx];
-		goto done;
-	}
-#endif
 
-#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
-	short_epochs_counted++;
-	long_epochs_counted++;
-
-	if(temp > phonelab_tempfreq_binary_threshold_temp) {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	// Block mpdecision if either temp exceeds threshold
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
+	should_block |= (temp > phonelab_tempfreq_binary_threshold_temp ? 1 : 0);
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+	should_block |= (skin_temp > phonelab_tempfreq_skin_temp_critical ? 1 : 0);
+#endif
+	if(should_block) {
 		// There is a case here where mpdecision has blocked a cpu just before we enter and block mpdecision
 		// Think about whether this needs to be specially handled
 		if(phonelab_tempfreq_mpdecision_coexist_enable) {
@@ -277,7 +267,59 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 				}
 			}
 		}
+	} else {
+		// Unblock mpdecision based on last BG ratio
+		if(phonelab_tempfreq_mpdecision_blocked && last_bg_busy <= 10) {
+		       if(mpdecision_down_cycles == 20) {
+				stop_bg_core_control();
+				mpdecision_down_cycles = 0;
+				mpdecision_up_cycles = 0;
+				goto out;
+			} else {
+				mpdecision_down_cycles++;
+			}
+		}
+	}
 #endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+	skin_temp_epochs_counted++;
+	if(skin_temp > phonelab_tempfreq_skin_temp_critical) {
+		int diff = skin_temp - phonelab_tempfreq_skin_temp_critical;
+		if(diff > 2) {
+			// Check skin temperature more often
+			phonelab_tempfreq_skin_temp_epochs = (3 * 1000) / phonelab_tempfreq_period_ms;
+		}
+
+		if(skin_temp_epochs_counted >= phonelab_tempfreq_skin_temp_epochs) {
+			int next_idx;
+			cpu = get_cpu_with(HIGHEST);
+			op = LOWER;
+			is_increase = 0;
+			prev_temp = 0;
+			reason_int = REASON_SKIN_CRITICAL;
+			temp = skin_temp;
+			next_idx = phone_state->cpu_states[cpu]->cur_idx - 2;
+			next_idx = next_idx >= 0 ? next_idx : 0;
+			if(FREQUENCIES[next_idx] < 1190400) {
+				binary_freq = 1190400;
+			}
+			goto done;
+		}
+	} else {
+		int diff = phonelab_tempfreq_skin_temp_critical - skin_temp;
+		if(diff > 2) {
+			// Check skin temperature less often
+			phonelab_tempfreq_skin_temp_epochs = (10 * 1000) / phonelab_tempfreq_period_ms;
+		}
+	}
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
+	short_epochs_counted++;
+	long_epochs_counted++;
+
+	if(temp > phonelab_tempfreq_binary_threshold_temp) {
 		if(short_epochs_counted == phonelab_tempfreq_binary_short_epochs) {
 			// We're above the phonelab_tempfreq_binary_critical and
 			// if temperature increased by more than
@@ -309,19 +351,11 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	}
 	else if(temp <= phonelab_tempfreq_binary_lower_threshold) {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-		if(phonelab_tempfreq_mpdecision_coexist_enable) {
-			if(phonelab_tempfreq_mpdecision_blocked) {
-			       if(mpdecision_down_cycles == 20) {
-					stop_bg_core_control();
-					mpdecision_down_cycles = 0;
-					mpdecision_up_cycles = 0;
-					goto out;
-				} else {
-					mpdecision_down_cycles++;
-				}
-			}
-		}
 #endif
+		if(skin_temp > phonelab_tempfreq_skin_temp_critical) {
+			// We can't increase limits..
+			goto done;
+		}
 		// We can now increase the limit on the lowest
 		cpu = get_cpu_with(LOWEST);
 		op = HIGHER;
@@ -335,6 +369,10 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	if(long_epochs_counted >= phonelab_tempfreq_binary_long_epochs) {
 		// If we've remained stable for a long period
 		// Regardless of frequency
+		if(skin_temp > phonelab_tempfreq_skin_temp_critical) {
+			// We can't do anything if skin temperature is critical
+			goto done;
+		}
 		if(temp - prev_long_epoch_temp < phonelab_tempfreq_binary_long_diff_limit) {
 			if(temp < phonelab_tempfreq_binary_threshold_temp) {
 #ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
@@ -432,7 +470,9 @@ done:
 					binary_freq);
 			goto out;
 		}
+		lock_policy_rwsem_write(policy->cpu);
 		policy->max = binary_freq;
+		unlock_policy_rwsem_write(policy->cpu);
 		cpufreq_cpu_put(policy);
 		cs->cur_max_idx = get_frequency_index(binary_freq);
 	}
@@ -1052,6 +1092,7 @@ static ssize_t store_period_ms(const char *_buf, size_t count)
 	} else {
 		phonelab_tempfreq_period_ms = val;
 		tempfreq_periods_per_sec = 1000 / val;
+		phonelab_tempfreq_skin_temp_epochs = (10 * 1000 / phonelab_tempfreq_period_ms);
 	}
 out:
 	kfree(buf);
@@ -1804,6 +1845,9 @@ static int __init init_tempfreq(void)
 	init_phone_state();
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 	init_mpdecision_coexist();
+#endif
+#ifdef CONFIG_PHONELAB_TEMPFREQ_SKIN_TEMPERATURE
+	phonelab_tempfreq_skin_temp_epochs = (10 * 1000 / phonelab_tempfreq_period_ms);
 #endif
 	init_tempfreq_callbacks();
 	return 0;

@@ -2364,6 +2364,46 @@ out_unlock_cgroup:
 }
 #endif
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
+static int common_attach(struct cgroup *cgrp, u64 pid, bool group)
+{
+	int ret = 0;
+	ret = attach_task_by_pid(cgrp, pid, group);
+	if(ret != 0) {
+		printk(KERN_DEBUG "tempfreq: %s: Failed common_attach(cgrp, %llu, false)\n", __func__, pid);
+		return ret;
+	}
+	if(phonelab_tempfreq_mpdecision_blocked) {
+		if(cgrp == &rootnode.top_cgroup) {
+			if(top_cpuset.css.cgroup != NULL) {
+				ret = attach_task_by_pid(top_cpuset.css.cgroup, pid, group);
+				if(ret) {
+					printk(KERN_DEBUG "tempfreq: %s: Failed to attach to root cpuset\n", __func__);
+				}
+			} else {
+				printk(KERN_ERR "tempfreq: %s: top_cpuset.css.cgroup == NULL\n", __func__);
+			}
+		} else if(cgrp == bg_non_interactive) {
+			ret = attach_task_by_pid(cs_bg_non_interactive, pid, group);
+			if(ret) {
+				printk(KERN_DEBUG "tempfreq: %s: Failed to attach to cs_bg_non_interactive cpuset\n", __func__);
+			}
+		} else if(cgrp == fg_bg) {
+			ret = attach_task_by_pid(cs_fg_bg, pid, group);
+			if(ret) {
+				printk(KERN_DEBUG "tempfreq: %s: Failed to attach to cs_fg_bg cpuset\n", __func__);
+			}
+		} else if(cgrp == delay_tolerant) {
+			ret = attach_task_by_pid(cs_delay_tolerant, pid, group);
+			if(ret) {
+				printk(KERN_DEBUG "tempfreq: %s: Failed to attach to cs_delay_tolerant cpuset\n", __func__);
+			}
+		}
+	}
+	return ret;
+}
+#endif
+
 #ifndef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
 static
 #endif
@@ -2373,26 +2413,7 @@ int cgroup_tasks_write(struct cgroup *cgrp, struct cftype *cft, u64 pid)
 	return attach_task_by_pid(cgrp, pid, false);
 #else
 	int ret = 0;
-	ret = attach_task_by_pid(cgrp, pid, false);
-	if(ret != 0) {
-		return ret;
-	}
-
-	if(phonelab_tempfreq_mpdecision_blocked) {
-		if(cgrp == &rootnode.top_cgroup) {
-			if(top_cpuset.css.cgroup != NULL) {
-				ret = attach_task_by_pid(top_cpuset.css.cgroup, pid, false);
-			} else {
-				printk(KERN_ERR "tempfreq: %s: top_cpuset.css.cgroup == NULL\n", __func__);
-			}
-		} else if(cgrp == bg_non_interactive) {
-			ret = attach_task_by_pid(cs_bg_non_interactive, pid, false);
-		} else if(cgrp == fg_bg) {
-			ret = attach_task_by_pid(cs_fg_bg, pid, false);
-		} else if(cgrp == delay_tolerant) {
-			ret = attach_task_by_pid(cs_delay_tolerant, pid, false);
-		}
-	}
+	ret = common_attach(cgrp, pid, false);
 	return ret;
 #endif
 }
@@ -2403,25 +2424,7 @@ static int cgroup_procs_write(struct cgroup *cgrp, struct cftype *cft, u64 tgid)
 	return attach_task_by_pid(cgrp, tgid, true);
 #else
 	int ret = 0;
-	ret = attach_task_by_pid(cgrp, tgid, true);
-	if(ret != 0) {
-		return ret;
-	}
-	if(phonelab_tempfreq_mpdecision_blocked) {
-		if(cgrp == &rootnode.top_cgroup) {
-			if(top_cpuset.css.cgroup != NULL) {
-				ret = attach_task_by_pid(top_cpuset.css.cgroup, tgid, false);
-			} else {
-				printk(KERN_ERR "tempfreq: %s: top_cpuset.css.cgroup == NULL\n", __func__);
-			}
-		} else if(cgrp == bg_non_interactive) {
-			ret = attach_task_by_pid(cs_bg_non_interactive, tgid, false);
-		} else if(cgrp == fg_bg) {
-			ret = attach_task_by_pid(cs_fg_bg, tgid, false);
-		} else if(cgrp == delay_tolerant) {
-			ret = attach_task_by_pid(cs_delay_tolerant, tgid, false);
-		}
-	}
+	ret = common_attach(cgrp, tgid, true);
 	return ret;
 #endif
 }

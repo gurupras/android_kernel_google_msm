@@ -28,6 +28,11 @@ struct sock *netlink_sk = NULL;
 
 static int userspace_pid = -1;
 
+int is_netlink_ready(void)
+{
+	return userspace_pid == -1 ? 0 : 1;
+}
+
 void netlink_recv(struct sk_buff *skb)
 {
 	struct nlmsghdr *nlh = NULL;

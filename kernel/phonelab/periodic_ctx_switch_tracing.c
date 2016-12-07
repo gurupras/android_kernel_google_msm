@@ -17,6 +17,39 @@
 
 #include <trace/events/phonelab.h>
 
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+#include <../drivers/tempfreq/tempfreq.h>
+#include <trace/events/tempfreq.h>
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+static u64 rtime[4], bg_rtime[4];
+u64 last_bg_busy;
+
+static u64 avg_fg_busy(void) {
+	int i;
+	u64 tot_rtime = 0, tot_fg_rtime = 0;
+
+	for(i = 0; i < 4; i++) {
+		if(i == phonelab_tempfreq_mpdecision_coexist_cpu) {
+			continue;
+		}
+		tot_rtime += rtime[i];
+		tot_fg_rtime = rtime[i] - bg_rtime[i];
+	}
+	return div_u64(tot_fg_rtime * 100, tot_rtime);
+}
+
+static u64 bg_percent(void) {
+	int cpu = phonelab_tempfreq_mpdecision_coexist_cpu;
+	if(rtime[cpu] == 0) {
+		return 0;
+	}
+	return div_u64(bg_rtime[cpu] * 100, rtime[cpu]);
+}
+#endif
+
+
 unsigned int periodic_ctx_switch_info_freq = 1000;
 
 struct periodic_work {
@@ -149,8 +182,14 @@ void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *ne
 		cur_time.sum_exec_runtime = prev->se.sum_exec_runtime;
 		diff_task_cputime(&stats->prev_time, &cur_time, &time_diff);
 		add_task_cputime(&stats->agg_time, &time_diff, &stats->agg_time);
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+			rtime[cpu] += time_diff.sum_exec_runtime;
+#endif
 		if (stats->count_as_bg) {
 			add_task_cputime(&stats->agg_bg_time, &time_diff, &stats->agg_bg_time);
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+			bg_rtime[cpu] += time_diff.sum_exec_runtime;
+#endif
 		}
 
 		// Update reason for being taken off the CPU
@@ -175,7 +214,6 @@ void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *ne
 		stats = stats_from_task(next);
 		hlist_add_head(&stats->hlist, bucket);
 	}
-
 	// Set prev times for diffs when is context switched out
 	task_times(next, &stats->prev_time.utime, &stats->prev_time.stime);
 	stats->prev_time.sum_exec_runtime = next->se.sum_exec_runtime;
@@ -296,7 +334,7 @@ clear_cpu_ctx_switch_info(int cpu)
 }
 #endif
 
-void periodic_ctx_switch_info(struct work_struct *w) {
+void __cpuinit periodic_ctx_switch_info(struct work_struct *w) {
 
 	int cpu, wcpu;
 	struct delayed_work *work, *dwork;
@@ -306,6 +344,11 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	unsigned count;
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	u32 val;
+#endif
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	int i;
+	u64 fg_busy;
 #endif
 
 #ifdef TIMING
@@ -341,6 +384,18 @@ void periodic_ctx_switch_info(struct work_struct *w) {
 	trace_phonelab_periodic_ctx_switch_marker(cpu, 1, 0, log_idx);
 	count = do_trace_periodic_ctx_switch(cpu, log_idx);
 	trace_phonelab_periodic_ctx_switch_marker(cpu, 0, count, log_idx);
+
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+	if(cpu == phonelab_tempfreq_mpdecision_coexist_cpu) {
+		last_bg_busy = bg_percent();
+		fg_busy = avg_fg_busy();
+		handle_bg_update(last_bg_busy, fg_busy);
+		for(i = 0; i < 4; i++) {
+			rtime[i] = 0;
+			bg_rtime[i] = 0;
+		}
+	}
+#endif
 
 #ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
 	val = read_instruction_counter();

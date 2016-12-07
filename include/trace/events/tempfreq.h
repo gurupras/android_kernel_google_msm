@@ -26,6 +26,23 @@ TRACE_EVENT(tempfreq_temp,
 	TP_printk("temp=%ld", __entry->temp)
 );
 
+TRACE_EVENT(tempfreq_skin_temp,
+
+	TP_PROTO(long temp),
+
+	TP_ARGS(temp),
+
+	TP_STRUCT__entry(
+		__field(	long,		temp		)
+	),
+
+	TP_fast_assign(
+		__entry->temp		= temp;
+	),
+
+	TP_printk("temp=%ld", __entry->temp)
+);
+
 TRACE_EVENT(tempfreq_binary_diff,
 
 	TP_PROTO(long temp, long prev_temp, int culprit_cpu, int culprit_freq, int is_increase, int result_freq, const char *reason),
@@ -291,6 +308,23 @@ TRACE_EVENT(tempfreq_cgroup_copy_tasks,
 	),
 
 	TP_printk("n=%d failed=%d", __entry->n, __entry->failed)
+);
+
+TRACE_EVENT(tempfreq_log,
+
+	TP_PROTO(char *message),
+
+	TP_ARGS(message),
+
+	TP_STRUCT__entry(
+		__string(	message,	message	)
+	),
+
+	TP_fast_assign(
+		__assign_str(message, message);
+	),
+
+	TP_printk("msg=%s", __get_str(message))
 );
 
 #endif

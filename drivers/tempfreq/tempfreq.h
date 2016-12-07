@@ -123,6 +123,9 @@ ssize_t tempfreq_store(struct kobject *kobj, struct attribute *attr,
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 int __init init_mpdecision_coexist(void);
+int cpuset_write_resmask(struct cgroup *cgrp, struct cftype *cft, const char *buf);
+void handle_bg_update(u64 last_bg_busy, u64 avg_fg_busy);
+
 extern int phonelab_tempfreq_mpdecision_coexist_enable;
 extern int phonelab_tempfreq_mpdecision_blocked;
 extern int phonelab_tempfreq_mpdecision_coexist_cpu;
@@ -134,6 +137,7 @@ extern struct tempfreq_attr mpdecision_coexist_upcall;
 extern struct tempfreq_attr mpdecision_coexist_nl_send;
 extern struct tempfreq_attr mpdecision_bg_cpu;
 extern struct tempfreq_attr mpdecision_block_offline;
+extern u64 last_bg_busy;
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST */
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND
