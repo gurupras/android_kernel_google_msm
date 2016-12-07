@@ -49,34 +49,53 @@ static void mpdecision_coexist_unlock(void)
 }
 
 
+static void cpumask_to_string(struct cpumask *mask, char *buf)
+{
+	int cpu;
+	int idx = 0, offset = 0;
+	memset(buf, 0, 16);
+	for_each_cpu(cpu, mask) {
+		if(idx == 0) {
+			offset += sprintf(buf + offset, "%d", cpu);
+		} else {
+			offset += sprintf(buf + offset, ",%d", cpu);
+		}
+		idx++;
+	}
+}
+
+
+
 inline __cpuinit void start_bg_core_control(void)
 {
 	struct cpufreq_policy *policy;
 	int cpu;
-	int ret;
+	char buf[16];
+
 #ifdef DEBUG
 	u64 ns = sched_clock();
 #endif
-	mutex_lock(&mpdecision_coexist_mutex);
-
+	mpdecision_coexist_lock();
 	// cpu_hotplug_driver is already locked
 	if(!initialized || phonelab_tempfreq_mpdecision_blocked) {
 		goto out;
+	}
+
+	if(cpumask_empty(&phonelab_tempfreq_mpdecision_coexist_cpu)) {
+		printk(KERN_DEBUG "tempfreq: %s: WARNING!!! coexist_cpu cpumask is empty! using CPU 0\n", __func__);
+		cpumask_set_cpu(0, &phonelab_tempfreq_mpdecision_coexist_cpu);
 	}
 
 	phonelab_tempfreq_mpdecision_blocked = 1;
 	// Tasks may be pegged to any subset of cores.
 	// Find this subset
 	// FIXME: For now, we assume that it is only 1 CPU and its hard-coded to CPU 0
+	get_online_cpus();
 	for_each_cpu(cpu, &phonelab_tempfreq_mpdecision_coexist_cpu) {
 		if(!cpu_online(cpu)) {
-			printk(KERN_DEBUG "tempfreq: %s: Attempting to bring cpu-%d up\n", __func__, cpu);
-			ret = cpu_up(cpu);
-			if(ret) {
-				printk(KERN_ERR "tempfreq: %s: Failed to bring cpu-%d online\n", __func__, cpu);
-				phonelab_tempfreq_mpdecision_blocked = 0;
-				goto out;
-			}
+			//printk(KERN_ERR "tempfreq: %s: Failed to bring cpu-%d online\n", __func__, cpu);
+			phonelab_tempfreq_mpdecision_blocked = 0;
+			goto out;
 			// Hotplug driver will not enable the flag when mpdecision is blocked
 		} else {
 			// We disable this cpu state so that binary mode will not change the frequency limits
@@ -85,26 +104,28 @@ inline __cpuinit void start_bg_core_control(void)
 		}
 
 		// We set this core to a frequency that we know will lead to cooling
-		// FIXME: Currently, this is hardcoded to 960000. We may need this to be adjustable
+		// FIXME: Currently, this is hardcoded to 422400. We may need this to be adjustable
 		// We know that this frequency will only work towards cooling the system
 		policy = cpufreq_cpu_get(cpu);
+		printk(KERN_DEBUG "tempfreq: %s: got policy\n", __func__);
 		if(policy == NULL) {
 			// Try again after some time
 			phonelab_tempfreq_mpdecision_blocked = 0;
 			goto out;
 		}
-		lock_policy_rwsem_write(policy->cpu);
-		policy->max = 960000;
-		unlock_policy_rwsem_write(policy->cpu);
+		update_policy_max(policy, 422400);
 		cpufreq_cpu_put(policy);
 	}
-	trace_tempfreq_mpdecision_blocked(1);
+	memset(buf, 0, sizeof(buf));
+	cpumask_to_string(&phonelab_tempfreq_mpdecision_coexist_cpu, buf);
+	trace_tempfreq_mpdecision_blocked(1, buf);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	mpdecision_netlink_send("1");
 #else
 	sysfs_notify(&tempfreq_kobj, NULL, "mpdecision_coexist_upcall");
 #endif
 out:
+	put_online_cpus();
 	mpdecision_coexist_unlock();
 #ifdef DEBUG
 	trace_tempfreq_timing(__func__, sched_clock() - ns);
@@ -121,31 +142,48 @@ static void update_bg_core_control(const struct cpumask *mask)
 		return;
 	}
 
+#if 0
+	printk(KERN_DEBUG "tempfreq: %s: Updating phone state\n", __func__);
+
 	for_each_cpu(cpu, &phonelab_tempfreq_mpdecision_coexist_cpu) {
 		policy = cpufreq_cpu_get(cpu);
 		if(policy == NULL) {
 			// Try again after some time
+			printk(KERN_DEBUG "tempfreq: %s: policy(%d) -> NULL\n", __func__, cpu);
 			continue;
 		}
-		lock_policy_rwsem_write(policy->cpu);
-		policy->max = 2265600;
-		unlock_policy_rwsem_write(policy->cpu);
-		update_phone_state(cpu, 1);
+		update_policy_max(policy, 2265600);
 		cpufreq_cpu_put(policy);
 	}
 
 	for_each_cpu(cpu, mask) {
-		policy = cpufreq_cpu_get(cpu);
-		if(policy == NULL) {
-			// Try again after some time
-			continue;
-		}
-		lock_policy_rwsem_write(policy->cpu);
-		policy->max = 960000;
-		unlock_policy_rwsem_write(policy->cpu);
 		cpufreq_cpu_put(policy);
 	}
+#endif
+	// Disable any not in mask but in phonelab_tempfreq_mpdecision_coexist_cpu
+	get_online_cpus();
+	for_each_possible_cpu(cpu) {
+		if(cpu_isset(cpu, phonelab_tempfreq_mpdecision_coexist_cpu) &&
+				!cpu_isset(cpu, *mask)) {
+			// In old but not in new..disable
+			update_phone_state(cpu, 1);
+		} else if(cpu_isset(cpu, *mask) && !cpu_isset(cpu, phonelab_tempfreq_mpdecision_coexist_cpu)) {
+			// In new but not in old..enable
+			policy = cpufreq_cpu_get(cpu);
+			if(policy == NULL) {
+				// Try again after some time
+				printk(KERN_DEBUG "tempfreq: %s: policy(%d) -> NULL\n", __func__, cpu);
+				continue;
+			}
+			update_policy_max(policy, 422400);
+			update_phone_state(cpu, 0);
+			cpufreq_cpu_put(policy);
+		}
+	}
+	put_online_cpus();
+	cpumask_copy(&phonelab_tempfreq_mpdecision_coexist_cpu, mask);
 }
+
 // Expects phone_state_lock to be held
 inline void stop_bg_core_control(void)
 {
@@ -155,6 +193,10 @@ inline void stop_bg_core_control(void)
 	struct cpufreq_policy *policy;
 	struct cftype cft;
 	int cpu;
+	char buf[16];
+	struct cpumask mask;
+
+	memset(buf, 0, sizeof(buf));
 
 	mpdecision_coexist_lock();
 	// cpu_hotplug_driver is already locked
@@ -162,7 +204,6 @@ inline void stop_bg_core_control(void)
 		goto out;
 	}
 
-	phone_state_lock();
 	for_each_cpu(cpu, &phonelab_tempfreq_mpdecision_coexist_cpu) {
 		policy = cpufreq_cpu_get(cpu);
 		if(policy == NULL) {
@@ -170,19 +211,25 @@ inline void stop_bg_core_control(void)
 			phonelab_tempfreq_mpdecision_blocked = 0;
 			goto out;
 		}
-		lock_policy_rwsem_write(policy->cpu);
-		policy->max = 2265600;
-		unlock_policy_rwsem_write(policy->cpu);
 		update_phone_state(cpu, 1);
 		cpufreq_cpu_put(policy);
 	}
-	phone_state_unlock();
-
 	cft.private = 1;
-	cpuset_write_resmask(cs_fg_bg, &cft, "0-3");
+
+//	get_online_cpus();
+	cpumask_copy(&mask, cpu_active_mask);
+	cpumask_to_string(&mask, buf);
+	cpuset_write_resmask(cs_fg_bg, &cft, buf);
+//	put_online_cpus();
 
 	phonelab_tempfreq_mpdecision_blocked = 0;
-	trace_tempfreq_mpdecision_blocked(0);
+
+	memset(buf, 0, sizeof(buf));
+	cpumask_to_string(&phonelab_tempfreq_mpdecision_coexist_cpu, buf);
+	trace_tempfreq_mpdecision_blocked(0, buf);
+
+	cpumask_clear(&phonelab_tempfreq_mpdecision_coexist_cpu);
+	cpumask_set_cpu(0, &phonelab_tempfreq_mpdecision_coexist_cpu);
 	// We don't need to set policy->max necessarily.
 	// This will happen automatically once binary mode starts to run
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
@@ -205,105 +252,79 @@ void __cpuinit handle_bg_update(u64 last_bg_busy, u64 avg_fg_busy)
 	int new_freq;
 	int cpu;
 	char reason[32];
-	char buf[8];
-	int offset = 0;
+	char buf[16];
 	struct cftype cft;
 	struct cpumask mask;
 
+	memset(buf, 0, 16);
+	cft.private = 1;
+
 	if(phonelab_tempfreq_mpdecision_coexist_enable) {
 		printk(KERN_DEBUG "tempfreq: mpdecision - bg_busy: %llu  fg_busy: %llu\n", last_bg_busy, avg_fg_busy);
-
-	       if(avg_fg_busy > 40) {
-			// Split them up
-			int _cpu;
-
-			// Update bg cpu mask to be only core-0
-			phone_state_lock();
-			update_bg_core_control(cpumask_of(0));
-			phone_state_unlock();
-			// Update the cpuset to have only core 0
-			memset(buf, 0, sizeof(buf));
-			buf[0] = '0';
-			cft.private = 1;
-			cpuset_write_resmask(cs_bg_non_interactive, &cft, buf);
+		phone_state_lock();
+		get_online_cpus();
+		//printk(KERN_DEBUG "tempfreq: mpdecision - got locks\n");
+		if(avg_fg_busy > 40) {
 			sprintf(reason, "fg_busy(%llu) > 40", avg_fg_busy);
+			// Split them up
+			if(is_netlink_ready()) {
+				start_bg_core_control();
+			}
+			// There is contention between foreground and background
+			// Change cpuset.cpus affinity of cs_fg_bg to ignore bg core
+			memset(buf, 0, 16);
+			// Now update the mask
+			// mask = available - 0
+			cpumask_copy(&mask, cpu_active_mask);
+			cpumask_clear_cpu(0, &mask);
+			cpumask_to_string(&mask, buf);
+			cpuset_write_resmask(cs_fg_bg, &cft, buf);
 			trace_tempfreq_cpuset_change(0, buf, reason);
 
-
-
-			if(!phonelab_tempfreq_mpdecision_blocked && is_netlink_ready()) {
-				start_bg_core_control();
-				// There is contention between foreground and background
-				// Change cpuset.cpus affinity of cs_fg_bg to ignore bg core
-				memset(buf, 0, 8);
-				get_online_cpus();
-				// Now update the mask
-				// mask = available - 0
-				memset(buf, 0, 8);
-				get_online_cpus();
-				for_each_online_cpu(_cpu) {
-					if(_cpu == 0) {
-						continue;
-					}
-					if(_cpu < 3) {
-						offset += sprintf(buf + offset, "%d,", _cpu);
-					} else {
-						offset += sprintf(buf + offset, "%d", _cpu);
-					}
-				}
-				cft.private = 1;
-				//printk(KERN_DEBUG "tempfreq: %s: Updating cs_fg_bg cpuset mask to: %s\n", __func__, buf);
-				cpuset_write_resmask(cs_fg_bg, &cft, buf);
-				cpulist_parse(buf, &mask);
-				cpumask_scnprintf(buf, 8, &mask);
-				trace_tempfreq_cpuset_change(0, buf, reason);
-				put_online_cpus();
-			}
+			// Update the cpuset to have only core 0
+			memset(buf, 0, 16);
+			cpumask_clear(&mask);
+			cpumask_set_cpu(0, &mask);
+			cpumask_to_string(&mask, buf);
+			cpuset_write_resmask(cs_bg_non_interactive, &cft, buf);
+			trace_tempfreq_cpuset_change(1, buf, reason);
+			// Update bg cpu mask to be only core-0
+			cpumask_clear(&mask);
+			cpumask_set_cpu(0, &mask);
+			update_bg_core_control(&mask);
 		}
 
 		if(last_bg_busy > 30) {
-			if(avg_fg_busy < 10) {
-				int _cpu;
-
+			if(avg_fg_busy < 30) {
 				memset(buf, 0, sizeof(buf));
 				// We have high BG activity, but no FG activity..
 				// Use more cores for BG
-				phone_state_lock();
-				update_bg_core_control(cpu_active_mask);
-				for_each_online_cpu(_cpu) {
-					if(_cpu < 3) {
-						offset += sprintf(buf + offset, "%d,", _cpu);
-					} else {
-						offset += sprintf(buf + offset, "%d", _cpu);
-					}
-				}
-				cft.private = 1;
+				cpumask_copy(&mask, cpu_active_mask);
+				update_bg_core_control(&mask);
+				cpumask_to_string(&mask, buf);
 				cpuset_write_resmask(cs_bg_non_interactive, &cft, buf);
-				cpulist_parse(buf, &mask);
-				cpumask_scnprintf(buf, 8, &mask);
 				sprintf(reason, "bg_busy(%llu) > 50 && fg_busy(%llu) < 10", last_bg_busy, avg_fg_busy);
 				trace_tempfreq_cpuset_change(1, buf, reason);
-				phone_state_unlock();
 			}
-			new_freq = avg_fg_busy > 30 ? 960000 : 1574400;
+			new_freq = avg_fg_busy > 30 ? 422400: 1497600;
 			for_each_cpu(cpu, &phonelab_tempfreq_mpdecision_coexist_cpu) {
 				policy = cpufreq_cpu_get(cpu);
 				if(policy == NULL) {
 					// Try again after some time
-					return;
+					goto out;
 				}
 				//printk(KERN_DEBUG "tempfreq: mpdecision - bg freq: %d (%llu%%)\n", new_freq, avg_fg_busy);
 				if(policy->max != new_freq) {
-					lock_policy_rwsem_write(policy->cpu);
-					policy->max = new_freq;
-					unlock_policy_rwsem_write(policy->cpu);
+					update_policy_max(policy, new_freq);
+					// FIXME: Somehow mpdecision CPU is getting enabled in phone state
 				}
 				cpufreq_cpu_put(policy);
+				update_phone_state(cpu, 0);
 			}
-		} else {
-			// BG < 10
-			// do nothing here..wait for temperature reading and then decide
 		}
+out:
+		put_online_cpus();
+		phone_state_unlock();
 	}
 }
 
@@ -332,9 +353,11 @@ static ssize_t store_mpdecision_coexist_enable(const char *_buf, size_t count)
 		goto out;
 	switch(val) {
 	case 0:
+		phone_state_lock();
 		phonelab_tempfreq_mpdecision_coexist_enable = 0;
 		stop_bg_core_control();
 		mpdecision_netlink_send("0");
+		phone_state_unlock();
 		break;
 	case 1:
 		phonelab_tempfreq_mpdecision_coexist_enable = 1;
@@ -389,8 +412,12 @@ static ssize_t store_mpdecision_bg_cpu(const char *_buf, size_t count)
 	int err;
 	int cpu;
 	char *buf = kstrdup(_buf, GFP_KERNEL);
-	char cpumask_buf[8];
+	char cpumask_buf[16];
 	struct cpumask trial_cpumask;
+
+	get_online_cpus();
+	phone_state_lock();
+
 	err = cpulist_parse(_buf, &trial_cpumask);
 	if(err < 0) {
 		err = -EINVAL;
@@ -401,22 +428,22 @@ static ssize_t store_mpdecision_bg_cpu(const char *_buf, size_t count)
 		goto out;
 	}
 
-	phone_state_lock();
 	if(phonelab_tempfreq_mpdecision_blocked) {
 		for_each_cpu(cpu, &phonelab_tempfreq_mpdecision_coexist_cpu) {
 			update_phone_state(cpu, 1);
 		}
 	}
-	phonelab_tempfreq_mpdecision_coexist_cpu = trial_cpumask;
-	cpumask_scnprintf(cpumask_buf, 8, &trial_cpumask);
+	cpumask_copy(&phonelab_tempfreq_mpdecision_coexist_cpu, &trial_cpumask);
+	cpumask_to_string(&phonelab_tempfreq_mpdecision_coexist_cpu, cpumask_buf);
 	printk(KERN_DEBUG "tempfreq: Updated mpdecision CPU to: %s\n", cpumask_buf);
 	if(phonelab_tempfreq_mpdecision_blocked) {
 		for_each_cpu(cpu, &trial_cpumask) {
 			update_phone_state(cpu, 0);
 		}
 	}
-	phone_state_unlock();
 out:
+	put_online_cpus();
+	phone_state_unlock();
 	kfree(buf);
 	return err != 0 ? err : count;
 }
@@ -503,5 +530,7 @@ int __init init_mpdecision_coexist(void)
 	}
 #endif
 	initialized = 1;
+
+	cpumask_set_cpu(0, &phonelab_tempfreq_mpdecision_coexist_cpu);
 	return ret;
 }

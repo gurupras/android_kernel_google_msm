@@ -2,6 +2,7 @@
 #define __TEMPFREQ_H_
 
 #include <linux/cgroup.h>
+#include <linux/cpufreq.h>
 
 #define MIN_TEMPERATURE		0
 #define MAX_TEMPERATURE		100
@@ -10,6 +11,7 @@
 void phone_state_lock(void);
 void phone_state_unlock(void);
 void update_phone_state(int cpu, int enabled);
+void update_policy_max(struct cpufreq_policy *policy, int freq);
 
 extern struct kobject tempfreq_kobj;
 

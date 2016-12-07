@@ -30,13 +30,12 @@ static u64 avg_fg_busy(void) {
 	int i;
 	u64 tot_rtime = 0, tot_fg_rtime = 0;
 
-	for(i = 0; i < 4; i++) {
-		if(cpu_isset(i, phonelab_tempfreq_mpdecision_coexist_cpu)) {
-			continue;
-		}
+	get_online_cpus();
+	for_each_online_cpu(i) {
 		tot_rtime += rtime[i];
 		tot_fg_rtime += (rtime[i] - bg_rtime[i] - idle_time[i]);
 	}
+	put_online_cpus();
 	return div_u64(tot_fg_rtime * 100, tot_rtime);
 }
 
@@ -395,7 +394,7 @@ void __cpuinit periodic_ctx_switch_info(struct work_struct *w) {
 	trace_phonelab_periodic_ctx_switch_marker(cpu, 0, count, log_idx);
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-	if(cpu_isset(cpu, phonelab_tempfreq_mpdecision_coexist_cpu)) {
+	if(cpu == 0) {
 		last_bg_busy = bg_percent();
 		fg_busy = avg_fg_busy();
 		handle_bg_update(last_bg_busy, fg_busy);

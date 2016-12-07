@@ -276,19 +276,21 @@ TRACE_EVENT(tempfreq_hotplug_autosmp_rates,
 
 TRACE_EVENT(tempfreq_mpdecision_blocked,
 
-	TP_PROTO(int is_blocked),
+	TP_PROTO(int is_blocked, char *cpus),
 
-	TP_ARGS(is_blocked),
+	TP_ARGS(is_blocked, cpus),
 
 	TP_STRUCT__entry(
 		__field(	int,	is_blocked	)
+		__string(	cpus,	cpus	)
 	),
 
 	TP_fast_assign(
-		__entry->is_blocked = is_blocked
+		__entry->is_blocked = is_blocked;
+		__assign_str(cpus, cpus);
 	),
 
-	TP_printk("mpdecision_state=%s", __entry->is_blocked ? "blocked" : "unblocked")
+	TP_printk("mpdecision_state=%s cpus=%s", __entry->is_blocked ? "blocked" : "unblocked", __get_str(cpus))
 );
 
 TRACE_EVENT(tempfreq_cgroup_copy_tasks,

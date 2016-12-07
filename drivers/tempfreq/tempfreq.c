@@ -62,7 +62,19 @@ void thermal_callback_unlock(void)
 
 void update_phone_state(int cpu, int enabled)
 {
-	phone_state->cpu_states[cpu]->enabled = enabled;
+	struct cpufreq_policy *policy;
+	int should_change = 1;
+	if(enabled) {
+		policy = cpufreq_cpu_get(cpu);
+		// Only enable if ondemand
+		if(strncmp(policy->governor->name, "ondemand", 8) != 0) {
+			should_change = 0;
+		}
+		cpufreq_cpu_put(policy);
+	}
+	if(should_change) {
+		phone_state->cpu_states[cpu]->enabled = enabled;
+	}
 }
 
 #ifndef CONFIG_PHONELAB_TEMPFREQ_THERMAL_CALLBACK
@@ -161,6 +173,17 @@ static inline int get_next_frequency_index(int idx);
 
 static void cpu_state_string(struct cpu_state *cs, char *str);
 
+// MUST HOLD phone_state_lock()
+void update_policy_max(struct cpufreq_policy *policy, int freq)
+{
+	struct cpu_state *cs;
+	lock_policy_rwsem_write(policy->cpu);
+	policy->max = freq;
+	unlock_policy_rwsem_write(policy->cpu);
+	cs = phone_state->cpu_states[policy->cpu];
+	cs->cur_max_idx = get_frequency_index(freq);
+}
+
 
 void __set_to_string(int set, char buf[10])
 {
@@ -257,8 +280,10 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 		// Think about whether this needs to be specially handled
 		if(phonelab_tempfreq_mpdecision_coexist_enable) {
 			if(!phonelab_tempfreq_mpdecision_blocked) {
-			       if(mpdecision_up_cycles == 10) {
+				if(mpdecision_up_cycles == 10) {
+					phone_state_lock();
 					start_bg_core_control();
+					phone_state_unlock();
 					mpdecision_up_cycles = 0;
 					mpdecision_down_cycles = 0;
 					goto out;
@@ -270,8 +295,10 @@ static int __cpuinit tempfreq_thermal_callback(struct notifier_block *nfb,
 	} else {
 		// Unblock mpdecision based on last BG ratio
 		if(phonelab_tempfreq_mpdecision_blocked && last_bg_busy <= 10) {
-		       if(mpdecision_down_cycles == 20) {
+			if(mpdecision_down_cycles == 20) {
+				phone_state_lock();
 				stop_bg_core_control();
+				phone_state_unlock();
 				mpdecision_down_cycles = 0;
 				mpdecision_up_cycles = 0;
 				goto out;
@@ -470,11 +497,9 @@ done:
 					binary_freq);
 			goto out;
 		}
-		lock_policy_rwsem_write(policy->cpu);
-		policy->max = binary_freq;
-		unlock_policy_rwsem_write(policy->cpu);
-		cpufreq_cpu_put(policy);
-		cs->cur_max_idx = get_frequency_index(binary_freq);
+		phone_state_lock();
+		update_policy_max(policy, binary_freq);
+		phone_state_unlock();
 	}
 #ifndef CONFIG_PHONELAB_TEMPFREQ_BINARY_MODE
 	(void) cs;
