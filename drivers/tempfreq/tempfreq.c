@@ -1560,6 +1560,7 @@ static struct attribute *attrs[] = {
 	&mpdecision_coexist_enable.attr,
 	&mpdecision_coexist_upcall.attr,
 	&mpdecision_bg_cpu.attr,
+	&mpdecision_block_offline.attr,
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
 	&mpdecision_coexist_nl_send.attr,
 	&cs_attr_default.attr,

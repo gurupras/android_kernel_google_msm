@@ -22,6 +22,7 @@
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 extern int phonelab_tempfreq_mpdecision_blocked;
+extern int phonelab_tempfreq_mpdecision_block_offline;
 #endif
 
 
@@ -54,15 +55,14 @@ static ssize_t __ref store_online(struct device *dev,
 	extern int phonelab_tempfreq_mpdecision_coexist_cpu;
 #endif
 	cpu_hotplug_driver_lock();
-#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
-	if(cpu->dev.id == phonelab_tempfreq_mpdecision_coexist_cpu && phonelab_tempfreq_mpdecision_blocked) {
-		ret = -EPERM;
-		goto out;
-	}
-#endif
-
 	switch (buf[0]) {
 	case '0':
+#ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
+		if((cpu->dev.id == phonelab_tempfreq_mpdecision_coexist_cpu && phonelab_tempfreq_mpdecision_blocked) || num_online_cpus() == 2 || phonelab_tempfreq_mpdecision_block_offline) {
+			ret = -EPERM;
+			goto out;
+		}
+#endif
 		ret = cpu_down(cpu->dev.id);
 		if (!ret)
 			kobject_uevent(&dev->kobj, KOBJ_OFFLINE);

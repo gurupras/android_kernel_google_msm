@@ -126,12 +126,14 @@ int __init init_mpdecision_coexist(void);
 extern int phonelab_tempfreq_mpdecision_coexist_enable;
 extern int phonelab_tempfreq_mpdecision_blocked;
 extern int phonelab_tempfreq_mpdecision_coexist_cpu;
+extern int phonelab_tempfreq_mpdecision_block_offline;
 void start_bg_core_control(void);
 void stop_bg_core_control(void);
 extern struct tempfreq_attr mpdecision_coexist_enable;
 extern struct tempfreq_attr mpdecision_coexist_upcall;
 extern struct tempfreq_attr mpdecision_coexist_nl_send;
 extern struct tempfreq_attr mpdecision_bg_cpu;
+extern struct tempfreq_attr mpdecision_block_offline;
 #endif	/* CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST */
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_CGROUP_CPUSET_BIND

@@ -30,6 +30,7 @@ static int initialized = 0;
 int phonelab_tempfreq_mpdecision_coexist_enable = 1;
 int phonelab_tempfreq_mpdecision_blocked = 0;
 int phonelab_tempfreq_mpdecision_coexist_cpu = 0;
+int phonelab_tempfreq_mpdecision_block_offline = 0;
 
 static DEFINE_MUTEX(mpdecision_coexist_mutex);
 
@@ -257,17 +258,41 @@ out:
 	return err != 0 ? err : count;
 }
 
+
+static ssize_t store_mpdecision_block_offline(const char *_buf, size_t count)
+{
+	int val, err;
+	char *buf = kstrdup(_buf, GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if (err)
+		goto out;
+
+	if(val < 0) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	phonelab_tempfreq_mpdecision_block_offline = val == 0 ? 0 : 1;
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
 __show1(mpdecision_coexist_upcall, mpdecision_blocked);
 __show1(mpdecision_bg_cpu, mpdecision_coexist_cpu);
 
 //tempfreq_attr_rw(mpdecision_coexist_enable);
 __show(mpdecision_coexist_enable);
+__show(mpdecision_block_offline);
+
 struct tempfreq_attr mpdecision_coexist_enable =
 __ATTR(mpdecision_coexist_enable, 0644, show_mpdecision_coexist_enable, store_mpdecision_coexist_enable);
 struct tempfreq_attr mpdecision_coexist_upcall =
 __ATTR(mpdecision_coexist_upcall, 0644, show_mpdecision_coexist_upcall, store_mpdecision_coexist_upcall);
 struct tempfreq_attr mpdecision_bg_cpu =
 __ATTR(mpdecision_bg_cpu, 0644, show_mpdecision_bg_cpu, store_mpdecision_bg_cpu);
+struct tempfreq_attr mpdecision_block_offline =
+__ATTR(mpdecision_block_offline, 0644, show_mpdecision_block_offline, store_mpdecision_block_offline);
 
 
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST_NETLINK
