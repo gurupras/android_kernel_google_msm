@@ -35,7 +35,7 @@ static u64 avg_fg_busy(void) {
 			continue;
 		}
 		tot_rtime += rtime[i];
-		tot_fg_rtime = rtime[i] - bg_rtime[i];
+		tot_fg_rtime += (rtime[i] - bg_rtime[i] - idle_time[i]);
 	}
 	return div_u64(tot_fg_rtime * 100, tot_rtime);
 }
@@ -190,7 +190,7 @@ void periodic_ctx_switch_update(struct task_struct *prev, struct task_struct *ne
 		add_task_cputime(&stats->agg_time, &time_diff, &stats->agg_time);
 #ifdef CONFIG_PHONELAB_TEMPFREQ_MPDECISION_COEXIST
 		rtime[cpu] += time_diff.sum_exec_runtime;
-		if(strncmp(prev->comm, "swapper", 7) != 0) {
+		if(strncmp(prev->comm, "swapper", 7) == 0) {
 			idle_time[cpu] += time_diff.sum_exec_runtime;
 		}
 #endif
