@@ -1355,14 +1355,16 @@ get_prop_capacity(struct qpnp_chg_chip *chip)
 				&& !qpnp_chg_is_usb_chg_plugged_in(chip))
 				pr_warn_ratelimited("Battery 0, CHG absent\n");
 		}
-		return ret.intval;
+		//return ret.intval;
+		return 100;
 	} else {
 		pr_debug("No BMS supply registered return 50\n");
 	}
 
 	/* return default capacity to avoid userspace
 	 * from shutting down unecessarily */
-	return DEFAULT_CAPACITY;
+	return 100;
+	//return DEFAULT_CAPACITY;
 }
 
 #define DEFAULT_TEMP		250

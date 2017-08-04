@@ -987,6 +987,10 @@ static void __ref check_temp(struct work_struct *work)
 				KBUILD_MODNAME, tsens_dev.sensor_num);
 		goto reschedule;
 	}
+	trace_thermal_temp(msm_thermal_info.sensor_id, temp);
+	if(!enabled) {
+		goto reschedule;
+	}
 
 	if (!limit_init) {
 		ret = msm_thermal_get_freq_table();
@@ -996,7 +1000,6 @@ static void __ref check_temp(struct work_struct *work)
 			limit_init = 1;
 	}
 
-	trace_thermal_temp(msm_thermal_info.sensor_id, temp);
 
 	do_core_control(temp);
 	do_vdd_restriction();
@@ -1004,9 +1007,8 @@ static void __ref check_temp(struct work_struct *work)
 	do_freq_control(temp);
 
 reschedule:
-	if (enabled)
-		schedule_delayed_work(&check_temp_work,
-				msecs_to_jiffies(msm_thermal_info.poll_ms));
+	schedule_delayed_work(&check_temp_work,
+			msecs_to_jiffies(msm_thermal_info.poll_ms));
 }
 
 static int __ref msm_thermal_cpu_callback(struct notifier_block *nfb,
@@ -1372,7 +1374,7 @@ static int __ref set_enabled(const char *val, const struct kernel_param *kp)
 
 	ret = param_set_bool(val, kp);
 	if (!enabled) {
-		disable_msm_thermal();
+		(void) disable_msm_thermal;
 		hotplug_init();
 		freq_mitigation_init();
 	} else
