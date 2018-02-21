@@ -1367,6 +1367,42 @@ static ssize_t store_force_reg(const char *_buf, size_t count)
 	return err != 0 ? err : count;
 }
 
+static ssize_t store_test_latency(const char *_buf, size_t count)
+{
+	int i;
+	u64 total_ns, per_call;
+	struct timespec start, end;
+	int loop_count = 300;
+
+	int cpu;
+	struct acpu_level *tgt;
+	struct vdd_data vdd_data;
+	int stock_vdd_core;
+
+
+	cpu = smp_processor_id();
+	tgt = find_level_by_freq(acpuclk_krait_get_rate(cpu));
+	vdd_data.vdd_mem  = calculate_vdd_mem(tgt);
+	vdd_data.vdd_dig  = calculate_vdd_dig(tgt);
+	vdd_data.vdd_core = calculate_vdd_core(tgt);
+	vdd_data.ua_core  = tgt->ua_core;
+
+	stock_vdd_core = vdd_data.vdd_core;
+
+	getnstimeofday(&start);
+	for(i = 0; i < loop_count; i++) {
+		vdd_data.vdd_core = i % 2 == 0 ? stock_vdd_core - 30000 : stock_vdd_core + 30000;
+		// Run per-cpu logic
+		force_reg_cpu(cpu, tgt, &vdd_data);
+	}
+	getnstimeofday(&end);
+
+	total_ns = ((end.tv_sec * NSEC_PER_SEC) + end.tv_nsec) - ((start.tv_sec * NSEC_PER_SEC) + start.tv_nsec);
+	per_call = div_u64(total_ns, loop_count);
+	printk(KERN_DEBUG "%s: latency per call: %lluns", __func__, per_call);
+	return count;
+}
+
 static struct acpuclock_attr level =
 __ATTR(level, 0644, show_acpuclock_level, store_acpuclock_level);
 
@@ -1376,12 +1412,15 @@ __ATTR(vdd, 0644, show_acpuclock_vdd, store_acpuclock_vdd);
 static struct acpuclock_attr force_reg =
 __ATTR(force_reg, 0644, show_force_reg, store_force_reg);
 
+static struct acpuclock_attr test_latency =
+__ATTR(test_latency, 0644, show_force_reg, store_test_latency);
 
 
 static struct attribute *attrs[] = {
 	&vdd.attr,
 	&level.attr,
 	&force_reg.attr,
+	&test_latency.attr,
 	NULL
 };
 
