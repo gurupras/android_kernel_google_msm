@@ -272,8 +272,8 @@ struct vdd_data {
 };
 
 /* Apply any per-cpu voltage increases. */
-static int increase_vdd(int cpu, struct vdd_data *data,
-			enum setrate_reason reason)
+static int _increase_vdd(int cpu, struct vdd_data *data,
+			enum setrate_reason reason, bool force)
 {
 	struct scalable *sc = &drv.scalable[cpu];
 	int rc;
@@ -282,7 +282,7 @@ static int increase_vdd(int cpu, struct vdd_data *data,
 	 * Increase vdd_mem active-set before vdd_dig.
 	 * vdd_mem should be >= vdd_dig.
 	 */
-	if (data->vdd_mem > sc->vreg[VREG_MEM].cur_vdd) {
+	if (force || data->vdd_mem > sc->vreg[VREG_MEM].cur_vdd) {
 		rc = rpm_regulator_set_voltage(sc->vreg[VREG_MEM].rpm_reg,
 				data->vdd_mem, sc->vreg[VREG_MEM].max_vdd);
 		if (rc) {
@@ -295,7 +295,7 @@ static int increase_vdd(int cpu, struct vdd_data *data,
 	}
 
 	/* Increase vdd_dig active-set vote. */
-	if (data->vdd_dig > sc->vreg[VREG_DIG].cur_vdd) {
+	if (force || data->vdd_dig > sc->vreg[VREG_DIG].cur_vdd) {
 		rc = rpm_regulator_set_voltage(sc->vreg[VREG_DIG].rpm_reg,
 				data->vdd_dig, sc->vreg[VREG_DIG].max_vdd);
 		if (rc) {
@@ -308,7 +308,7 @@ static int increase_vdd(int cpu, struct vdd_data *data,
 	}
 
 	/* Increase current request. */
-	if (data->ua_core > sc->vreg[VREG_CORE].cur_ua) {
+	if (force || data->ua_core > sc->vreg[VREG_CORE].cur_ua) {
 		rc = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
 						data->ua_core);
 		if (rc < 0) {
@@ -325,8 +325,8 @@ static int increase_vdd(int cpu, struct vdd_data *data,
 	 * because we don't know what CPU we are running on at this point, but
 	 * the CPU regulator API requires we call it from the affected CPU.
 	 */
-	if (data->vdd_core > sc->vreg[VREG_CORE].cur_vdd
-			&& reason != SETRATE_HOTPLUG) {
+	if (force || (data->vdd_core > sc->vreg[VREG_CORE].cur_vdd
+			&& reason != SETRATE_HOTPLUG)) {
 		rc = regulator_set_voltage(sc->vreg[VREG_CORE].reg,
 				data->vdd_core, sc->vreg[VREG_CORE].max_vdd);
 		if (rc) {
@@ -340,10 +340,16 @@ static int increase_vdd(int cpu, struct vdd_data *data,
 
 	return 0;
 }
+static int increase_vdd(int cpu, struct vdd_data *data,
+			enum setrate_reason reason)
+{
+	return _increase_vdd(cpu, data, reason, false);
+}
+
 
 /* Apply any per-cpu voltage decreases. */
-static void decrease_vdd(int cpu, struct vdd_data *data,
-			 enum setrate_reason reason)
+static void _decrease_vdd(int cpu, struct vdd_data *data,
+			 enum setrate_reason reason, bool force)
 {
 	struct scalable *sc = &drv.scalable[cpu];
 	int ret;
@@ -353,8 +359,8 @@ static void decrease_vdd(int cpu, struct vdd_data *data,
 	 * that's being affected. Don't do this in the hotplug remove path,
 	 * where the rail is off and we're executing on the other CPU.
 	 */
-	if (data->vdd_core < sc->vreg[VREG_CORE].cur_vdd
-			&& reason != SETRATE_HOTPLUG) {
+	if (force || (data->vdd_core < sc->vreg[VREG_CORE].cur_vdd
+			&& reason != SETRATE_HOTPLUG)) {
 		ret = regulator_set_voltage(sc->vreg[VREG_CORE].reg,
 				data->vdd_core, sc->vreg[VREG_CORE].max_vdd);
 		if (ret) {
@@ -367,7 +373,7 @@ static void decrease_vdd(int cpu, struct vdd_data *data,
 	}
 
 	/* Decrease current request. */
-	if (data->ua_core < sc->vreg[VREG_CORE].cur_ua) {
+	if (force || data->ua_core < sc->vreg[VREG_CORE].cur_ua) {
 		ret = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
 						data->ua_core);
 		if (ret < 0) {
@@ -379,7 +385,7 @@ static void decrease_vdd(int cpu, struct vdd_data *data,
 	}
 
 	/* Decrease vdd_dig active-set vote. */
-	if (data->vdd_dig < sc->vreg[VREG_DIG].cur_vdd) {
+	if (force || data->vdd_dig < sc->vreg[VREG_DIG].cur_vdd) {
 		ret = rpm_regulator_set_voltage(sc->vreg[VREG_DIG].rpm_reg,
 				data->vdd_dig, sc->vreg[VREG_DIG].max_vdd);
 		if (ret) {
@@ -395,7 +401,7 @@ static void decrease_vdd(int cpu, struct vdd_data *data,
 	 * Decrease vdd_mem active-set after vdd_dig.
 	 * vdd_mem should be >= vdd_dig.
 	 */
-	if (data->vdd_mem < sc->vreg[VREG_MEM].cur_vdd) {
+	if (force || data->vdd_mem < sc->vreg[VREG_MEM].cur_vdd) {
 		ret = rpm_regulator_set_voltage(sc->vreg[VREG_MEM].rpm_reg,
 				data->vdd_mem, sc->vreg[VREG_MEM].max_vdd);
 		if (ret) {
@@ -406,6 +412,11 @@ static void decrease_vdd(int cpu, struct vdd_data *data,
 		}
 		sc->vreg[VREG_MEM].cur_vdd = data->vdd_mem;
 	}
+}
+static void decrease_vdd(int cpu, struct vdd_data *data,
+			 enum setrate_reason reason)
+{
+	return _decrease_vdd(cpu, data, reason, false);
 }
 
 static int calculate_vdd_mem(const struct acpu_level *tgt)
@@ -1312,6 +1323,16 @@ static ssize_t show_acpuclock_vdd(char *buf)
 	return offset;
 }
 
+static inline void force_reg_cpu(int cpu, struct acpu_level *tgt, struct vdd_data *vdd_data)
+{
+	AVS_DISABLE(cpu);
+	drv.scalable[cpu].avs_enabled = false;
+	_increase_vdd(cpu, vdd_data, SETRATE_CPUFREQ, true);
+	_decrease_vdd(cpu, vdd_data, SETRATE_CPUFREQ, true);
+	AVS_ENABLE(cpu, tgt->avsdscr_setting);
+	drv.scalable[cpu].avs_enabled = true;
+}
+
 static void force_reg_pcpu_work(struct work_struct *dummy)
 {
 	int cpu;
@@ -1319,7 +1340,7 @@ static void force_reg_pcpu_work(struct work_struct *dummy)
 	struct acpu_level *tgt;
 	struct vdd_data vdd_data;
 
-	cpu = get_cpu();
+	cpu = smp_processor_id();
 	freq = acpuclk_krait_get_rate(cpu);
 	tgt = find_level_by_freq(freq);
 	vdd_data.vdd_mem  = calculate_vdd_mem(tgt);
@@ -1328,27 +1349,21 @@ static void force_reg_pcpu_work(struct work_struct *dummy)
 	vdd_data.ua_core  = tgt->ua_core;
 
 	// Run per-cpu logic
-	AVS_DISABLE(cpu);
-	drv.scalable[cpu].avs_enabled = false;
-	increase_vdd(cpu, &vdd_data, SETRATE_CPUFREQ);
-	decrease_vdd(cpu, &vdd_data, SETRATE_CPUFREQ);
-	AVS_ENABLE(cpu, tgt->avsdscr_setting);
-	drv.scalable[cpu].avs_enabled = true;
-	put_cpu();
+	force_reg_cpu(cpu, tgt, &vdd_data);
 }
+
+static ssize_t show_force_reg(char *buf)
+{
+	return -EINVAL;
+}
+
+
 static ssize_t store_force_reg(const char *_buf, size_t count)
 {
 	int err = 0;
-	int val;
-
-	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
-	err = kstrtoint(strstrip(buf), 0, &val);
-	if(err) {
-		kfree(buf);
-		return -EINVAL;
-	}
+	(void) _buf;
+	(void) err;
 	schedule_on_each_cpu(force_reg_pcpu_work);
-	kfree(buf);
 	return err != 0 ? err : count;
 }
 
@@ -1359,7 +1374,7 @@ static struct acpuclock_attr vdd =
 __ATTR(vdd, 0644, show_acpuclock_vdd, store_acpuclock_vdd);
 
 static struct acpuclock_attr force_reg =
-__ATTR(vdd, 0644, NULL, store_force_reg);
+__ATTR(force_reg, 0644, show_force_reg, store_force_reg);
 
 
 
