@@ -1312,17 +1312,50 @@ static ssize_t show_acpuclock_vdd(char *buf)
 	return offset;
 }
 
+static ssize_t store_force_reg(const char *_buf, size_t count)
+{
+	int err = 0;
+	int val;
+	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if(err) {
+		free(buf);
+		return -EINVAL;
+	}
+	for_each_online_cpu(cpu) {
+		int freq = acpuclk_krait_get_rate(cpu);
+		struct acpu_level *tgt = find_level_by_freq(val);
+		vdd_data.vdd_mem  = calculate_vdd_mem(tgt);
+		vdd_data.vdd_dig  = calculate_vdd_dig(tgt);
+		vdd_data.vdd_core = calculate_vdd_core(tgt);
+		vdd_data.ua_core = tgt->ua_core;
+
+		// Run per-cpu logic
+		AVS_DISABLE(cpu);
+		drv.scalable[cpu].avs_enabled = false;
+		increase_vdd();
+		decrease_vdd();
+		AVS_ENABLE(cpu);
+		drv.scalable[cpu].avs_enabled = true;
+	}
+	free(buf);
+	return err != 0 ? err : count;
+}
 static struct acpuclock_attr level =
 __ATTR(level, 0644, show_acpuclock_level, store_acpuclock_level);
 
 static struct acpuclock_attr vdd =
 __ATTR(vdd, 0644, show_acpuclock_vdd, store_acpuclock_vdd);
 
+static struct acpuclock_attr force_reg =
+__ATTR(vdd, 0644, NULL, store_force_reg);
+
 
 
 static struct attribute *attrs[] = {
 	&vdd.attr,
 	&level.attr,
+	&force_reg,
 	NULL
 };
 
