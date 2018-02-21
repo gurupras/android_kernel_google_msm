@@ -1312,35 +1312,46 @@ static ssize_t show_acpuclock_vdd(char *buf)
 	return offset;
 }
 
+static void force_reg_pcpu_work(struct work_struct *dummy)
+{
+	int cpu;
+	int freq;
+	struct acpu_level *tgt;
+	struct vdd_data vdd_data;
+
+	cpu = get_cpu();
+	freq = acpuclk_krait_get_rate(cpu);
+	tgt = find_level_by_freq(freq);
+	vdd_data.vdd_mem  = calculate_vdd_mem(tgt);
+	vdd_data.vdd_dig  = calculate_vdd_dig(tgt);
+	vdd_data.vdd_core = calculate_vdd_core(tgt);
+	vdd_data.ua_core  = tgt->ua_core;
+
+	// Run per-cpu logic
+	AVS_DISABLE(cpu);
+	drv.scalable[cpu].avs_enabled = false;
+	increase_vdd(cpu, &vdd_data, SETRATE_CPUFREQ);
+	decrease_vdd(cpu, &vdd_data, SETRATE_CPUFREQ);
+	AVS_ENABLE(cpu, tgt->avsdscr_setting);
+	drv.scalable[cpu].avs_enabled = true;
+	put_cpu();
+}
 static ssize_t store_force_reg(const char *_buf, size_t count)
 {
 	int err = 0;
 	int val;
+
 	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
 	err = kstrtoint(strstrip(buf), 0, &val);
 	if(err) {
-		free(buf);
+		kfree(buf);
 		return -EINVAL;
 	}
-	for_each_online_cpu(cpu) {
-		int freq = acpuclk_krait_get_rate(cpu);
-		struct acpu_level *tgt = find_level_by_freq(val);
-		vdd_data.vdd_mem  = calculate_vdd_mem(tgt);
-		vdd_data.vdd_dig  = calculate_vdd_dig(tgt);
-		vdd_data.vdd_core = calculate_vdd_core(tgt);
-		vdd_data.ua_core = tgt->ua_core;
-
-		// Run per-cpu logic
-		AVS_DISABLE(cpu);
-		drv.scalable[cpu].avs_enabled = false;
-		increase_vdd();
-		decrease_vdd();
-		AVS_ENABLE(cpu);
-		drv.scalable[cpu].avs_enabled = true;
-	}
-	free(buf);
+	schedule_on_each_cpu(force_reg_pcpu_work);
+	kfree(buf);
 	return err != 0 ? err : count;
 }
+
 static struct acpuclock_attr level =
 __ATTR(level, 0644, show_acpuclock_level, store_acpuclock_level);
 
@@ -1355,7 +1366,7 @@ __ATTR(vdd, 0644, NULL, store_force_reg);
 static struct attribute *attrs[] = {
 	&vdd.attr,
 	&level.attr,
-	&force_reg,
+	&force_reg.attr,
 	NULL
 };
 
