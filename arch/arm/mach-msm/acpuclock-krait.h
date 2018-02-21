@@ -154,6 +154,7 @@ struct acpu_level {
 	const struct core_speed speed;
 	unsigned int l2_level;
 	int vdd_core;
+	int stock_vdd_core;
 	int ua_core;
 	unsigned int avsdscr_setting;
 };
