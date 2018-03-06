@@ -1,0 +1,29 @@
+config THERMAPLAN
+	bool
+	help
+	  Hidden open that includes the Makefile located at
+	  kernel/thermaplan/Makefile.
+
+config THERMAPLAN_BTM
+	select THERMAPLAN
+	bool "Enable Better Thermal Management (BTM)"
+	help
+	  Enable voltage control debugging
+
+config THERMAPLAN_BTM_DEBUG
+	select THERMAPLAN_BTM
+	bool "Enable Better Thermal Management (BTM) debugging"
+	help
+	  Enable voltage control debugging
+
+config THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	select THERMAPLAN_BTM
+	bool "Undervolt in userspace"
+	help
+	  CPUs undervolt when switching to userspace to try and save energy
+
+config THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
+	depends on THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	bool "Track undervolting statistics"
+	help
+	  Track per-cpu undervolting statistics

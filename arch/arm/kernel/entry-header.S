@@ -89,6 +89,11 @@
 	.endm
 
 	.macro	restore_user_regs, fast = 0, offset = 0
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	stmdb	sp!, {r0-r11, lr}
+	bl	thermaplan_undervolt_entering_userspace
+	ldmia	sp!, {r0-r11, lr}
+#endif
 	ldr	r1, [sp, #\offset + S_PSR]	@ get calling cpsr
 	ldr	lr, [sp, #\offset + S_PC]!	@ get pc
 	msr	spsr_cxsf, r1			@ save in spsr_svc
@@ -132,6 +137,11 @@
 	.endm
 
 	.macro	restore_user_regs, fast = 0, offset = 0
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	stmdb	sp!, {r0-r11, lr}
+	bl	thermaplan_undervolt_entering_userspace
+	ldmia	sp!, {r0-r11, lr}
+#endif
 	clrex					@ clear the exclusive monitor
 	mov	r2, sp
 	load_user_sp_lr r2, r3, \offset + S_SP	@ calling sp, lr

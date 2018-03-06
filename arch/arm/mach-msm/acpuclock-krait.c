@@ -40,10 +40,29 @@
 #include "acpuclock-krait.h"
 #include "avs.h"
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/thermaplan.h>
+
+#ifdef CONFIG_THERMAPLAN
+#include <linux/regulator/driver.h>
+#include <linux/thermaplan.h>
+#endif
+
 /* MUX source selects. */
 #define PRI_SRC_SEL_SEC_SRC	0
 #define PRI_SRC_SEL_HFPLL	1
 #define PRI_SRC_SEL_HFPLL_DIV2	2
+
+#ifdef CONFIG_THERMAPLAN
+int thermaplan_sysfs_initialized = 0;
+#endif
+
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+struct drv_data *acpuclock_drv;
+int acpuclock_ready = 0;
+int undervolt_mv = 0;
+struct acpu_level *undervolt_tbl;
+#endif
 
 static DEFINE_MUTEX(driver_lock);
 static DEFINE_SPINLOCK(l2_lock);
@@ -264,12 +283,14 @@ static void set_speed(struct scalable *sc, const struct core_speed *tgt_s,
 	sc->cur_speed = tgt_s;
 }
 
+#ifndef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
 struct vdd_data {
 	int vdd_mem;
 	int vdd_dig;
 	int vdd_core;
 	int ua_core;
 };
+#endif
 
 /* Apply any per-cpu voltage increases. */
 static int _increase_vdd(int cpu, struct vdd_data *data,
@@ -419,7 +440,7 @@ static void decrease_vdd(int cpu, struct vdd_data *data,
 	return _decrease_vdd(cpu, data, reason, false);
 }
 
-static int calculate_vdd_mem(const struct acpu_level *tgt)
+int calculate_vdd_mem(const struct acpu_level *tgt)
 {
 	return drv.l2_freq_tbl[tgt->l2_level].vdd_mem;
 }
@@ -440,7 +461,7 @@ static int get_src_dig(const struct core_speed *s)
 		return hfpll_vdd[HFPLL_VDD_LOW];
 }
 
-static int calculate_vdd_dig(const struct acpu_level *tgt)
+int calculate_vdd_dig(const struct acpu_level *tgt)
 {
 	int l2_pll_vdd_dig, cpu_pll_vdd_dig;
 
@@ -454,7 +475,7 @@ static int calculate_vdd_dig(const struct acpu_level *tgt)
 static bool enable_boost = true;
 module_param_named(boost, enable_boost, bool, S_IRUGO | S_IWUSR);
 
-static int calculate_vdd_core(const struct acpu_level *tgt)
+int calculate_vdd_core(const struct acpu_level *tgt)
 {
 	return tgt->vdd_core + (enable_boost ? drv.boost_uv : 0);
 }
@@ -505,7 +526,7 @@ static int acpuclk_krait_set_rate(int cpu, unsigned long rate,
 				  enum setrate_reason reason)
 {
 	const struct core_speed *strt_acpu_s, *tgt_acpu_s;
-	const struct acpu_level *tgt;
+	struct acpu_level *tgt;
 	int tgt_l2_l;
 	enum src_id prev_l2_src = NUM_SRC_ID;
 	struct vdd_data vdd_data;
@@ -617,6 +638,10 @@ static int acpuclk_krait_set_rate(int cpu, unsigned long rate,
 
 	dev_dbg(drv.dev, "ACPU%d speed change complete\n", cpu);
 
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	acpuclock_ready = 1;
+#endif
+	drv.cur_acpu_level = tgt;
 out:
 	if (reason == SETRATE_CPUFREQ || reason == SETRATE_HOTPLUG)
 		mutex_unlock(&driver_lock);
@@ -1177,6 +1202,9 @@ static void __init drv_data_init(struct device *dev,
 
 	drv.acpu_freq_tbl = kmemdup(pvs->table, pvs->size, GFP_KERNEL);
 	BUG_ON(!drv.acpu_freq_tbl);
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	undervolt_tbl = kmemdup(pvs->table, pvs->size, GFP_KERNEL);
+#endif
 	drv.boost_uv = pvs->boost_uv;
 
 	acpuclk_krait_data.power_collapse_khz = params->stby_khz;
@@ -1238,19 +1266,6 @@ int __init acpuclk_krait_init(struct device *dev,
 
 	return 0;
 }
-
-
-
-
-
-
-
-struct acpuclock_attr {
-	struct attribute attr;
-	ssize_t (*show)(char *);
-	ssize_t (*store)(const char *, size_t count);
-};
-#define acpuclock_to_attr(a) container_of(a, struct acpuclock_attr, attr)
 
 
 static struct acpu_level *cur_level = NULL;
@@ -1323,8 +1338,11 @@ static ssize_t show_acpuclock_vdd(char *buf)
 	return offset;
 }
 
-static inline void force_reg_cpu(int cpu, struct acpu_level *tgt, struct vdd_data *vdd_data)
+inline void force_regulator_cpu(int cpu, struct acpu_level *tgt, struct vdd_data *vdd_data)
 {
+#ifdef CONFIG_THERMAPLAN_BTM_DEBUG
+	//printk(KERN_DEBUG "%s: Updating voltages for CPU: %d\n", __func__, cpu);
+#endif
 	AVS_DISABLE(cpu);
 	drv.scalable[cpu].avs_enabled = false;
 	_increase_vdd(cpu, vdd_data, SETRATE_CPUFREQ, true);
@@ -1333,7 +1351,7 @@ static inline void force_reg_cpu(int cpu, struct acpu_level *tgt, struct vdd_dat
 	drv.scalable[cpu].avs_enabled = true;
 }
 
-static void force_reg_pcpu_work(struct work_struct *dummy)
+static void force_regulator_pcpu_work(struct work_struct *dummy)
 {
 	int cpu;
 	int freq;
@@ -1349,21 +1367,20 @@ static void force_reg_pcpu_work(struct work_struct *dummy)
 	vdd_data.ua_core  = tgt->ua_core;
 
 	// Run per-cpu logic
-	force_reg_cpu(cpu, tgt, &vdd_data);
+	force_regulator_cpu(cpu, tgt, &vdd_data);
 }
 
-static ssize_t show_force_reg(char *buf)
+static ssize_t show_force_regulator(char *buf)
 {
 	return -EINVAL;
 }
 
-
-static ssize_t store_force_reg(const char *_buf, size_t count)
+static ssize_t store_force_regulator(const char *_buf, size_t count)
 {
 	int err = 0;
 	(void) _buf;
 	(void) err;
-	schedule_on_each_cpu(force_reg_pcpu_work);
+	schedule_on_each_cpu(force_regulator_pcpu_work);
 	return err != 0 ? err : count;
 }
 
@@ -1391,9 +1408,9 @@ static ssize_t store_test_latency(const char *_buf, size_t count)
 
 	getnstimeofday(&start);
 	for(i = 0; i < loop_count; i++) {
-		vdd_data.vdd_core = i % 2 == 0 ? stock_vdd_core - 30000 : stock_vdd_core + 30000;
+		vdd_data.vdd_core = i % 2 == 0 ?  1100000 : stock_vdd_core;
 		// Run per-cpu logic
-		force_reg_cpu(cpu, tgt, &vdd_data);
+		force_regulator_cpu(cpu, tgt, &vdd_data);
 	}
 	getnstimeofday(&end);
 
@@ -1403,24 +1420,179 @@ static ssize_t store_test_latency(const char *_buf, size_t count)
 	return count;
 }
 
+
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+static ssize_t store_acpuclock_undervolt(const char *_buf, size_t count)
+{
+	int err = 0;
+	int val;
+	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
+	err = kstrtoint(strstrip(buf), 0, &val);
+	if(err) {
+		printk(KERN_DEBUG "%s: Failed to parse '%s' into int: %d", __func__, buf, val);
+		kfree(buf);
+		return -EINVAL;
+	}
+	undervolt_mv = val;
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
+static ssize_t show_acpuclock_undervolt(char *buf)
+{
+	return sprintf(buf, "%d", undervolt_mv);
+}
+#endif
+
+struct cpu_microvolts_work {
+	struct work_struct work;
+	int cpu;
+	struct acpu_level *level;
+	struct vdd_data vdd_data;
+	int should_free;
+};
+
+static void btm_cpu_microvolts_work_fn(struct work_struct *work)
+{
+	struct cpu_microvolts_work *mv_work = container_of(work, struct cpu_microvolts_work, work);
+	if(mv_work->cpu != smp_processor_id()) {
+		return;
+	}
+	force_regulator_cpu(mv_work->cpu, mv_work->level, &mv_work->vdd_data);
+	if(mv_work->should_free) {
+		kfree(mv_work);
+	}
+}
+
+static ssize_t store_acpuclock_cpu_microvolts(const char *_buf, size_t count)
+{
+	int err = 0;
+	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
+	int cur_cpu = smp_processor_id();
+	int cur_speed;
+	char cpu_buf[2];
+	char *microvolts_buf = &buf[2];
+
+	struct cpu_microvolts_work *work = kmalloc(sizeof(struct cpu_microvolts_work), GFP_KERNEL);
+
+	cpu_buf[0] = buf[0];
+	cpu_buf[1] = '\0';
+
+#ifdef CONFIG_THERMAPLAN_BTM_DEBUG
+	printk(KERN_DEBUG "%s: cpu_buf=%s microvolts_buf=%s\n", __func__, cpu_buf, microvolts_buf);
+#endif
+	err = kstrtoint(cpu_buf, 0, &work->cpu);
+	if(err) {
+		printk(KERN_DEBUG "%s: Failed to parse '%s' into int: %d", __func__, cpu_buf, err);
+		goto out;
+	}
+	err = kstrtoint(microvolts_buf, 0, &work->vdd_data.vdd_core);
+	if(err) {
+		printk(KERN_DEBUG "%s: Failed to parse '%s' into int: %d", __func__, microvolts_buf, err);
+		goto out;
+	}
+
+	cur_speed = acpuclk_krait_get_rate(work->cpu);
+	work->level = find_level_by_freq(cur_speed);
+
+	work->vdd_data.vdd_mem  = calculate_vdd_mem(work->level);
+	work->vdd_data.vdd_dig  = calculate_vdd_dig(work->level);
+	//work->vdd_data.vdd_core = calculate_vdd_core(work->level);
+	work->vdd_data.ua_core  = work->level->ua_core;
+
+	work->should_free = 1;
+
+	if(cur_cpu != work->cpu) {
+		// TODO: We need to schedule work on another CPU
+		INIT_WORK(&work->work, btm_cpu_microvolts_work_fn);
+		schedule_work_on(work->cpu, &work->work);
+	} else {
+		force_regulator_cpu(cur_cpu, work->level, &work->vdd_data);
+	}
+
+
+out:
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
+static ssize_t show_acpuclock_cpu_microvolts(char *buf)
+{
+	int cpu;
+	int offset = 0;
+	for_each_online_cpu(cpu) {
+		struct scalable *sc = &drv.scalable[cpu];
+		struct regulator *regulator = sc->vreg[VREG_CORE].reg;
+		if(offset == 0) {
+			offset += sprintf(buf + offset, "cpu=%d microvolts=%d", cpu, regulator_get_voltage(regulator));
+		} else {
+			offset += sprintf(buf + offset, "\ncpu=%d microvolts=%d", cpu, regulator_get_voltage(regulator));
+		}
+	}
+	return offset;
+}
+
+#ifdef CONFIG_THERMAPLAN_BTM_DEBUG
+static ssize_t store_acpuclock_div_zero(const char *_buf, size_t count)
+{
+	int err = 0;
+	volatile int val = 0;
+
+	if(smp_processor_id() != 0) {
+		int len = strlen(_buf);
+		err = len / val;
+	} else {
+		printk(KERN_DEBUG "%s: Running on cpu-0\n", __func__);
+	}
+	return err != 0 ? err : count;
+}
+
+static ssize_t show_acpuclock_div_zero(char *buf)
+{
+	return -EINVAL;
+}
+
+static struct acpuclock_attr div_zero =
+__ATTR(div_zero, 0644, show_acpuclock_div_zero, store_acpuclock_div_zero);
+#endif
+
+
 static struct acpuclock_attr level =
 __ATTR(level, 0644, show_acpuclock_level, store_acpuclock_level);
 
 static struct acpuclock_attr vdd =
 __ATTR(vdd, 0644, show_acpuclock_vdd, store_acpuclock_vdd);
 
-static struct acpuclock_attr force_reg =
-__ATTR(force_reg, 0644, show_force_reg, store_force_reg);
+static struct acpuclock_attr force_regulator =
+__ATTR(force_regulator, 0644, show_force_regulator, store_force_regulator);
 
 static struct acpuclock_attr test_latency =
-__ATTR(test_latency, 0644, show_force_reg, store_test_latency);
+__ATTR(test_latency, 0644, show_force_regulator, store_test_latency);
 
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+static struct acpuclock_attr undervolt =
+__ATTR(undervolt, 0644, show_acpuclock_undervolt, store_acpuclock_undervolt);
+#endif
+
+static struct acpuclock_attr cpu_microvolts =
+__ATTR(cpu_microvolts, 0644, show_acpuclock_cpu_microvolts, store_acpuclock_cpu_microvolts);
 
 static struct attribute *attrs[] = {
+#ifdef CONFIG_THERMAPLAN_BTM_DEBUG
+	&div_zero.attr,
+#endif
 	&vdd.attr,
 	&level.attr,
-	&force_reg.attr,
+	&force_regulator.attr,
 	&test_latency.attr,
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	&undervolt.attr,
+	&should_undervolt_attr.attr,
+#ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
+	&stats_attr.attr,
+#endif
+#endif
+	&cpu_microvolts.attr,
 	NULL
 };
 
@@ -1462,6 +1634,12 @@ static struct kobj_type acpuclock_ktype = {
 
 struct kobject acpuclock_kobj;
 
+
+
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+static struct cpu_microvolts_work *test_asm_work = NULL;
+#endif
+
 /* initcall stuff */
 static int __init init_acpuclock_sysfs(void)
 {
@@ -1469,6 +1647,22 @@ static int __init init_acpuclock_sysfs(void)
 	struct kobject *kobj = &acpuclock_kobj;
 	ret = kobject_init_and_add(kobj, &acpuclock_ktype,
 				   NULL, "dvfs");
+
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	test_asm_work = kmalloc(sizeof(struct cpu_microvolts_work), GFP_KERNEL);
+#endif
+
+#ifdef CONFIG_THERMAPLAN
+	thermaplan_sysfs_initialized = 1;
+	acpuclock_drv = &drv;
+#endif
+
+#ifdef CONFIG_THERMAPLAN_BTM_DEBUG
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	printk(KERN_DEBUG "Enabled CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT\n");
+#endif
+#endif
 	return ret;
 }
 late_initcall(init_acpuclock_sysfs);
+

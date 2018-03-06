@@ -298,6 +298,7 @@ struct acpuclk_krait_params {
  */
 struct drv_data {
 	struct acpu_level *acpu_freq_tbl;
+	struct acpu_level *cur_acpu_level;
 	const struct l2_level *l2_freq_tbl;
 	struct scalable *scalable;
 	struct hfpll_data *hfpll_data;

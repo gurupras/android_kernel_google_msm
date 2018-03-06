@@ -35,6 +35,16 @@
 #include "spm.h"
 #include "pm.h"
 
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+#include "acpuclock.h"
+#include "acpuclock-krait.h"
+#include "avs.h"
+
+#include <trace/events/thermaplan.h>
+#include <linux/thermaplan.h>
+#endif
+
+#define __rdev_get_drvdata(rdev) rdev->reg_data
 /*
  *                   supply
  *                   from
@@ -145,6 +155,7 @@
 #define LDO_DELTA_MAX		100000
 
 #define MSM_L2_SAW_PHYS		0xf9012000
+
 /**
  * struct pmic_gang_vreg -
  * @name:			the string used to represent the gang
@@ -165,6 +176,7 @@
  *				coeff2 is multiplied by this factor and then
  *				divided by PHASE_SCALING_REF.
  */
+
 struct pmic_gang_vreg {
 	const char		*name;
 	int			pmic_vmax_uV;
@@ -214,7 +226,6 @@ struct krait_power_vreg {
 	int				online_at_probe;
 	bool				force_bhs;
 };
-
 DEFINE_PER_CPU(struct krait_power_vreg *, krait_vregs);
 
 static u32 version;
@@ -225,7 +236,7 @@ module_param_named(
 	S_IRUSR | S_IWUSR
 );
 
-static int is_between(int left, int right, int value)
+static inline int is_between(int left, int right, int value)
 {
 	if (left >= right && left >= value && value >= right)
 		return 1;
@@ -252,7 +263,7 @@ static void krait_masked_write(struct krait_power_vreg *kvreg,
 	mb();
 }
 
-static int get_krait_retention_ldo_uv(struct krait_power_vreg *kvreg)
+static inline int get_krait_retention_ldo_uv(struct krait_power_vreg *kvreg)
 {
 	uint32_t reg_val;
 	int uV;
@@ -269,7 +280,7 @@ static int get_krait_retention_ldo_uv(struct krait_power_vreg *kvreg)
 	return uV;
 }
 
-static int get_krait_ldo_uv(struct krait_power_vreg *kvreg)
+static inline int get_krait_ldo_uv(struct krait_power_vreg *kvreg)
 {
 	uint32_t reg_val;
 	int uV;
@@ -286,7 +297,7 @@ static int get_krait_ldo_uv(struct krait_power_vreg *kvreg)
 	return uV;
 }
 
-static int set_krait_retention_uv(struct krait_power_vreg *kvreg, int uV)
+static inline int set_krait_retention_uv(struct krait_power_vreg *kvreg, int uV)
 {
 	uint32_t reg_val;
 
@@ -297,7 +308,7 @@ static int set_krait_retention_uv(struct krait_power_vreg *kvreg, int uV)
 	return 0;
 }
 
-static int set_krait_ldo_uv(struct krait_power_vreg *kvreg, int uV)
+static inline int set_krait_ldo_uv(struct krait_power_vreg *kvreg, int uV)
 {
 	uint32_t reg_val;
 
@@ -308,7 +319,7 @@ static int set_krait_ldo_uv(struct krait_power_vreg *kvreg, int uV)
 	return 0;
 }
 
-static int __krait_power_mdd_enable(struct krait_power_vreg *kvreg, bool on)
+static inline int __krait_power_mdd_enable(struct krait_power_vreg *kvreg, bool on)
 {
 	if (on) {
 		writel_relaxed(0x00000002, kvreg->mdd_base + MDD_MODE);
@@ -327,7 +338,7 @@ static int __krait_power_mdd_enable(struct krait_power_vreg *kvreg, bool on)
 }
 
 #define COEFF2_UV_THRESHOLD 850000
-static int get_coeff2(int krait_uV, int phase_scaling_factor)
+static inline int get_coeff2(int krait_uV, int phase_scaling_factor)
 {
 	int coeff2 = 0;
 	int krait_mV = krait_uV / 1000;
@@ -342,7 +353,7 @@ static int get_coeff2(int krait_uV, int phase_scaling_factor)
 	return  coeff2;
 }
 
-static int get_coeff1(int actual_uV, int requested_uV, int load)
+static inline int get_coeff1(int actual_uV, int requested_uV, int load)
 {
 	int ratio = actual_uV * 1000 / requested_uV;
 	int coeff1 = 330 * load + (load * 673 * ratio / 1000);
@@ -350,7 +361,7 @@ static int get_coeff1(int actual_uV, int requested_uV, int load)
 	return coeff1;
 }
 
-static int get_coeff_total(struct krait_power_vreg *from)
+static inline int get_coeff_total(struct krait_power_vreg *from)
 {
 	int coeff_total = 0;
 	struct krait_power_vreg *kvreg;
@@ -384,7 +395,7 @@ static int get_coeff_total(struct krait_power_vreg *from)
 	return coeff_total;
 }
 
-static int set_pmic_gang_phases(struct pmic_gang_vreg *pvreg, int phase_count)
+static inline int set_pmic_gang_phases(struct pmic_gang_vreg *pvreg, int phase_count)
 {
 	pr_debug("programming phase_count = %d\n", phase_count);
 	if (pvreg->use_phase_switching)
@@ -397,7 +408,7 @@ static int set_pmic_gang_phases(struct pmic_gang_vreg *pvreg, int phase_count)
 		return 0;
 }
 
-static int num_online(struct pmic_gang_vreg *pvreg)
+static inline int num_online(struct pmic_gang_vreg *pvreg)
 {
 	int online_total = 0;
 	struct krait_power_vreg *kvreg;
@@ -409,7 +420,7 @@ static int num_online(struct pmic_gang_vreg *pvreg)
 	return online_total;
 }
 
-static int get_total_load(struct krait_power_vreg *from)
+static inline int get_total_load(struct krait_power_vreg *from)
 {
 	int load_total = 0;
 	struct krait_power_vreg *kvreg;
@@ -529,7 +540,7 @@ static unsigned int pmic_gang_set_phases(struct krait_power_vreg *from,
 static unsigned int _get_optimum_mode(struct regulator_dev *rdev,
 			int input_uV, int output_uV, int load)
 {
-	struct krait_power_vreg *kvreg = rdev_get_drvdata(rdev);
+	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 	int coeff_total;
 	int rc;
 
@@ -548,7 +559,7 @@ static unsigned int _get_optimum_mode(struct regulator_dev *rdev,
 static unsigned int krait_power_get_optimum_mode(struct regulator_dev *rdev,
 			int input_uV, int output_uV, int load_uA)
 {
-	struct krait_power_vreg *kvreg = rdev_get_drvdata(rdev);
+	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 	struct pmic_gang_vreg *pvreg = kvreg->pvreg;
 	int rc;
 
@@ -565,14 +576,14 @@ static unsigned int krait_power_get_optimum_mode(struct regulator_dev *rdev,
 	return rc;
 }
 
-static int krait_power_set_mode(struct regulator_dev *rdev, unsigned int mode)
+static inline int krait_power_set_mode(struct regulator_dev *rdev, unsigned int mode)
 {
 	return 0;
 }
 
 static unsigned int krait_power_get_mode(struct regulator_dev *rdev)
 {
-	struct krait_power_vreg *kvreg = rdev_get_drvdata(rdev);
+	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 
 	return kvreg->mode;
 }
@@ -654,7 +665,7 @@ static void __switch_to_using_ldo(void *info)
 	pr_debug("%s using LDO\n", kvreg->name);
 }
 
-static int switch_to_using_ldo(struct krait_power_vreg *kvreg)
+static inline int switch_to_using_ldo(struct krait_power_vreg *kvreg)
 {
 	if (kvreg->mode == LDO_MODE
 		&& get_krait_ldo_uv(kvreg) == kvreg->uV - kvreg->ldo_delta_uV)
@@ -664,7 +675,7 @@ static int switch_to_using_ldo(struct krait_power_vreg *kvreg)
 			__switch_to_using_ldo, kvreg, 1);
 }
 
-static int switch_to_using_bhs(struct krait_power_vreg *kvreg)
+static inline int switch_to_using_bhs(struct krait_power_vreg *kvreg)
 {
 	if (kvreg->mode == HS_MODE)
 		return 0;
@@ -673,7 +684,7 @@ static int switch_to_using_bhs(struct krait_power_vreg *kvreg)
 			__switch_to_using_bhs, kvreg, 1);
 }
 
-static int set_pmic_gang_voltage(struct pmic_gang_vreg *pvreg, int uV)
+static inline int set_pmic_gang_voltage(struct pmic_gang_vreg *pvreg, int uV)
 {
 	int setpoint;
 	int rc;
@@ -722,7 +733,7 @@ static int set_pmic_gang_voltage(struct pmic_gang_vreg *pvreg, int uV)
 	return rc;
 }
 
-static int configure_ldo_or_hs_one(struct krait_power_vreg *kvreg, int vmax)
+static inline int configure_ldo_or_hs_one(struct krait_power_vreg *kvreg, int vmax)
 {
 	int rc;
 
@@ -757,7 +768,7 @@ static int configure_ldo_or_hs_one(struct krait_power_vreg *kvreg, int vmax)
 	return 0;
 }
 
-static int configure_ldo_or_hs_all(struct krait_power_vreg *from, int vmax)
+static inline int configure_ldo_or_hs_all(struct krait_power_vreg *from, int vmax)
 {
 	struct pmic_gang_vreg *pvreg = from->pvreg;
 	struct krait_power_vreg *kvreg;
@@ -774,13 +785,15 @@ static int configure_ldo_or_hs_all(struct krait_power_vreg *from, int vmax)
 }
 
 #define SLEW_RATE 2395
-static int krait_voltage_increase(struct krait_power_vreg *from,
+static inline int krait_voltage_increase(struct krait_power_vreg *from,
 							int vmax)
 {
 	struct pmic_gang_vreg *pvreg = from->pvreg;
 	int rc = 0;
 	int settling_us = DIV_ROUND_UP(vmax - pvreg->pmic_vmax_uV, SLEW_RATE);
-
+#ifdef CONFIG_THERMAPLAN_BTM_DEBUG
+	int old_uv = from->uV;
+#endif
 	/*
 	 * since krait voltage is increasing set the gang voltage
 	 * prior to changing ldo/hs states of the requesting krait
@@ -803,11 +816,16 @@ static int krait_voltage_increase(struct krait_power_vreg *from,
 		dev_err(&from->rdev->dev, "%s failed ldo/hs conf %d rc = %d\n",
 				pvreg->name, vmax, rc);
 	}
+#ifdef CONFIG_THERMAPLAN_BTM_DEBUG
+	//dump_stack();
+	(void) old_uv;
+	//printk(KERN_DEBUG "%s: vmax=%d old_uV=%d new_uV=%d settling_us=%d\n", __func__, vmax, old_uv, from->uV, settling_us);
+#endif
 
 	return rc;
 }
 
-static int krait_voltage_decrease(struct krait_power_vreg *from,
+static inline int krait_voltage_decrease(struct krait_power_vreg *from,
 							int vmax)
 {
 	struct pmic_gang_vreg *pvreg = from->pvreg;
@@ -834,14 +852,13 @@ static int krait_voltage_decrease(struct krait_power_vreg *from,
 	return rc;
 }
 
-static int krait_power_get_voltage(struct regulator_dev *rdev)
+static inline int krait_power_get_voltage(struct regulator_dev *rdev)
 {
-	struct krait_power_vreg *kvreg = rdev_get_drvdata(rdev);
+	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 
 	return kvreg->uV;
 }
-
-static int get_vmax(struct pmic_gang_vreg *pvreg)
+static inline int get_vmax(struct pmic_gang_vreg *pvreg)
 {
 	int vmax = 0;
 	int v;
@@ -861,15 +878,18 @@ static int get_vmax(struct pmic_gang_vreg *pvreg)
 }
 
 #define ROUND_UP_VOLTAGE(v, res) (DIV_ROUND_UP(v, res) * res)
-static int _set_voltage(struct regulator_dev *rdev,
+static inline int _set_voltage(struct regulator_dev *rdev,
 			int orig_krait_uV, int requested_uV)
 {
-	struct krait_power_vreg *kvreg = rdev_get_drvdata(rdev);
+	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 	struct pmic_gang_vreg *pvreg = kvreg->pvreg;
 	int rc;
 	int vmax;
 	int coeff_total;
-
+#ifdef CONFIG_THERMAPLAN_BTM_DEBUG
+	//dump_stack();
+	//printk(KERN_DEBUG "%s: old_uV=%d new_uV=%d\n", __func__, orig_krait_uV, requested_uV);
+#endif
 	pr_debug("%s: %d to %d\n", kvreg->name, orig_krait_uV, requested_uV);
 	/*
 	 * Assign the voltage before updating the gang voltage as we iterate
@@ -900,10 +920,10 @@ static int _set_voltage(struct regulator_dev *rdev,
 	return rc;
 }
 
-static int krait_power_set_voltage(struct regulator_dev *rdev,
+static inline int krait_power_set_voltage(struct regulator_dev *rdev,
 			int min_uV, int max_uV, unsigned *selector)
 {
-	struct krait_power_vreg *kvreg = rdev_get_drvdata(rdev);
+	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 	struct pmic_gang_vreg *pvreg = kvreg->pvreg;
 	int rc;
 
@@ -930,17 +950,28 @@ static int krait_power_set_voltage(struct regulator_dev *rdev,
 
 	return rc;
 }
-
-static int krait_power_is_enabled(struct regulator_dev *rdev)
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+inline void thermaplan_set_voltage(struct regulator_dev *rdev, int orig_krait_uV, int requested_uV)
 {
-	struct krait_power_vreg *kvreg = rdev_get_drvdata(rdev);
+	int ret = _set_voltage(rdev, orig_krait_uV, requested_uV);
+	if(ret) {
+		trace_thermaplan_info(__func__, smp_processor_id(), "Failed to call _set_voltage");
+	}
+}
+EXPORT_SYMBOL_GPL(thermaplan_set_voltage);
+#endif
+
+
+static inline int krait_power_is_enabled(struct regulator_dev *rdev)
+{
+	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 
 	return kvreg->reg_en;
 }
 
-static int krait_power_enable(struct regulator_dev *rdev)
+static inline int krait_power_enable(struct regulator_dev *rdev)
 {
-	struct krait_power_vreg *kvreg = rdev_get_drvdata(rdev);
+	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 	struct pmic_gang_vreg *pvreg = kvreg->pvreg;
 	int rc;
 
@@ -961,9 +992,9 @@ en_err:
 	return rc;
 }
 
-static int krait_power_disable(struct regulator_dev *rdev)
+static inline int krait_power_disable(struct regulator_dev *rdev)
 {
-	struct krait_power_vreg *kvreg = rdev_get_drvdata(rdev);
+	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 	struct pmic_gang_vreg *pvreg = kvreg->pvreg;
 	int rc;
 
@@ -993,7 +1024,7 @@ static struct regulator_ops krait_power_ops = {
 	.is_enabled		= krait_power_is_enabled,
 };
 
-static int krait_regulator_cpu_callback(struct notifier_block *nfb,
+static inline int krait_regulator_cpu_callback(struct notifier_block *nfb,
 					    unsigned long action, void *hcpu)
 {
 	int cpu = (int)hcpu;
@@ -1057,7 +1088,7 @@ static struct notifier_block krait_cpu_notifier = {
 };
 
 static struct dentry *dent;
-static int get_retention_dbg_uV(void *data, u64 *val)
+static inline int get_retention_dbg_uV(void *data, u64 *val)
 {
 	struct pmic_gang_vreg *pvreg = data;
 	struct krait_power_vreg *kvreg;
@@ -1073,7 +1104,7 @@ static int get_retention_dbg_uV(void *data, u64 *val)
 	return 0;
 }
 
-static int set_retention_dbg_uV(void *data, u64 val)
+static inline int set_retention_dbg_uV(void *data, u64 val)
 {
 	struct pmic_gang_vreg *pvreg = data;
 	struct krait_power_vreg *kvreg;
@@ -1124,7 +1155,7 @@ static void glb_init(void __iomem *apcs_gcc_base)
 	pr_debug("version= 0x%x\n", version);
 }
 
-static int __devinit krait_power_probe(struct platform_device *pdev)
+static inline int __devinit krait_power_probe(struct platform_device *pdev)
 {
 	struct krait_power_vreg *kvreg;
 	struct resource *res, *res_mdd;
@@ -1301,7 +1332,7 @@ out:
 	return rc;
 }
 
-static int __devexit krait_power_remove(struct platform_device *pdev)
+static inline int __devexit krait_power_remove(struct platform_device *pdev)
 {
 	struct krait_power_vreg *kvreg = platform_get_drvdata(pdev);
 	struct pmic_gang_vreg *pvreg = kvreg->pvreg;
@@ -1335,7 +1366,7 @@ static struct of_device_id krait_pdn_match_table[] = {
 	{}
 };
 
-static int boot_cpu_mdd_off(void)
+static inline int boot_cpu_mdd_off(void)
 {
 	struct krait_power_vreg *kvreg = per_cpu(krait_vregs, 0);
 
@@ -1355,7 +1386,7 @@ static struct syscore_ops boot_cpu_mdd_ops = {
 	.resume		= boot_cpu_mdd_on,
 };
 
-static int __devinit krait_pdn_phase_scaling_init(struct pmic_gang_vreg *pvreg,
+static inline int __devinit krait_pdn_phase_scaling_init(struct pmic_gang_vreg *pvreg,
 				struct platform_device *pdev)
 {
 	struct resource *res;
@@ -1414,7 +1445,7 @@ static int __devinit krait_pdn_phase_scaling_init(struct pmic_gang_vreg *pvreg,
 	return 0;
 }
 
-static int __devinit krait_pdn_probe(struct platform_device *pdev)
+static inline int __devinit krait_pdn_probe(struct platform_device *pdev)
 {
 	int rc;
 	bool use_phase_switching = false;
@@ -1491,7 +1522,7 @@ static int __devinit krait_pdn_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int __devexit krait_pdn_remove(struct platform_device *pdev)
+static inline int __devexit krait_pdn_remove(struct platform_device *pdev)
 {
 	the_gang = NULL;
 	debugfs_remove_recursive(dent);
@@ -1577,6 +1608,179 @@ void secondary_cpu_hs_init(void *base_ptr)
 
 	iounmap(l2_saw_base);
 }
+
+
+
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+static int should_undervolt = 0;
+
+static ssize_t store_acpuclock_should_undervolt(const char *_buf, size_t count)
+{
+	int err = 0;
+	int val;
+	char *buf = kstrdup(strstrip((char *)_buf), GFP_KERNEL);
+	err = kstrtoint(buf, 0, &val);
+	val = !!val;
+	should_undervolt = val;
+	kfree(buf);
+	return err != 0 ? err : count;
+}
+
+static ssize_t show_acpuclock_should_undervolt(char *buf)
+{
+	return sprintf(buf, "%d", should_undervolt);
+}
+
+struct acpuclock_attr should_undervolt_attr =
+__ATTR(should_undervolt, 0644, show_acpuclock_should_undervolt, store_acpuclock_should_undervolt);
+
+
+
+#ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
+u64 time_spent_undervolted[4];
+u64 time_spent_stockvolted[4];
+u64 userspace_start_time[4];
+u64 kernelspace_start_time[4];
+u64 userspace_duplicates[4];
+u64 kernelspace_duplicates[4];
+inline u64 time_since_epoch_ns(void) {
+	struct timespec ts;
+	u64 ret;
+	getnstimeofday(&ts);
+	ret = ((u64) ((u64)ts.tv_sec) * NSEC_PER_SEC) + ts.tv_nsec;
+	return ret;
+}
+
+
+static ssize_t store_acpuclock_stats(const char *_buf, size_t count)
+{
+	return -EINVAL;
+}
+static ssize_t show_acpuclock_stats(char *buf)
+{
+	int offset = 0;
+	int cpu;
+	for_each_possible_cpu(cpu) {
+		offset += sprintf(buf + offset, "cpu=%d undervolted=%llus stockvolted_s=%llus u_duplicates=%llu k_duplicates=%llu\n",
+			cpu, div_u64(time_spent_undervolted[cpu], NSEC_PER_SEC), div_u64(time_spent_stockvolted[cpu], NSEC_PER_SEC),
+			userspace_duplicates[cpu], kernelspace_duplicates[cpu]);
+	}
+	return offset;
+}
+
+struct acpuclock_attr stats_attr =
+__ATTR(stats, 0444, show_acpuclock_stats, store_acpuclock_stats);
+#endif
+
+asmlinkage inline void thermaplan_undervolt_entering_kernelspace(void)
+{
+
+	int cpu = smp_processor_id();
+	int freq;
+	struct acpu_level *level;
+	struct vdd_data vdd_data;
+#ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
+	u64 now;
+#endif
+
+	if(!thermaplan_sysfs_initialized || !acpuclock_ready || !should_undervolt) {
+		return;
+	}
+	if(cpu == 0) {
+		// We don't do anything on CPU-0
+		return;
+	}
+
+	freq = acpuclock_drv->scalable[cpu].cur_speed->khz;	//acpuclk_krait_get_rate(cpu);
+	level = acpuclock_drv->cur_acpu_level;
+	if(level == NULL) {
+		trace_thermaplan_info(__func__, cpu, "level null");
+		return;
+	} else if(level->speed.khz != freq) {
+		trace_thermaplan_info(__func__, cpu, "freq mismatch");
+		return;
+	}
+
+	vdd_data.vdd_mem  = calculate_vdd_mem(level);
+	vdd_data.vdd_dig  = calculate_vdd_dig(level);
+	vdd_data.vdd_core = calculate_vdd_core(level);
+	vdd_data.ua_core  = level->ua_core;
+
+#ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
+	now = time_since_epoch_ns();
+	if(userspace_start_time[cpu]) {
+		time_spent_undervolted[cpu] += (now - userspace_start_time[cpu]);
+		userspace_start_time[cpu] = 0;
+	} else {
+		if(kernelspace_start_time[cpu]) {
+			time_spent_stockvolted[cpu] += (now - kernelspace_start_time[cpu]);
+		}
+	}
+#endif
+	force_regulator_cpu(cpu, level, &vdd_data);
+#ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
+	if(kernelspace_start_time[cpu]) {
+		//time_spent_stockvolted[cpu] += (now - kernelspace_start_time[cpu]);
+		kernelspace_duplicates[cpu]++;
+	}
+	kernelspace_start_time[cpu] = time_since_epoch_ns();
+#endif
+}
+
+asmlinkage inline void thermaplan_undervolt_entering_userspace(void)
+{
+	int freq;
+	struct acpu_level *level;
+	struct vdd_data vdd_data;
+	int cpu = smp_processor_id();
+#ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
+	u64 now;
+#endif
+
+	if(!thermaplan_sysfs_initialized || !acpuclock_ready || !should_undervolt) {
+		return;
+	}
+	if(cpu == 0) {
+		// We don't do anything on CPU-0
+		return;
+	}
+
+	freq = acpuclock_drv->scalable[cpu].cur_speed->khz;	//acpuclk_krait_get_rate(cpu);
+	level = acpuclock_drv->cur_acpu_level;
+	if(level == NULL) {
+		trace_thermaplan_info(__func__, cpu, "level null");
+		return;
+	} else if(level->speed.khz != freq) {
+		trace_thermaplan_info(__func__, cpu, "freq mismatch");
+		return;
+	}
+
+	vdd_data.vdd_mem  = calculate_vdd_mem(level);
+	vdd_data.vdd_dig  = calculate_vdd_dig(level);
+	vdd_data.vdd_core = calculate_vdd_core(level) - (should_undervolt ? undervolt_mv : 0);
+	vdd_data.ua_core  = level->ua_core;
+
+#ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
+	now = time_since_epoch_ns();
+	if(kernelspace_start_time[cpu]) {
+		time_spent_stockvolted[cpu] += (now - kernelspace_start_time[cpu]);
+		kernelspace_start_time[cpu] = 0;
+	} else {
+		if(userspace_start_time[cpu]) {
+			time_spent_undervolted[cpu] += (now - userspace_start_time[cpu]);
+		}
+	}
+#endif
+	force_regulator_cpu(cpu, level, &vdd_data);
+#ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
+	if(userspace_start_time[cpu]) {
+		//time_spent_undervolted[cpu] += (now - userspace_start_time[cpu]);
+		userspace_duplicates[cpu]++;
+	}
+	userspace_start_time[cpu] = time_since_epoch_ns();
+#endif
+}
+#endif
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("KRAIT POWER regulator driver");

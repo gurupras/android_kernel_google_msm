@@ -37,6 +37,10 @@
 
 #include "dummy.h"
 
+#ifdef CONFIG_THERMAPLAN
+#include  <linux/thermaplan.h>
+#endif
+
 #define rdev_crit(rdev, fmt, ...)					\
 	pr_crit("%s: " fmt, rdev_get_name(rdev), ##__VA_ARGS__)
 #define rdev_err(rdev, fmt, ...)					\
@@ -69,6 +73,7 @@ struct regulator_map {
 	struct regulator_dev *regulator;
 };
 
+#ifndef CONFIG_THERMAPLAN
 /*
  * struct regulator
  *
@@ -86,6 +91,7 @@ struct regulator {
 	struct regulator_dev *rdev;
 	struct dentry *debugfs;
 };
+#endif
 
 static int _regulator_is_enabled(struct regulator_dev *rdev);
 static int _regulator_disable(struct regulator_dev *rdev);
@@ -2033,6 +2039,15 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(regulator_set_voltage);
+
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+extern void thermaplan_set_voltage(struct regulator_dev *rdev, int orig_krait_uV, int requested_uV);
+inline void thermaplan_regulator_set_voltage(struct regulator *regulator, int orig_uV, int requested_uV) {
+	struct regulator_dev *rdev = regulator->rdev;
+	thermaplan_set_voltage(rdev, orig_uV, requested_uV);
+}
+EXPORT_SYMBOL_GPL(thermaplan_regulator_set_voltage);
+#endif
 
 /**
  * regulator_set_voltage_time - get raise/fall time

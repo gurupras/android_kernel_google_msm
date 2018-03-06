@@ -366,6 +366,12 @@ ENTRY(vector_swi)
 	str	r0, [sp, #S_OLD_R0]		@ Save OLD_R0
 	zero_fp
 
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	stmdb	sp!, {r0-r11, lr}
+	bl	thermaplan_undervolt_entering_kernelspace
+	ldmia	sp!, {r0-r11, lr}
+#endif
+
 	/*
 	 * Get the system call number.
 	 */
