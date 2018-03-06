@@ -946,14 +946,19 @@ static inline int krait_power_set_voltage(struct regulator_dev *rdev,
 	}
 
 	rc = _set_voltage(rdev, kvreg->uV, min_uV);
-	mutex_unlock(&pvreg->krait_power_vregs_lock);
+	if(selector != NULL) {
+		mutex_unlock(&pvreg->krait_power_vregs_lock);
+	}
 
 	return rc;
 }
 #ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT
 inline void thermaplan_set_voltage(struct regulator_dev *rdev, int orig_krait_uV, int requested_uV)
 {
-	int ret = _set_voltage(rdev, orig_krait_uV, requested_uV);
+	// Triggers wdog_bark when undervolting
+	// May also trigger warning @ smp_call_function_single
+	//int ret = _set_voltage(rdev, orig_krait_uV, requested_uV);
+	int ret = krait_power_set_voltage(rdev, orig_krait_uV, requested_uV, NULL);
 	if(ret) {
 		trace_thermaplan_info(__func__, smp_processor_id(), "Failed to call _set_voltage");
 	}
@@ -1679,8 +1684,14 @@ asmlinkage inline void thermaplan_undervolt_entering_kernelspace(void)
 	int freq;
 	struct acpu_level *level;
 	struct vdd_data vdd_data;
+	char buf[64];
 #ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
 	u64 now;
+#endif
+#ifndef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT_FULL_CHAIN
+	struct scalable *sc;
+	struct regulator *regulator;
+	int orig_uV;
 #endif
 
 	if(!thermaplan_sysfs_initialized || !acpuclock_ready || !should_undervolt) {
@@ -1697,8 +1708,10 @@ asmlinkage inline void thermaplan_undervolt_entering_kernelspace(void)
 		trace_thermaplan_info(__func__, cpu, "level null");
 		return;
 	} else if(level->speed.khz != freq) {
-		trace_thermaplan_info(__func__, cpu, "freq mismatch");
-		return;
+		(void) buf;
+		//sprintf(buf, "freq mismatch! level->speed.khz(%lu) != freq(%d)", level->speed.khz, freq);
+		//trace_thermaplan_info(__func__, cpu, buf);
+		//return;
 	}
 
 	vdd_data.vdd_mem  = calculate_vdd_mem(level);
@@ -1717,7 +1730,16 @@ asmlinkage inline void thermaplan_undervolt_entering_kernelspace(void)
 		}
 	}
 #endif
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT_FULL_CHAIN
 	force_regulator_cpu(cpu, level, &vdd_data);
+#else
+	sc = &acpuclock_drv->scalable[cpu];
+	regulator = sc->vreg[VREG_CORE].reg;
+	orig_uV = krait_power_get_voltage(regulator->rdev);
+	if (orig_uV != vdd_data.vdd_core) {
+		thermaplan_set_voltage(regulator->rdev, orig_uV, vdd_data.vdd_core);
+	}
+#endif
 #ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
 	if(kernelspace_start_time[cpu]) {
 		//time_spent_stockvolted[cpu] += (now - kernelspace_start_time[cpu]);
@@ -1733,8 +1755,14 @@ asmlinkage inline void thermaplan_undervolt_entering_userspace(void)
 	struct acpu_level *level;
 	struct vdd_data vdd_data;
 	int cpu = smp_processor_id();
+	char buf[64];
 #ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
 	u64 now;
+#endif
+#ifndef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT_FULL_CHAIN
+	struct scalable *sc;
+	struct regulator *regulator;
+	int orig_uV;
 #endif
 
 	if(!thermaplan_sysfs_initialized || !acpuclock_ready || !should_undervolt) {
@@ -1751,8 +1779,10 @@ asmlinkage inline void thermaplan_undervolt_entering_userspace(void)
 		trace_thermaplan_info(__func__, cpu, "level null");
 		return;
 	} else if(level->speed.khz != freq) {
-		trace_thermaplan_info(__func__, cpu, "freq mismatch");
-		return;
+		(void) buf;
+		//sprintf(buf, "freq mismatch! level->speed.khz(%lu) != freq(%d)", level->speed.khz, freq);
+		//trace_thermaplan_info(__func__, cpu, buf);
+		//return;
 	}
 
 	vdd_data.vdd_mem  = calculate_vdd_mem(level);
@@ -1771,7 +1801,16 @@ asmlinkage inline void thermaplan_undervolt_entering_userspace(void)
 		}
 	}
 #endif
+#ifdef CONFIG_THERMAPLAN_BTM_USERSPACE_UNDERVOLT_FULL_CHAIN
 	force_regulator_cpu(cpu, level, &vdd_data);
+#else
+	sc = &acpuclock_drv->scalable[cpu];
+	regulator = sc->vreg[VREG_CORE].reg;
+	orig_uV = krait_power_get_voltage(regulator->rdev);
+	if (orig_uV != vdd_data.vdd_core) {
+		thermaplan_set_voltage(regulator->rdev, orig_uV, vdd_data.vdd_core);
+	}
+#endif
 #ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
 	if(userspace_start_time[cpu]) {
 		//time_spent_undervolted[cpu] += (now - userspace_start_time[cpu]);

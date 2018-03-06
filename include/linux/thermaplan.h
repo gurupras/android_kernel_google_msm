@@ -69,5 +69,9 @@ int calculate_vdd_mem(const struct acpu_level *tgt);
 int calculate_vdd_dig(const struct acpu_level *tgt);
 int calculate_vdd_core(const struct acpu_level *tgt);
 
+#ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+extern void ctx_switch_undervolt(int);
+#endif
+
 #endif	/* __THERMAPLAN_H_ */
 

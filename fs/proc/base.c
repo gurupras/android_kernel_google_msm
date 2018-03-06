@@ -2970,6 +2970,68 @@ static int proc_pid_personality(struct seq_file *m, struct pid_namespace *ns,
 	return err;
 }
 
+
+#ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+static ssize_t undervolt_mv_read(struct file *file, char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	struct task_struct *task = get_proc_task(file->f_path.dentry->d_inode);
+	char buffer[PROC_NUMBUF];
+	int undervolt_mv;
+	size_t len;
+
+	if (!task)
+		return -ESRCH;
+
+	task_lock(task);
+	undervolt_mv = task->undervolt_mv;
+	task_unlock(task);
+	put_task_struct(task);
+	len = snprintf(buffer, sizeof(buffer), "%d\n", undervolt_mv);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t undervolt_mv_write(struct file *file, const char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	char buffer[32];
+	int undervolt_mv;
+	int err;
+
+	memset(buffer, 0, sizeof(buffer));
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		err = -EFAULT;
+		goto out;
+	}
+
+	err = kstrtoint(strstrip(buffer), 0, &undervolt_mv);
+	if (err)
+		goto out;
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (!task) {
+		err = -ESRCH;
+		goto out;
+	}
+
+	task_lock(task);
+	task->undervolt_mv = undervolt_mv;
+	task_unlock(task);
+	put_task_struct(task);
+out:
+	return err < 0 ? err : count;
+}
+
+static const struct file_operations proc_undervolt_mv_operations = {
+	.read		= undervolt_mv_read,
+	.write		= undervolt_mv_write,
+	.llseek		= default_llseek,
+};
+#endif
+
 /*
  * Thread groups
  */
@@ -3060,6 +3122,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 #endif
 #ifdef CONFIG_HARDWALL
 	INF("hardwall",   S_IRUGO, proc_pid_hardwall),
+#endif
+#ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+	REG("undervolt_mv", S_IRUGO|S_IWUSR, proc_undervolt_mv_operations),
 #endif
 };
 
@@ -3415,6 +3480,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_HARDWALL
 	INF("hardwall",   S_IRUGO, proc_pid_hardwall),
+#endif
+#ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+	REG("undervolt_mv", S_IRUGO|S_IWUSR, proc_undervolt_mv_operations),
 #endif
 };
 

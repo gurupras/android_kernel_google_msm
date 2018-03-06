@@ -16,14 +16,29 @@ config THERMAPLAN_BTM_DEBUG
 	help
 	  Enable voltage control debugging
 
+config THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+	select THERMAPLAN_BTM
+	bool "Enable per-process undervolting"
+	help
+	  Enable undervolting of the CPU on a per-process basis
+
 config THERMAPLAN_BTM_USERSPACE_UNDERVOLT
 	select THERMAPLAN_BTM
 	bool "Undervolt in userspace"
 	help
 	  CPUs undervolt when switching to userspace to try and save energy
 
+config THERMAPLAN_BTM_USERSPACE_UNDERVOLT_FULL_CHAIN
+	depends on THERMAPLAN_BTM_USERSPACE_UNDERVOLT
+	bool "Use full call-chain while switching voltages (DOES NOT WORK IF DISABLED)"
+	help
+	  Use the full call-chain while switching voltages rather than call the
+	  bare-minimum functions.
+
 config THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
 	depends on THERMAPLAN_BTM_USERSPACE_UNDERVOLT
 	bool "Track undervolting statistics"
 	help
 	  Track per-cpu undervolting statistics
+
+

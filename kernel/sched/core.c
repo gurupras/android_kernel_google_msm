@@ -87,6 +87,10 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
 
+#ifdef CONFIG_THERMAPLAN
+#include <linux/thermaplan.h>
+#include <trace/events/thermaplan.h>
+#endif
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
 
 void start_bandwidth_timer(struct hrtimer *period_timer, ktime_t period)
@@ -3195,6 +3199,10 @@ static void __sched __schedule(void)
 	unsigned long *switch_count;
 	struct rq *rq;
 	int cpu;
+#ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+	int prev_pid;
+	int update_voltage = 0;
+#endif
 
 need_resched:
 	preempt_disable();
@@ -3249,7 +3257,13 @@ need_resched:
 		rq->curr = next;
 		++*switch_count;
 
+#ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+		prev_pid = prev->pid;
+#endif
 		context_switch(rq, prev, next); /* unlocks the rq */
+#ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+		update_voltage = 1;
+#endif
 		/*
 		 * The context switch have flipped the stack from under us
 		 * and restored the local variables which were saved when
@@ -3257,6 +3271,14 @@ need_resched:
 		 * is still correct, but it can be moved to another cpu/rq.
 		 */
 		cpu = smp_processor_id();
+#ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+		if(update_voltage && current->undervolt_mv) {
+			//char buf[64];
+			ctx_switch_undervolt(current->undervolt_mv);
+			//sprintf(buf, "Switching from %d -> %d (undervolt=%d)", prev_pid, current->pid, current->undervolt_mv);
+			//trace_thermaplan_info(__func__, cpu, buf);
+		}
+#endif
 		rq = cpu_rq(cpu);
 	} else
 		raw_spin_unlock_irq(&rq->lock);

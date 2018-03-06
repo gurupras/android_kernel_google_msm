@@ -40,7 +40,6 @@
 #include "acpuclock-krait.h"
 #include "avs.h"
 
-#define CREATE_TRACE_POINTS
 #include <trace/events/thermaplan.h>
 
 #ifdef CONFIG_THERMAPLAN
@@ -1337,6 +1336,20 @@ static ssize_t show_acpuclock_vdd(char *buf)
 	}
 	return offset;
 }
+
+#ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
+inline void ctx_switch_undervolt(int undervolt_mv)
+{
+	struct acpu_level *level = acpuclock_drv->cur_acpu_level;
+	struct vdd_data vdd_data;
+	int cpu = smp_processor_id();
+	vdd_data.vdd_mem  = calculate_vdd_mem(level);
+	vdd_data.vdd_dig  = calculate_vdd_dig(level);
+	vdd_data.vdd_core = calculate_vdd_core(level) - undervolt_mv;
+	vdd_data.ua_core  = level->ua_core;
+	force_regulator_cpu(cpu, level, &vdd_data);
+}
+#endif
 
 inline void force_regulator_cpu(int cpu, struct acpu_level *tgt, struct vdd_data *vdd_data)
 {
