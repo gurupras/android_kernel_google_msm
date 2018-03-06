@@ -293,7 +293,7 @@ struct vdd_data {
 
 /* Apply any per-cpu voltage increases. */
 static int _increase_vdd(int cpu, struct vdd_data *data,
-			enum setrate_reason reason, bool force)
+			enum setrate_reason reason, bool force, bool should_lock)
 {
 	struct scalable *sc = &drv.scalable[cpu];
 	int rc;
@@ -329,8 +329,8 @@ static int _increase_vdd(int cpu, struct vdd_data *data,
 
 	/* Increase current request. */
 	if (force || data->ua_core > sc->vreg[VREG_CORE].cur_ua) {
-		rc = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
-						data->ua_core);
+		rc = _regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
+						data->ua_core, should_lock);
 		if (rc < 0) {
 			dev_err(drv.dev, "regulator_set_optimum_mode(%s) failed (%d)\n",
 				sc->vreg[VREG_CORE].name, rc);
@@ -347,8 +347,8 @@ static int _increase_vdd(int cpu, struct vdd_data *data,
 	 */
 	if (force || (data->vdd_core > sc->vreg[VREG_CORE].cur_vdd
 			&& reason != SETRATE_HOTPLUG)) {
-		rc = regulator_set_voltage(sc->vreg[VREG_CORE].reg,
-				data->vdd_core, sc->vreg[VREG_CORE].max_vdd);
+		rc = _regulator_set_voltage(sc->vreg[VREG_CORE].reg,
+				data->vdd_core, sc->vreg[VREG_CORE].max_vdd, should_lock);
 		if (rc) {
 			dev_err(drv.dev,
 				"vdd_core (cpu%d) increase failed (%d)\n",
@@ -363,13 +363,13 @@ static int _increase_vdd(int cpu, struct vdd_data *data,
 static int increase_vdd(int cpu, struct vdd_data *data,
 			enum setrate_reason reason)
 {
-	return _increase_vdd(cpu, data, reason, false);
+	return _increase_vdd(cpu, data, reason, false, true);
 }
 
 
 /* Apply any per-cpu voltage decreases. */
 static void _decrease_vdd(int cpu, struct vdd_data *data,
-			 enum setrate_reason reason, bool force)
+			 enum setrate_reason reason, bool force, bool should_lock)
 {
 	struct scalable *sc = &drv.scalable[cpu];
 	int ret;
@@ -381,8 +381,8 @@ static void _decrease_vdd(int cpu, struct vdd_data *data,
 	 */
 	if (force || (data->vdd_core < sc->vreg[VREG_CORE].cur_vdd
 			&& reason != SETRATE_HOTPLUG)) {
-		ret = regulator_set_voltage(sc->vreg[VREG_CORE].reg,
-				data->vdd_core, sc->vreg[VREG_CORE].max_vdd);
+		ret = _regulator_set_voltage(sc->vreg[VREG_CORE].reg,
+				data->vdd_core, sc->vreg[VREG_CORE].max_vdd, should_lock);
 		if (ret) {
 			dev_err(drv.dev,
 				"vdd_core (cpu%d) decrease failed (%d)\n",
@@ -394,8 +394,8 @@ static void _decrease_vdd(int cpu, struct vdd_data *data,
 
 	/* Decrease current request. */
 	if (force || data->ua_core < sc->vreg[VREG_CORE].cur_ua) {
-		ret = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
-						data->ua_core);
+		ret = _regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
+						data->ua_core, should_lock);
 		if (ret < 0) {
 			dev_err(drv.dev, "regulator_set_optimum_mode(%s) failed (%d)\n",
 				sc->vreg[VREG_CORE].name, ret);
@@ -436,7 +436,7 @@ static void _decrease_vdd(int cpu, struct vdd_data *data,
 static void decrease_vdd(int cpu, struct vdd_data *data,
 			 enum setrate_reason reason)
 {
-	return _decrease_vdd(cpu, data, reason, false);
+	return _decrease_vdd(cpu, data, reason, false, true);
 }
 
 int calculate_vdd_mem(const struct acpu_level *tgt)
@@ -1358,8 +1358,8 @@ inline void force_regulator_cpu(int cpu, struct acpu_level *tgt, struct vdd_data
 #endif
 	AVS_DISABLE(cpu);
 	drv.scalable[cpu].avs_enabled = false;
-	_increase_vdd(cpu, vdd_data, SETRATE_CPUFREQ, true);
-	_decrease_vdd(cpu, vdd_data, SETRATE_CPUFREQ, true);
+	_increase_vdd(cpu, vdd_data, SETRATE_CPUFREQ, false, false);
+	_decrease_vdd(cpu, vdd_data, SETRATE_CPUFREQ, false, false);
 	AVS_ENABLE(cpu, tgt->avsdscr_setting);
 	drv.scalable[cpu].avs_enabled = true;
 }

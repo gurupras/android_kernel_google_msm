@@ -101,7 +101,7 @@ static unsigned int _regulator_get_mode(struct regulator_dev *rdev);
 static void _notifier_call_chain(struct regulator_dev *rdev,
 				  unsigned long event, void *data);
 static int _regulator_do_set_voltage(struct regulator_dev *rdev,
-				     int min_uV, int max_uV);
+				     int min_uV, int max_uV, bool should_lock);
 static struct regulator *create_regulator(struct regulator_dev *rdev,
 					  struct device *dev,
 					  const char *supply_name);
@@ -855,7 +855,7 @@ static int machine_constraints_voltage(struct regulator_dev *rdev,
 	    rdev->constraints->min_uV == rdev->constraints->max_uV) {
 		ret = _regulator_do_set_voltage(rdev,
 						rdev->constraints->min_uV,
-						rdev->constraints->max_uV);
+						rdev->constraints->max_uV, true);
 		if (ret < 0) {
 			rdev_err(rdev, "failed to apply %duV constraint\n",
 				 rdev->constraints->min_uV);
@@ -1885,11 +1885,15 @@ int regulator_is_supported_voltage(struct regulator *regulator,
 EXPORT_SYMBOL_GPL(regulator_is_supported_voltage);
 
 static int _regulator_do_set_voltage(struct regulator_dev *rdev,
-				     int min_uV, int max_uV)
+				     int min_uV, int max_uV, bool should_lock)
 {
 	int ret;
 	int delay = 0;
 	unsigned int selector;
+	unsigned *selector_ptr = &selector;
+	if(!should_lock) {
+		selector_ptr = NULL;
+	}
 
 	trace_regulator_set_voltage(rdev_get_name(rdev), min_uV, max_uV);
 
@@ -1898,7 +1902,7 @@ static int _regulator_do_set_voltage(struct regulator_dev *rdev,
 
 	if (rdev->desc->ops->set_voltage) {
 		ret = rdev->desc->ops->set_voltage(rdev, min_uV, max_uV,
-						   &selector);
+						   selector_ptr);
 
 		if (rdev->desc->ops->list_voltage)
 			selector = rdev->desc->ops->list_voltage(rdev,
@@ -1992,13 +1996,15 @@ static int _regulator_do_set_voltage(struct regulator_dev *rdev,
  * Regulator system constraints must be set for this regulator before
  * calling this function otherwise this call will fail.
  */
-int regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV)
+int _regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV, bool should_lock)
 {
 	struct regulator_dev *rdev = regulator->rdev;
 	int prev_min_uV, prev_max_uV;
 	int ret = 0;
 
-	mutex_lock(&rdev->mutex);
+	if(should_lock) {
+		mutex_lock(&rdev->mutex);
+	}
 
 	/* If we're setting the same range as last time the change
 	 * should be a noop (some cpufreq implementations use the same
@@ -2032,11 +2038,17 @@ int regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV)
 		goto out;
 	}
 
-	ret = _regulator_do_set_voltage(rdev, min_uV, max_uV);
+	ret = _regulator_do_set_voltage(rdev, min_uV, max_uV, should_lock);
 
 out:
-	mutex_unlock(&rdev->mutex);
+	if(should_lock) {
+		mutex_unlock(&rdev->mutex);
+	}
 	return ret;
+}
+int regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV)
+{
+	return _regulator_set_voltage(regulator, min_uV, max_uV, true);
 }
 EXPORT_SYMBOL_GPL(regulator_set_voltage);
 
@@ -2133,7 +2145,7 @@ int regulator_sync_voltage(struct regulator *regulator)
 	if (ret < 0)
 		goto out;
 
-	ret = _regulator_do_set_voltage(rdev, min_uV, max_uV);
+	ret = _regulator_do_set_voltage(rdev, min_uV, max_uV, true);
 
 out:
 	mutex_unlock(&rdev->mutex);
@@ -2361,7 +2373,7 @@ EXPORT_SYMBOL_GPL(regulator_get_mode);
  *
  * Returns the new regulator mode or error.
  */
-int regulator_set_optimum_mode(struct regulator *regulator, int uA_load)
+int _regulator_set_optimum_mode(struct regulator *regulator, int uA_load, bool should_lock)
 {
 	struct regulator_dev *rdev = regulator->rdev;
 	struct regulator *consumer;
@@ -2431,6 +2443,10 @@ int regulator_set_optimum_mode(struct regulator *regulator, int uA_load)
 out:
 	mutex_unlock(&rdev->mutex);
 	return ret;
+}
+int regulator_set_optimum_mode(struct regulator *regulator, int uA_load)
+{
+	return _regulator_set_optimum_mode(regulator, uA_load, true);
 }
 EXPORT_SYMBOL_GPL(regulator_set_optimum_mode);
 

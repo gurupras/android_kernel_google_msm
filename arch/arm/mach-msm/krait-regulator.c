@@ -938,7 +938,12 @@ static inline int krait_power_set_voltage(struct regulator_dev *rdev,
 		min_uV = ROUND_UP_VOLTAGE(min_uV, KRAIT_LDO_STEP);
 	}
 
-	mutex_lock(&pvreg->krait_power_vregs_lock);
+	if(selector == NULL) {
+		// This is coming from our custom path
+		// The CPU is expected to be correct and therefore we don't lock
+	} else {
+		mutex_lock(&pvreg->krait_power_vregs_lock);
+	}
 	if (!kvreg->reg_en) {
 		kvreg->uV = min_uV;
 		mutex_unlock(&pvreg->krait_power_vregs_lock);

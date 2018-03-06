@@ -69,6 +69,9 @@ int calculate_vdd_mem(const struct acpu_level *tgt);
 int calculate_vdd_dig(const struct acpu_level *tgt);
 int calculate_vdd_core(const struct acpu_level *tgt);
 
+int _regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV, bool should_lock);
+int _regulator_set_optimum_mode(struct regulator *regulator, int uA_load, bool should_lock);
+
 #ifdef CONFIG_THERMAPLAN_BTM_PER_PROCESS_VOLTAGE
 extern void ctx_switch_undervolt(int);
 #endif
