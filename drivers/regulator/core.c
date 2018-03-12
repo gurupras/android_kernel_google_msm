@@ -95,9 +95,9 @@ struct regulator {
 
 static int _regulator_is_enabled(struct regulator_dev *rdev);
 static int _regulator_disable(struct regulator_dev *rdev);
-static int _regulator_get_voltage(struct regulator_dev *rdev);
+static int _regulator_get_voltage(struct regulator_dev *rdev, bool should_lock);
 static int _regulator_get_current_limit(struct regulator_dev *rdev);
-static unsigned int _regulator_get_mode(struct regulator_dev *rdev);
+static unsigned int _regulator_get_mode(struct regulator_dev *rdev, bool should_lock);
 static void _notifier_call_chain(struct regulator_dev *rdev,
 				  unsigned long event, void *data);
 static int _regulator_do_set_voltage(struct regulator_dev *rdev,
@@ -337,7 +337,7 @@ static ssize_t regulator_uV_show(struct device *dev,
 	ssize_t ret;
 
 	mutex_lock(&rdev->mutex);
-	ret = sprintf(buf, "%d\n", _regulator_get_voltage(rdev));
+	ret = sprintf(buf, "%d\n", _regulator_get_voltage(rdev, true));
 	mutex_unlock(&rdev->mutex);
 
 	return ret;
@@ -381,7 +381,7 @@ static ssize_t regulator_opmode_show(struct device *dev,
 {
 	struct regulator_dev *rdev = dev_get_drvdata(dev);
 
-	return regulator_print_opmode(buf, _regulator_get_mode(rdev));
+	return regulator_print_opmode(buf, _regulator_get_mode(rdev, true));
 }
 static DEVICE_ATTR(opmode, 0444, regulator_opmode_show, NULL);
 
@@ -670,14 +670,14 @@ static void drms_uA_update(struct regulator_dev *rdev)
 		return;
 
 	/* get output voltage */
-	output_uV = _regulator_get_voltage(rdev);
+	output_uV = _regulator_get_voltage(rdev, true);
 	if (output_uV <= 0)
 		return;
 
 	/* get input voltage */
 	input_uV = 0;
 	if (rdev->supply)
-		input_uV = _regulator_get_voltage(rdev);
+		input_uV = _regulator_get_voltage(rdev, true);
 	if (input_uV <= 0)
 		input_uV = rdev->constraints->input_uV;
 	if (input_uV <= 0)
@@ -689,20 +689,20 @@ static void drms_uA_update(struct regulator_dev *rdev)
 
 	/* now get the optimum mode for our new total regulator load */
 	mode = rdev->desc->ops->get_optimum_mode(rdev, input_uV,
-						  output_uV, current_uA);
+						  output_uV, current_uA, true);
 
 	/* check the new mode is allowed */
 	err = regulator_mode_constrain(rdev, &mode);
 	/* return if the same mode is requested */
 	if (rdev->desc->ops->get_mode) {
-		regulator_curr_mode = rdev->desc->ops->get_mode(rdev);
+		regulator_curr_mode = rdev->desc->ops->get_mode(rdev, true);
 		if (regulator_curr_mode == mode)
 			return;
 	} else
 		return;
 
 	if (err == 0)
-		rdev->desc->ops->set_mode(rdev, mode);
+		rdev->desc->ops->set_mode(rdev, mode, true);
 }
 
 static int suspend_set_state(struct regulator_dev *rdev,
@@ -801,7 +801,7 @@ static void print_constraints(struct regulator_dev *rdev)
 
 	if (!constraints->min_uV ||
 	    constraints->min_uV != constraints->max_uV) {
-		ret = _regulator_get_voltage(rdev);
+		ret = _regulator_get_voltage(rdev, true);
 		if (ret > 0)
 			count += sprintf(buf + count, "at %d mV ", ret / 1000);
 	}
@@ -976,7 +976,7 @@ static int set_machine_constraints(struct regulator_dev *rdev,
 			goto out;
 		}
 
-		ret = ops->set_mode(rdev, rdev->constraints->initial_mode);
+		ret = ops->set_mode(rdev, rdev->constraints->initial_mode, true);
 		if (ret < 0) {
 			rdev_err(rdev, "failed to set initial mode: %d\n", ret);
 			goto out;
@@ -1902,13 +1902,13 @@ static int _regulator_do_set_voltage(struct regulator_dev *rdev,
 
 	if (rdev->desc->ops->set_voltage) {
 		ret = rdev->desc->ops->set_voltage(rdev, min_uV, max_uV,
-						   selector_ptr);
+						   selector_ptr, should_lock);
 
 		if (rdev->desc->ops->list_voltage)
 			selector = rdev->desc->ops->list_voltage(rdev,
 								 selector);
 		else if (rdev->desc->ops->get_voltage)
-			selector = rdev->desc->ops->get_voltage(rdev);
+			selector = rdev->desc->ops->get_voltage(rdev, should_lock);
 		else
 			selector = -1;
 	} else if (rdev->desc->ops->set_voltage_sel) {
@@ -2153,7 +2153,7 @@ out:
 }
 EXPORT_SYMBOL_GPL(regulator_sync_voltage);
 
-static int _regulator_get_voltage(struct regulator_dev *rdev)
+static int _regulator_get_voltage(struct regulator_dev *rdev, bool should_lock)
 {
 	int sel, ret;
 
@@ -2163,7 +2163,7 @@ static int _regulator_get_voltage(struct regulator_dev *rdev)
 			return sel;
 		ret = rdev->desc->ops->list_voltage(rdev, sel);
 	} else if (rdev->desc->ops->get_voltage) {
-		ret = rdev->desc->ops->get_voltage(rdev);
+		ret = rdev->desc->ops->get_voltage(rdev, should_lock);
 	} else {
 		return -EINVAL;
 	}
@@ -2182,17 +2182,24 @@ static int _regulator_get_voltage(struct regulator_dev *rdev)
  * NOTE: If the regulator is disabled it will return the voltage value. This
  * function should not be used to determine regulator state.
  */
-int regulator_get_voltage(struct regulator *regulator)
+int __regulator_get_voltage(struct regulator *regulator, bool should_lock)
 {
 	int ret;
 
-	mutex_lock(&regulator->rdev->mutex);
+	if(should_lock) {
+		mutex_lock(&regulator->rdev->mutex);
+	}
 
-	ret = _regulator_get_voltage(regulator->rdev);
+	ret = _regulator_get_voltage(regulator->rdev, should_lock);
 
-	mutex_unlock(&regulator->rdev->mutex);
+	if(should_lock) {
+		mutex_unlock(&regulator->rdev->mutex);
+	}
 
 	return ret;
+}
+int regulator_get_voltage(struct regulator *regulator) {
+	return __regulator_get_voltage(regulator, true);
 }
 EXPORT_SYMBOL_GPL(regulator_get_voltage);
 
@@ -2282,13 +2289,15 @@ EXPORT_SYMBOL_GPL(regulator_get_current_limit);
  * NOTE: Regulator system constraints must be set for this regulator before
  * calling this function otherwise this call will fail.
  */
-int regulator_set_mode(struct regulator *regulator, unsigned int mode)
+int regulator_set_mode(struct regulator *regulator, unsigned int mode, bool should_lock)
 {
 	struct regulator_dev *rdev = regulator->rdev;
 	int ret;
 	int regulator_curr_mode;
 
-	mutex_lock(&rdev->mutex);
+	if(should_lock) {
+		mutex_lock(&rdev->mutex);
+	}
 
 	/* sanity check */
 	if (!rdev->desc->ops->set_mode) {
@@ -2298,7 +2307,7 @@ int regulator_set_mode(struct regulator *regulator, unsigned int mode)
 
 	/* return if the same mode is requested */
 	if (rdev->desc->ops->get_mode) {
-		regulator_curr_mode = rdev->desc->ops->get_mode(rdev);
+		regulator_curr_mode = rdev->desc->ops->get_mode(rdev, should_lock);
 		if (regulator_curr_mode == mode) {
 			ret = 0;
 			goto out;
@@ -2310,18 +2319,22 @@ int regulator_set_mode(struct regulator *regulator, unsigned int mode)
 	if (ret < 0)
 		goto out;
 
-	ret = rdev->desc->ops->set_mode(rdev, mode);
+	ret = rdev->desc->ops->set_mode(rdev, mode, should_lock);
 out:
-	mutex_unlock(&rdev->mutex);
+	if(should_lock) {
+		mutex_unlock(&rdev->mutex);
+	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(regulator_set_mode);
 
-static unsigned int _regulator_get_mode(struct regulator_dev *rdev)
+static unsigned int _regulator_get_mode(struct regulator_dev *rdev, bool should_lock)
 {
 	int ret;
 
-	mutex_lock(&rdev->mutex);
+	if(should_lock) {
+		mutex_lock(&rdev->mutex);
+	}
 
 	/* sanity check */
 	if (!rdev->desc->ops->get_mode) {
@@ -2329,9 +2342,11 @@ static unsigned int _regulator_get_mode(struct regulator_dev *rdev)
 		goto out;
 	}
 
-	ret = rdev->desc->ops->get_mode(rdev);
+	ret = rdev->desc->ops->get_mode(rdev, should_lock);
 out:
-	mutex_unlock(&rdev->mutex);
+	if(should_lock) {
+		mutex_unlock(&rdev->mutex);
+	}
 	return ret;
 }
 
@@ -2341,9 +2356,9 @@ out:
  *
  * Get the current regulator operating mode.
  */
-unsigned int regulator_get_mode(struct regulator *regulator)
+unsigned int regulator_get_mode(struct regulator *regulator, bool should_lock)
 {
-	return _regulator_get_mode(regulator->rdev);
+	return _regulator_get_mode(regulator->rdev, should_lock);
 }
 EXPORT_SYMBOL_GPL(regulator_get_mode);
 
@@ -2383,7 +2398,9 @@ int _regulator_set_optimum_mode(struct regulator *regulator, int uA_load, bool s
 	if (rdev->supply)
 		input_uV = regulator_get_voltage(rdev->supply);
 
-	mutex_lock(&rdev->mutex);
+	if(should_lock) {
+		mutex_lock(&rdev->mutex);
+	}
 
 	/*
 	 * first check to see if we can set modes at all, otherwise just
@@ -2406,7 +2423,7 @@ int _regulator_set_optimum_mode(struct regulator *regulator, int uA_load, bool s
 	ret = -EINVAL;
 
 	/* get output voltage */
-	output_uV = _regulator_get_voltage(rdev);
+	output_uV = _regulator_get_voltage(rdev, should_lock);
 	if (output_uV <= 0) {
 		rdev_err(rdev, "invalid output voltage found\n");
 		goto out;
@@ -2426,7 +2443,7 @@ int _regulator_set_optimum_mode(struct regulator *regulator, int uA_load, bool s
 
 	mode = rdev->desc->ops->get_optimum_mode(rdev,
 						 input_uV, output_uV,
-						 total_uA_load);
+						 total_uA_load, should_lock);
 	ret = regulator_mode_constrain(rdev, &mode);
 	if (ret < 0) {
 		rdev_err(rdev, "failed to get optimum mode @ %d uA %d -> %d uV\n",
@@ -2434,14 +2451,16 @@ int _regulator_set_optimum_mode(struct regulator *regulator, int uA_load, bool s
 		goto out;
 	}
 
-	ret = rdev->desc->ops->set_mode(rdev, mode);
+	ret = rdev->desc->ops->set_mode(rdev, mode, should_lock);
 	if (ret < 0) {
 		rdev_err(rdev, "failed to set optimum mode %x\n", mode);
 		goto out;
 	}
 	ret = mode;
 out:
-	mutex_unlock(&rdev->mutex);
+	if(should_lock) {
+		mutex_unlock(&rdev->mutex);
+	}
 	return ret;
 }
 int regulator_set_optimum_mode(struct regulator *regulator, int uA_load)
@@ -2815,7 +2834,7 @@ static int add_regulator_attributes(struct regulator_dev *rdev)
 	int			status = 0;
 
 	/* some attributes need specific methods to be displayed */
-	if ((ops->get_voltage && ops->get_voltage(rdev) >= 0) ||
+	if ((ops->get_voltage && ops->get_voltage(rdev, true) >= 0) ||
 	    (ops->get_voltage_sel && ops->get_voltage_sel(rdev) >= 0)) {
 		status = device_create_file(dev, &dev_attr_microvolts);
 		if (status < 0)
@@ -3062,7 +3081,7 @@ static int reg_debug_mode_set(void *data, u64 val)
 		return -ENOMEM;
 	}
 
-	err_info = regulator_set_mode(data, (unsigned int)val);
+	err_info = regulator_set_mode(data, (unsigned int)val, true);
 
 	return err_info;
 }
@@ -3075,7 +3094,7 @@ static int reg_debug_mode_get(void *data, u64 *val)
 		return -ENOMEM;
 	}
 
-	err_info = regulator_get_mode(data);
+	err_info = regulator_get_mode(data, true);
 
 	if (err_info < 0) {
 		pr_err("Regulator_get_mode returned an error!\n");

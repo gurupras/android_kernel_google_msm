@@ -39,14 +39,14 @@ struct regulator_stub {
 };
 
 static int regulator_stub_set_voltage(struct regulator_dev *rdev, int min_uV,
-				  int max_uV, unsigned *selector)
+				  int max_uV, unsigned *selector, bool should_lock)
 {
 	struct regulator_stub *vreg_priv = rdev_get_drvdata(rdev);
 	vreg_priv->voltage = min_uV;
 	return 0;
 }
 
-static int regulator_stub_get_voltage(struct regulator_dev *rdev)
+static int regulator_stub_get_voltage(struct regulator_dev *rdev, bool should_lock)
 {
 	struct regulator_stub *vreg_priv = rdev_get_drvdata(rdev);
 	return vreg_priv->voltage;
@@ -65,14 +65,14 @@ static int regulator_stub_list_voltage(struct regulator_dev *rdev,
 		return constraints->max_uV;
 }
 
-static unsigned int regulator_stub_get_mode(struct regulator_dev *rdev)
+static unsigned int regulator_stub_get_mode(struct regulator_dev *rdev, bool should_lock)
 {
 	struct regulator_stub *vreg_priv = rdev_get_drvdata(rdev);
 	return vreg_priv->mode;
 }
 
 static int regulator_stub_set_mode(struct regulator_dev *rdev,
-				   unsigned int mode)
+				   unsigned int mode, bool should_lock)
 {
 	struct regulator_stub *vreg_priv = rdev_get_drvdata(rdev);
 
@@ -86,7 +86,7 @@ static int regulator_stub_set_mode(struct regulator_dev *rdev,
 }
 
 static unsigned int regulator_stub_get_optimum_mode(struct regulator_dev *rdev,
-		int input_uV, int output_uV, int load_uA)
+		int input_uV, int output_uV, int load_uA, bool should_lock)
 {
 	struct regulator_stub *vreg_priv = rdev_get_drvdata(rdev);
 	unsigned int mode;

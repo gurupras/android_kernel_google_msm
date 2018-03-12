@@ -644,7 +644,7 @@ static int rpm_vreg_disable(struct regulator_dev *rdev)
 }
 
 static int rpm_vreg_set_voltage(struct regulator_dev *rdev, int min_uV,
-				int max_uV, unsigned *selector)
+				int max_uV, unsigned *selector, bool should_lock)
 {
 	struct rpm_regulator *reg = rdev_get_drvdata(rdev);
 	int rc = 0;
@@ -673,7 +673,7 @@ static int rpm_vreg_set_voltage(struct regulator_dev *rdev, int min_uV,
 	return rc;
 }
 
-static int rpm_vreg_get_voltage(struct regulator_dev *rdev)
+static int rpm_vreg_get_voltage(struct regulator_dev *rdev,  bool should_lock)
 {
 	struct rpm_regulator *reg = rdev_get_drvdata(rdev);
 	int uV;
@@ -686,7 +686,7 @@ static int rpm_vreg_get_voltage(struct regulator_dev *rdev)
 }
 
 static int rpm_vreg_set_voltage_corner(struct regulator_dev *rdev, int min_uV,
-				int max_uV, unsigned *selector)
+				int max_uV, unsigned *selector, bool should_lock)
 {
 	struct rpm_regulator *reg = rdev_get_drvdata(rdev);
 	int rc = 0;
@@ -732,7 +732,7 @@ static int rpm_vreg_set_voltage_corner(struct regulator_dev *rdev, int min_uV,
 	return rc;
 }
 
-static int rpm_vreg_get_voltage_corner(struct regulator_dev *rdev)
+static int rpm_vreg_get_voltage_corner(struct regulator_dev *rdev, bool should_lock)
 {
 	struct rpm_regulator *reg = rdev_get_drvdata(rdev);
 
@@ -741,7 +741,7 @@ static int rpm_vreg_get_voltage_corner(struct regulator_dev *rdev)
 }
 
 static int rpm_vreg_set_voltage_floor_corner(struct regulator_dev *rdev,
-				int min_uV, int max_uV, unsigned *selector)
+				int min_uV, int max_uV, unsigned *selector, bool should_lock)
 {
 	struct rpm_regulator *reg = rdev_get_drvdata(rdev);
 	int rc = 0;
@@ -787,7 +787,7 @@ static int rpm_vreg_set_voltage_floor_corner(struct regulator_dev *rdev,
 	return rc;
 }
 
-static int rpm_vreg_get_voltage_floor_corner(struct regulator_dev *rdev)
+static int rpm_vreg_get_voltage_floor_corner(struct regulator_dev *rdev, bool should_lock)
 {
 	struct rpm_regulator *reg = rdev_get_drvdata(rdev);
 
@@ -795,7 +795,7 @@ static int rpm_vreg_get_voltage_floor_corner(struct regulator_dev *rdev)
 		+ RPM_REGULATOR_CORNER_NONE;
 }
 
-static int rpm_vreg_set_mode(struct regulator_dev *rdev, unsigned int mode)
+static int rpm_vreg_set_mode(struct regulator_dev *rdev, unsigned int mode, bool should_lock)
 {
 	struct rpm_regulator *reg = rdev_get_drvdata(rdev);
 	int rc = 0;
@@ -842,7 +842,7 @@ static int rpm_vreg_set_mode(struct regulator_dev *rdev, unsigned int mode)
 	return rc;
 }
 
-static unsigned int rpm_vreg_get_mode(struct regulator_dev *rdev)
+static unsigned int rpm_vreg_get_mode(struct regulator_dev *rdev, bool should_lock)
 {
 	struct rpm_regulator *reg = rdev_get_drvdata(rdev);
 
@@ -852,7 +852,7 @@ static unsigned int rpm_vreg_get_mode(struct regulator_dev *rdev)
 }
 
 static unsigned int rpm_vreg_get_optimum_mode(struct regulator_dev *rdev,
-			int input_uV, int output_uV, int load_uA)
+			int input_uV, int output_uV, int load_uA, bool should_lock)
 {
 	struct rpm_regulator *reg = rdev_get_drvdata(rdev);
 	u32 load_mA;
@@ -1068,7 +1068,7 @@ EXPORT_SYMBOL_GPL(rpm_regulator_disable);
  * must be configured via device tree with qcom,allow-atomic == 1.
  */
 int rpm_regulator_set_voltage(struct rpm_regulator *regulator, int min_uV,
-			      int max_uV)
+			      int max_uV, bool should_lock)
 {
 	int rc = rpm_regulator_check_input(regulator);
 	int uV = min_uV;
@@ -1098,7 +1098,7 @@ int rpm_regulator_set_voltage(struct rpm_regulator *regulator, int min_uV,
 		return -EINVAL;
 	}
 
-	return regulator->rdesc.ops->set_voltage(regulator->rdev, uV, uV, NULL);
+	return regulator->rdesc.ops->set_voltage(regulator->rdev, uV, uV, NULL, should_lock);
 }
 EXPORT_SYMBOL_GPL(rpm_regulator_set_voltage);
 
@@ -1113,7 +1113,7 @@ EXPORT_SYMBOL_GPL(rpm_regulator_set_voltage);
  * Returns 0 on success or errno on failure.
  */
 int rpm_regulator_set_mode(struct rpm_regulator *regulator,
-				enum rpm_regulator_mode mode)
+				enum rpm_regulator_mode mode, bool should_lock)
 {
 	int index = 0;
 	u32 new_mode, prev_mode;
@@ -1574,8 +1574,9 @@ static int __devinit rpm_vreg_resource_probe(struct platform_device *pdev)
 	}
 
 	/* Optional device tree properties: */
+	// allow-atomic is forcefully enabled
 	of_property_read_u32(node, "qcom,allow-atomic", &val);
-	rpm_vreg->allow_atomic = !!val;
+	rpm_vreg->allow_atomic = !!(1);
 	of_property_read_u32(node, "qcom,enable-time", &rpm_vreg->enable_time);
 	of_property_read_u32(node, "qcom,hpm-min-load",
 		&rpm_vreg->hpm_min_load);

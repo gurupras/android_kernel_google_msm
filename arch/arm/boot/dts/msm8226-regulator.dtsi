@@ -83,6 +83,7 @@
 			regulator-max-microvolt = <7>;
 			qcom,use-voltage-corner;
 			qcom,consumer-supplies = "vdd_dig", "";
+			qcom,allow-atomic = <1>;
 		};
 		pm8226_s1_corner_ao: regulator-s1-corner-ao {
 			compatible = "qcom,rpm-regulator-smd";
@@ -92,6 +93,7 @@
 			regulator-max-microvolt = <7>;
 			qcom,use-voltage-corner;
 			qcom,consumer-supplies = "vdd_sr2_dig", "";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -161,6 +163,7 @@
 			regulator-min-microvolt = <750000>;
 			regulator-max-microvolt = <1275000>;
 			status = "okay";
+			qcom,allow-atomic = <1>;
 		};
 		pm8226_l3_so: regulator-l3-so {
 			compatible = "qcom,rpm-regulator-smd";
@@ -170,6 +173,7 @@
 			regulator-max-microvolt = <1275000>;
 			qcom,init-voltage = <750000>;
 			status = "okay";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -234,6 +238,7 @@
 			regulator-max-microvolt = <1800000>;
 			qcom,init-voltage = <1800000>;
 			qcom,consumer-supplies = "vdd_sr2_pll", "";
+			qcom,allow-atomic = <1>;
 		};
 
 		pm8226_l8_so: regulator-l8-so {
@@ -244,6 +249,7 @@
 			regulator-max-microvolt = <1800000>;
 			qcom,init-voltage = <1800000>;
 			qcom,init-enable = <0>;
+			qcom,allow-atomic = <1>;
 		};
 	};
 

@@ -1930,7 +1930,7 @@ qpnp_chg_regulator_boost_is_enabled(struct regulator_dev *rdev)
 
 static int
 qpnp_chg_regulator_boost_set_voltage(struct regulator_dev *rdev,
-		int min_uV, int max_uV, unsigned *selector)
+		int min_uV, int max_uV, unsigned *selector, bool should_lock)
 {
 	int uV = min_uV;
 	int rc;
@@ -1957,7 +1957,7 @@ qpnp_chg_regulator_boost_set_voltage(struct regulator_dev *rdev,
 }
 
 static int
-qpnp_chg_regulator_boost_get_voltage(struct regulator_dev *rdev)
+qpnp_chg_regulator_boost_get_voltage(struct regulator_dev *rdev, bool should_lock)
 {
 	struct qpnp_chg_chip *chip = rdev_get_drvdata(rdev);
 

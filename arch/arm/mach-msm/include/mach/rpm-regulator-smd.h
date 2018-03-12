@@ -75,7 +75,7 @@ int rpm_regulator_enable(struct rpm_regulator *regulator);
 int rpm_regulator_disable(struct rpm_regulator *regulator);
 
 int rpm_regulator_set_voltage(struct rpm_regulator *regulator, int min_uV,
-			      int max_uV);
+			      int max_uV, bool should_lock);
 
 int __init rpm_regulator_smd_driver_init(void);
 
@@ -93,7 +93,7 @@ static inline int rpm_regulator_disable(struct rpm_regulator *regulator)
 			{ return 0; }
 
 static inline int rpm_regulator_set_voltage(struct rpm_regulator *regulator,
-					int min_uV, int max_uV) { return 0; }
+					int min_uV, int max_uV, bool should_lock) { return 0; }
 
 static inline int __init rpm_regulator_smd_driver_init(void) { return 0; }
 
@@ -101,10 +101,10 @@ static inline int __init rpm_regulator_smd_driver_init(void) { return 0; }
 
 #ifdef CONFIG_MSM_RPM_REGULATOR_SMD
 int rpm_regulator_set_mode(struct rpm_regulator *regulator,
-				enum rpm_regulator_mode mode);
+				enum rpm_regulator_mode mode, bool should_lock);
 #else
 static inline int rpm_regulator_set_mode(struct rpm_regulator *regulator,
-				enum rpm_regulator_mode mode) { return 0; }
+				enum rpm_regulator_mode mode, bool should_lock) { return 0; }
 #endif
 
 #endif

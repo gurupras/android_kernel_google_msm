@@ -24,6 +24,7 @@
 			regulator-name = "8226_s1";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -40,6 +41,7 @@
 			regulator-name = "8226_s3";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -56,6 +58,7 @@
 			regulator-name = "8226_s4";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -72,6 +75,7 @@
 			regulator-name = "8226_s5";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -88,6 +92,7 @@
 			regulator-name = "8226_l1";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -104,6 +109,7 @@
 			regulator-name = "8226_l2";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -120,6 +126,7 @@
 			regulator-name = "8226_l3";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -136,6 +143,7 @@
 			regulator-name = "8226_l4";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -152,6 +160,7 @@
 			regulator-name = "8226_l5";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -168,6 +177,7 @@
 			regulator-name = "8226_l6";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -184,6 +194,7 @@
 			regulator-name = "8226_l7";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -200,6 +211,7 @@
 			regulator-name = "8226_l8";
 			qcom,set = <1>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -216,6 +228,7 @@
 			regulator-name = "8226_l9";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -232,6 +245,7 @@
 			regulator-name = "8226_l10";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -248,6 +262,7 @@
 			regulator-name = "8226_l12";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -264,6 +279,7 @@
 			regulator-name = "8226_l14";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -280,6 +296,7 @@
 			regulator-name = "8226_l15";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -296,6 +313,7 @@
 			regulator-name = "8226_l16";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -312,6 +330,7 @@
 			regulator-name = "8226_l17";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -328,6 +347,7 @@
 			regulator-name = "8226_l18";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -344,6 +364,7 @@
 			regulator-name = "8226_l19";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -360,6 +381,7 @@
 			regulator-name = "8226_l20";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -376,6 +398,7 @@
 			regulator-name = "8226_l21";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -392,6 +415,7 @@
 			regulator-name = "8226_l22";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -408,6 +432,7 @@
 			regulator-name = "8226_l23";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -424,6 +449,7 @@
 			regulator-name = "8226_l24";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -440,6 +466,7 @@
 			regulator-name = "8226_l26";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -456,6 +483,7 @@
 			regulator-name = "8226_l27";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -472,6 +500,7 @@
 			regulator-name = "8226_l28";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 
@@ -487,6 +516,7 @@
 			regulator-name = "8226_lvs1";
 			qcom,set = <3>;
 			status = "disabled";
+			qcom,allow-atomic = <1>;
 		};
 	};
 };

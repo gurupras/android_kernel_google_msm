@@ -304,7 +304,7 @@ static int _increase_vdd(int cpu, struct vdd_data *data,
 	 */
 	if (force || data->vdd_mem > sc->vreg[VREG_MEM].cur_vdd) {
 		rc = rpm_regulator_set_voltage(sc->vreg[VREG_MEM].rpm_reg,
-				data->vdd_mem, sc->vreg[VREG_MEM].max_vdd);
+				data->vdd_mem, sc->vreg[VREG_MEM].max_vdd, should_lock);
 		if (rc) {
 			dev_err(drv.dev,
 				"vdd_mem (cpu%d) increase failed (%d)\n",
@@ -317,7 +317,7 @@ static int _increase_vdd(int cpu, struct vdd_data *data,
 	/* Increase vdd_dig active-set vote. */
 	if (force || data->vdd_dig > sc->vreg[VREG_DIG].cur_vdd) {
 		rc = rpm_regulator_set_voltage(sc->vreg[VREG_DIG].rpm_reg,
-				data->vdd_dig, sc->vreg[VREG_DIG].max_vdd);
+				data->vdd_dig, sc->vreg[VREG_DIG].max_vdd, should_lock);
 		if (rc) {
 			dev_err(drv.dev,
 				"vdd_dig (cpu%d) increase failed (%d)\n",
@@ -407,7 +407,7 @@ static void _decrease_vdd(int cpu, struct vdd_data *data,
 	/* Decrease vdd_dig active-set vote. */
 	if (force || data->vdd_dig < sc->vreg[VREG_DIG].cur_vdd) {
 		ret = rpm_regulator_set_voltage(sc->vreg[VREG_DIG].rpm_reg,
-				data->vdd_dig, sc->vreg[VREG_DIG].max_vdd);
+				data->vdd_dig, sc->vreg[VREG_DIG].max_vdd, should_lock);
 		if (ret) {
 			dev_err(drv.dev,
 				"vdd_dig (cpu%d) decrease failed (%d)\n",
@@ -423,7 +423,7 @@ static void _decrease_vdd(int cpu, struct vdd_data *data,
 	 */
 	if (force || data->vdd_mem < sc->vreg[VREG_MEM].cur_vdd) {
 		ret = rpm_regulator_set_voltage(sc->vreg[VREG_MEM].rpm_reg,
-				data->vdd_mem, sc->vreg[VREG_MEM].max_vdd);
+				data->vdd_mem, sc->vreg[VREG_MEM].max_vdd, should_lock);
 		if (ret) {
 			dev_err(drv.dev,
 				"vdd_mem (cpu%d) decrease failed (%d)\n",
@@ -697,7 +697,7 @@ static int __cpuinit rpm_regulator_init(struct scalable *sc, enum vregs vreg,
 	}
 
 	ret = rpm_regulator_set_voltage(sc->vreg[vreg].rpm_reg, vdd,
-					sc->vreg[vreg].max_vdd);
+					sc->vreg[vreg].max_vdd, true);
 	if (ret) {
 		dev_err(drv.dev, "%s initialization failed (%d)\n",
 			sc->vreg[vreg].name, ret);
@@ -1358,8 +1358,8 @@ inline void force_regulator_cpu(int cpu, struct acpu_level *tgt, struct vdd_data
 #endif
 	AVS_DISABLE(cpu);
 	drv.scalable[cpu].avs_enabled = false;
-	_increase_vdd(cpu, vdd_data, SETRATE_CPUFREQ, false, false);
-	_decrease_vdd(cpu, vdd_data, SETRATE_CPUFREQ, false, false);
+	_increase_vdd(cpu, vdd_data, SETRATE_CPUFREQ, true, false);
+	_decrease_vdd(cpu, vdd_data, SETRATE_CPUFREQ, true, false);
 	AVS_ENABLE(cpu, tgt->avsdscr_setting);
 	drv.scalable[cpu].avs_enabled = true;
 }

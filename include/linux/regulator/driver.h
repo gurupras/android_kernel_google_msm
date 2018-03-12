@@ -89,9 +89,9 @@ struct regulator_ops {
 
 	/* get/set regulator voltage */
 	int (*set_voltage) (struct regulator_dev *, int min_uV, int max_uV,
-			    unsigned *selector);
+			    unsigned *selector, bool should_lock);
 	int (*set_voltage_sel) (struct regulator_dev *, unsigned selector);
-	int (*get_voltage) (struct regulator_dev *);
+	int (*get_voltage) (struct regulator_dev *, bool should_lock);
 	int (*get_voltage_sel) (struct regulator_dev *);
 
 	/* get/set regulator current  */
@@ -105,8 +105,8 @@ struct regulator_ops {
 	int (*is_enabled) (struct regulator_dev *);
 
 	/* get/set regulator operating mode (defined in consumer.h) */
-	int (*set_mode) (struct regulator_dev *, unsigned int mode);
-	unsigned int (*get_mode) (struct regulator_dev *);
+	int (*set_mode) (struct regulator_dev *, unsigned int mode, bool should_lock);
+	unsigned int (*get_mode) (struct regulator_dev *, bool should_lock);
 
 	/* Time taken to enable or set voltage on the regulator */
 	int (*enable_time) (struct regulator_dev *);
@@ -123,7 +123,7 @@ struct regulator_ops {
 
 	/* get most efficient regulator operating mode for load */
 	unsigned int (*get_optimum_mode) (struct regulator_dev *, int input_uV,
-					  int output_uV, int load_uA);
+					  int output_uV, int load_uA, bool should_lock);
 
 	/* the operations below are for configuration of regulator state when
 	 * its parent PMIC enters a global STANDBY/HIBERNATE state */

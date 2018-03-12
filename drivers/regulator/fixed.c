@@ -148,7 +148,7 @@ static int fixed_voltage_enable_time(struct regulator_dev *dev)
 	return data->startup_delay;
 }
 
-static int fixed_voltage_get_voltage(struct regulator_dev *dev)
+static int fixed_voltage_get_voltage(struct regulator_dev *dev, bool should_lock)
 {
 	struct fixed_voltage_data *data = rdev_get_drvdata(dev);
 

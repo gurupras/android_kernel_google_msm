@@ -930,7 +930,7 @@ static void msm_sensor_misc_regulator(
 			&sctrl->pdev->dev, sctrl->sensordata->misc_regulator);
 		if (sctrl->misc_regulator) {
 			rc = rpm_regulator_set_mode(sctrl->misc_regulator,
-				RPM_REGULATOR_MODE_HPM);
+				RPM_REGULATOR_MODE_HPM, true);
 			if (rc < 0) {
 				pr_err("%s: Failed to set for rpm regulator on %s: %d\n",
 					__func__,
@@ -946,7 +946,7 @@ static void msm_sensor_misc_regulator(
 		if (sctrl->misc_regulator) {
 			rc = rpm_regulator_set_mode(
 				(struct rpm_regulator *)sctrl->misc_regulator,
-				RPM_REGULATOR_MODE_AUTO);
+				RPM_REGULATOR_MODE_AUTO, true);
 			if (rc < 0)
 				pr_err("%s: Failed to set for rpm regulator on %s: %d\n",
 					__func__,

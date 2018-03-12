@@ -595,7 +595,7 @@ static int qpnp_regulator_select_voltage(struct qpnp_regulator *vreg,
 }
 
 static int qpnp_regulator_common_set_voltage(struct regulator_dev *rdev,
-		int min_uV, int max_uV, unsigned *selector)
+		int min_uV, int max_uV, unsigned *selector, bool should_lock)
 {
 	struct qpnp_regulator *vreg = rdev_get_drvdata(rdev);
 	int rc, range_sel, voltage_sel;
@@ -634,7 +634,7 @@ static int qpnp_regulator_common_set_voltage(struct regulator_dev *rdev,
 	return rc;
 }
 
-static int qpnp_regulator_common_get_voltage(struct regulator_dev *rdev)
+static int qpnp_regulator_common_get_voltage(struct regulator_dev *rdev, bool should_lock)
 {
 	struct qpnp_regulator *vreg = rdev_get_drvdata(rdev);
 	struct qpnp_voltage_range *range = NULL;
@@ -660,7 +660,7 @@ static int qpnp_regulator_common_get_voltage(struct regulator_dev *rdev)
 }
 
 static int qpnp_regulator_boost_set_voltage(struct regulator_dev *rdev,
-		int min_uV, int max_uV, unsigned *selector)
+		int min_uV, int max_uV, unsigned *selector, bool should_lock)
 {
 	struct qpnp_regulator *vreg = rdev_get_drvdata(rdev);
 	int rc, range_sel, voltage_sel;
@@ -687,7 +687,7 @@ static int qpnp_regulator_boost_set_voltage(struct regulator_dev *rdev,
 	return rc;
 }
 
-static int qpnp_regulator_boost_get_voltage(struct regulator_dev *rdev)
+static int qpnp_regulator_boost_get_voltage(struct regulator_dev *rdev, bool should_lock)
 {
 	struct qpnp_regulator *vreg = rdev_get_drvdata(rdev);
 	int voltage_sel = vreg->ctrl_reg[QPNP_COMMON_IDX_VOLTAGE_SET];
@@ -718,7 +718,7 @@ static int qpnp_regulator_common_list_voltage(struct regulator_dev *rdev,
 	return uV;
 }
 
-static unsigned int qpnp_regulator_common_get_mode(struct regulator_dev *rdev)
+static unsigned int qpnp_regulator_common_get_mode(struct regulator_dev *rdev, bool should_lock)
 {
 	struct qpnp_regulator *vreg = rdev_get_drvdata(rdev);
 
@@ -728,7 +728,7 @@ static unsigned int qpnp_regulator_common_get_mode(struct regulator_dev *rdev)
 }
 
 static int qpnp_regulator_common_set_mode(struct regulator_dev *rdev,
-					unsigned int mode)
+					unsigned int mode, bool should_lock)
 {
 	struct qpnp_regulator *vreg = rdev_get_drvdata(rdev);
 	int rc = 0;
@@ -755,7 +755,7 @@ static int qpnp_regulator_common_set_mode(struct regulator_dev *rdev,
 
 static unsigned int qpnp_regulator_common_get_optimum_mode(
 		struct regulator_dev *rdev, int input_uV, int output_uV,
-		int load_uA)
+		int load_uA, bool should_lock)
 {
 	struct qpnp_regulator *vreg = rdev_get_drvdata(rdev);
 	unsigned int mode;
@@ -899,16 +899,16 @@ static void qpnp_vreg_show_state(struct regulator_dev *rdev,
 	if (type == QPNP_REGULATOR_LOGICAL_TYPE_SMPS
 	    || type == QPNP_REGULATOR_LOGICAL_TYPE_LDO
 	    || type == QPNP_REGULATOR_LOGICAL_TYPE_FTSMPS)
-		uV = qpnp_regulator_common_get_voltage(rdev);
+		uV = qpnp_regulator_common_get_voltage(rdev, true);
 
 	if (type == QPNP_REGULATOR_LOGICAL_TYPE_BOOST)
-		uV = qpnp_regulator_boost_get_voltage(rdev);
+		uV = qpnp_regulator_boost_get_voltage(rdev, true);
 
 	if (type == QPNP_REGULATOR_LOGICAL_TYPE_SMPS
 	    || type == QPNP_REGULATOR_LOGICAL_TYPE_LDO
 	    || type == QPNP_REGULATOR_LOGICAL_TYPE_FTSMPS
 	    || type == QPNP_REGULATOR_LOGICAL_TYPE_VS) {
-		mode = qpnp_regulator_common_get_mode(rdev);
+		mode = qpnp_regulator_common_get_mode(rdev, true);
 		mode_label = mode == REGULATOR_MODE_NORMAL ? "HPM" : "LPM";
 	}
 

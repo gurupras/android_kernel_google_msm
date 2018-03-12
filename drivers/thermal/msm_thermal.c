@@ -329,7 +329,7 @@ static int psm_set_mode_all(int mode)
 
 	for (i = 0; i < psm_rails_cnt; i++) {
 		if (psm_rails[i].mode != mode) {
-			ret = rpm_regulator_set_mode(psm_rails[i].reg, mode);
+			ret = rpm_regulator_set_mode(psm_rails[i].reg, mode, true);
 			if (ret) {
 				pr_err("Cannot set mode:%d for %s",
 					mode, psm_rails[i].name);
@@ -513,7 +513,7 @@ static ssize_t psm_reg_mode_store(struct kobject *kobj,
 	}
 
 	if (val != reg->mode) {
-		ret = rpm_regulator_set_mode(reg->reg, val);
+		ret = rpm_regulator_set_mode(reg->reg, val, true);
 		if (ret) {
 			pr_err( \
 			"Fail to set PMIC SW Mode:%d for %s\n",
@@ -1708,7 +1708,7 @@ static int psm_reg_init(struct platform_device *pdev)
 		/* Apps default vote for PWM mode */
 		psm_rails[i].init = PMIC_PWM_MODE;
 		ret = rpm_regulator_set_mode(psm_rails[i].reg,
-				psm_rails[i].init);
+				psm_rails[i].init, true);
 		if (ret) {
 			pr_err("%s: Cannot set PMIC PWM mode\n", __func__);
 			return ret;

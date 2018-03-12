@@ -557,13 +557,15 @@ static unsigned int _get_optimum_mode(struct regulator_dev *rdev,
 }
 
 static unsigned int krait_power_get_optimum_mode(struct regulator_dev *rdev,
-			int input_uV, int output_uV, int load_uA)
+			int input_uV, int output_uV, int load_uA, bool should_lock)
 {
 	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 	struct pmic_gang_vreg *pvreg = kvreg->pvreg;
 	int rc;
 
-	mutex_lock(&pvreg->krait_power_vregs_lock);
+	if(should_lock) {
+		mutex_lock(&pvreg->krait_power_vregs_lock);
+	}
 	kvreg->load = load_uA;
 	if (!kvreg->reg_en) {
 		mutex_unlock(&pvreg->krait_power_vregs_lock);
@@ -571,17 +573,19 @@ static unsigned int krait_power_get_optimum_mode(struct regulator_dev *rdev,
 	}
 
 	rc = _get_optimum_mode(rdev, input_uV, output_uV, load_uA);
-	mutex_unlock(&pvreg->krait_power_vregs_lock);
+	if(should_lock) {
+		mutex_unlock(&pvreg->krait_power_vregs_lock);
+	}
 
 	return rc;
 }
 
-static inline int krait_power_set_mode(struct regulator_dev *rdev, unsigned int mode)
+static inline int krait_power_set_mode(struct regulator_dev *rdev, unsigned int mode, bool should_lock)
 {
 	return 0;
 }
 
-static unsigned int krait_power_get_mode(struct regulator_dev *rdev)
+static unsigned int krait_power_get_mode(struct regulator_dev *rdev, bool should_lock)
 {
 	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 
@@ -665,23 +669,33 @@ static void __switch_to_using_ldo(void *info)
 	pr_debug("%s using LDO\n", kvreg->name);
 }
 
-static inline int switch_to_using_ldo(struct krait_power_vreg *kvreg)
+static inline int switch_to_using_ldo(struct krait_power_vreg *kvreg, bool is_correct_cpu)
 {
 	if (kvreg->mode == LDO_MODE
 		&& get_krait_ldo_uv(kvreg) == kvreg->uV - kvreg->ldo_delta_uV)
 		return 0;
 
-	return smp_call_function_single(kvreg->cpu_num,
-			__switch_to_using_ldo, kvreg, 1);
+	if(is_correct_cpu) {
+		__switch_to_using_ldo(kvreg);
+		return 0;
+	} else {
+		return smp_call_function_single(kvreg->cpu_num,
+				__switch_to_using_ldo, kvreg, 1);
+	}
 }
 
-static inline int switch_to_using_bhs(struct krait_power_vreg *kvreg)
+static inline int switch_to_using_bhs(struct krait_power_vreg *kvreg, bool is_correct_cpu)
 {
 	if (kvreg->mode == HS_MODE)
 		return 0;
 
-	return smp_call_function_single(kvreg->cpu_num,
-			__switch_to_using_bhs, kvreg, 1);
+	if(is_correct_cpu) {
+		__switch_to_using_bhs(kvreg);
+		return 0;
+	} else {
+		return smp_call_function_single(kvreg->cpu_num,
+				__switch_to_using_bhs, kvreg, 1);
+	}
 }
 
 static inline int set_pmic_gang_voltage(struct pmic_gang_vreg *pvreg, int uV)
@@ -733,7 +747,7 @@ static inline int set_pmic_gang_voltage(struct pmic_gang_vreg *pvreg, int uV)
 	return rc;
 }
 
-static inline int configure_ldo_or_hs_one(struct krait_power_vreg *kvreg, int vmax)
+static inline int configure_ldo_or_hs_one(struct krait_power_vreg *kvreg, int vmax, bool is_correct_cpu)
 {
 	int rc;
 
@@ -751,14 +765,14 @@ static inline int configure_ldo_or_hs_one(struct krait_power_vreg *kvreg, int vm
 	if (kvreg->uV <= kvreg->ldo_threshold_uV
 		&& kvreg->uV - kvreg->ldo_delta_uV + kvreg->headroom_uV
 			<= vmax) {
-		rc = switch_to_using_ldo(kvreg);
+		rc = switch_to_using_ldo(kvreg, is_correct_cpu);
 		if (rc < 0) {
 			pr_err("could not switch %s to ldo rc = %d\n",
 						kvreg->name, rc);
 			return rc;
 		}
 	} else {
-		rc = switch_to_using_bhs(kvreg);
+		rc = switch_to_using_bhs(kvreg, is_correct_cpu);
 		if (rc < 0) {
 			pr_err("could not switch %s to hs rc = %d\n",
 						kvreg->name, rc);
@@ -768,14 +782,14 @@ static inline int configure_ldo_or_hs_one(struct krait_power_vreg *kvreg, int vm
 	return 0;
 }
 
-static inline int configure_ldo_or_hs_all(struct krait_power_vreg *from, int vmax)
+static inline int configure_ldo_or_hs_all(struct krait_power_vreg *from, int vmax, bool is_correct_cpu)
 {
 	struct pmic_gang_vreg *pvreg = from->pvreg;
 	struct krait_power_vreg *kvreg;
 	int rc = 0;
 
 	list_for_each_entry(kvreg, &pvreg->krait_power_vregs, link) {
-		rc = configure_ldo_or_hs_one(kvreg, vmax);
+		rc = configure_ldo_or_hs_one(kvreg, vmax, is_correct_cpu);
 		if (rc) {
 			pr_err("could not switch %s\n", kvreg->name);
 			break;
@@ -786,7 +800,7 @@ static inline int configure_ldo_or_hs_all(struct krait_power_vreg *from, int vma
 
 #define SLEW_RATE 2395
 static inline int krait_voltage_increase(struct krait_power_vreg *from,
-							int vmax)
+							int vmax, bool is_correct_cpu)
 {
 	struct pmic_gang_vreg *pvreg = from->pvreg;
 	int rc = 0;
@@ -811,7 +825,7 @@ static inline int krait_voltage_increase(struct krait_power_vreg *from,
 	/* delay until the voltage is settled when it is raised */
 	udelay(settling_us);
 
-	rc = configure_ldo_or_hs_all(from, vmax);
+	rc = configure_ldo_or_hs_all(from, vmax, is_correct_cpu);
 	if (rc < 0) {
 		dev_err(&from->rdev->dev, "%s failed ldo/hs conf %d rc = %d\n",
 				pvreg->name, vmax, rc);
@@ -826,7 +840,7 @@ static inline int krait_voltage_increase(struct krait_power_vreg *from,
 }
 
 static inline int krait_voltage_decrease(struct krait_power_vreg *from,
-							int vmax)
+							int vmax, bool is_correct_cpu)
 {
 	struct pmic_gang_vreg *pvreg = from->pvreg;
 	int rc = 0;
@@ -836,7 +850,7 @@ static inline int krait_voltage_decrease(struct krait_power_vreg *from,
 	 * operating range. Hence configure such kraits to be in hs mode prior
 	 * to setting the pmic gang voltage
 	 */
-	rc = configure_ldo_or_hs_all(from, vmax);
+	rc = configure_ldo_or_hs_all(from, vmax, is_correct_cpu);
 	if (rc < 0) {
 		dev_err(&from->rdev->dev, "%s failed ldo/hs conf %d rc = %d\n",
 				pvreg->name, vmax, rc);
@@ -852,7 +866,7 @@ static inline int krait_voltage_decrease(struct krait_power_vreg *from,
 	return rc;
 }
 
-static inline int krait_power_get_voltage(struct regulator_dev *rdev)
+static inline int krait_power_get_voltage(struct regulator_dev *rdev, bool should_lock)
 {
 	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 
@@ -879,7 +893,7 @@ static inline int get_vmax(struct pmic_gang_vreg *pvreg)
 
 #define ROUND_UP_VOLTAGE(v, res) (DIV_ROUND_UP(v, res) * res)
 static inline int _set_voltage(struct regulator_dev *rdev,
-			int orig_krait_uV, int requested_uV)
+			int orig_krait_uV, int requested_uV, bool is_correct_cpu)
 {
 	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 	struct pmic_gang_vreg *pvreg = kvreg->pvreg;
@@ -903,9 +917,9 @@ static inline int _set_voltage(struct regulator_dev *rdev,
 	vmax = ROUND_UP_VOLTAGE(vmax, LV_RANGE_STEP);
 
 	if (requested_uV > orig_krait_uV)
-		rc = krait_voltage_increase(kvreg, vmax);
+		rc = krait_voltage_increase(kvreg, vmax, is_correct_cpu);
 	else
-		rc = krait_voltage_decrease(kvreg, vmax);
+		rc = krait_voltage_decrease(kvreg, vmax, is_correct_cpu);
 
 	if (rc < 0) {
 		pr_err("%s failed to set %duV from %duV rc = %d\n",
@@ -921,7 +935,7 @@ static inline int _set_voltage(struct regulator_dev *rdev,
 }
 
 static inline int krait_power_set_voltage(struct regulator_dev *rdev,
-			int min_uV, int max_uV, unsigned *selector)
+			int min_uV, int max_uV, unsigned *selector, bool should_lock)
 {
 	struct krait_power_vreg *kvreg = __rdev_get_drvdata(rdev);
 	struct pmic_gang_vreg *pvreg = kvreg->pvreg;
@@ -938,7 +952,7 @@ static inline int krait_power_set_voltage(struct regulator_dev *rdev,
 		min_uV = ROUND_UP_VOLTAGE(min_uV, KRAIT_LDO_STEP);
 	}
 
-	if(selector == NULL) {
+	if(!should_lock) {
 		// This is coming from our custom path
 		// The CPU is expected to be correct and therefore we don't lock
 	} else {
@@ -950,8 +964,8 @@ static inline int krait_power_set_voltage(struct regulator_dev *rdev,
 		return 0;
 	}
 
-	rc = _set_voltage(rdev, kvreg->uV, min_uV);
-	if(selector != NULL) {
+	rc = _set_voltage(rdev, kvreg->uV, min_uV, !should_lock);
+	if(should_lock) {
 		mutex_unlock(&pvreg->krait_power_vregs_lock);
 	}
 
@@ -963,7 +977,7 @@ inline void thermaplan_set_voltage(struct regulator_dev *rdev, int orig_krait_uV
 	// Triggers wdog_bark when undervolting
 	// May also trigger warning @ smp_call_function_single
 	//int ret = _set_voltage(rdev, orig_krait_uV, requested_uV);
-	int ret = krait_power_set_voltage(rdev, orig_krait_uV, requested_uV, NULL);
+	int ret = krait_power_set_voltage(rdev, orig_krait_uV, requested_uV, NULL, false);
 	if(ret) {
 		trace_thermaplan_info(__func__, smp_processor_id(), "Failed to call _set_voltage");
 	}
@@ -996,7 +1010,7 @@ static inline int krait_power_enable(struct regulator_dev *rdev)
 	 * since the core is being enabled, behave as if it is increasing
 	 * the core voltage
 	 */
-	rc = _set_voltage(rdev, 0, kvreg->uV);
+	rc = _set_voltage(rdev, 0, kvreg->uV, true);
 en_err:
 	mutex_unlock(&pvreg->krait_power_vregs_lock);
 	return rc;
@@ -1016,7 +1030,7 @@ static inline int krait_power_disable(struct regulator_dev *rdev)
 	if (rc < 0)
 		goto dis_err;
 
-	rc = _set_voltage(rdev, kvreg->uV, kvreg->uV);
+	rc = _set_voltage(rdev, kvreg->uV, kvreg->uV, true);
 	__krait_power_mdd_enable(kvreg, false);
 dis_err:
 	mutex_unlock(&pvreg->krait_power_vregs_lock);
@@ -1064,7 +1078,7 @@ static inline int krait_regulator_cpu_callback(struct notifier_block *nfb,
 		 * point. The gang voltage and mode votes for the cpu were
 		 * submitted in CPU_UP_PREPARE phase
 		 */
-		configure_ldo_or_hs_one(kvreg, pvreg->pmic_vmax_uV);
+		configure_ldo_or_hs_one(kvreg, pvreg->pmic_vmax_uV, false);
 		mutex_unlock(&pvreg->krait_power_vregs_lock);
 		break;
 	case CPU_DOWN_PREPARE:
@@ -1075,13 +1089,13 @@ static inline int krait_regulator_cpu_callback(struct notifier_block *nfb,
 		 * that the cpu is online at this point.
 		 */
 		pr_debug("%s force BHS remotely\n", kvreg->name);
-		switch_to_using_bhs(kvreg);
+		switch_to_using_bhs(kvreg, false);
 		mutex_unlock(&pvreg->krait_power_vregs_lock);
 		break;
 	case CPU_DOWN_FAILED:
 		mutex_lock(&pvreg->krait_power_vregs_lock);
 		kvreg->force_bhs = false;
-		configure_ldo_or_hs_one(kvreg, pvreg->pmic_vmax_uV);
+		configure_ldo_or_hs_one(kvreg, pvreg->pmic_vmax_uV, false);
 		mutex_unlock(&pvreg->krait_power_vregs_lock);
 		break;
 	default:
@@ -1756,7 +1770,7 @@ asmlinkage inline void thermaplan_undervolt_entering_kernelspace(void)
 
 asmlinkage inline void thermaplan_undervolt_entering_userspace(void)
 {
-	int freq;
+	volatile int freq;
 	struct acpu_level *level;
 	struct vdd_data vdd_data;
 	int cpu = smp_processor_id();
@@ -1814,6 +1828,16 @@ asmlinkage inline void thermaplan_undervolt_entering_userspace(void)
 	orig_uV = krait_power_get_voltage(regulator->rdev);
 	if (orig_uV != vdd_data.vdd_core) {
 		thermaplan_set_voltage(regulator->rdev, orig_uV, vdd_data.vdd_core);
+	}
+#endif
+#if 0
+	// Hanging 1 CPU crashes the whole system due to watchdog bark
+	if(cpu == 3) {
+		for (now = 0xFF; now < 0xFFFFFFFFFFFFFFFFULL; now++) {
+			if(freq == 0) {
+				break;
+			}
+		}
 	}
 #endif
 #ifdef CONFIG_THERMAPLAN_BTM_TRACK_UNDERVOLT_STATS
