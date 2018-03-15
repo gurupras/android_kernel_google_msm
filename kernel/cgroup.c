@@ -63,6 +63,9 @@
 
 #include <linux/atomic.h>
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/cgroup.h>
+
 /*
  * cgroup_mutex is the master lock.  Any modification to cgroup or its
  * hierarchy must be performed while holding it.
@@ -1858,6 +1861,11 @@ static void cgroup_task_migrate(struct cgroup *cgrp, struct cgroup *oldcgrp,
 
 	task_lock(tsk);
 	rcu_assign_pointer(tsk->cgroups, newcg);
+
+	if (cgroup_is_bg_task(oldcgrp) != cgroup_is_bg_task(cgrp)) {
+		trace_cgroup_task_migrate(tsk, oldcgrp, cgrp);
+	}
+
 	task_unlock(tsk);
 
 	/* Update the css_set linked lists if we're using them */
@@ -1874,6 +1882,7 @@ static void cgroup_task_migrate(struct cgroup *cgrp, struct cgroup *oldcgrp,
 	put_css_set(oldcg);
 
 	set_bit(CGRP_RELEASABLE, &oldcgrp->flags);
+
 }
 
 /**
@@ -3793,6 +3802,12 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 
 	if (clone_children(parent))
 		set_bit(CGRP_CLONE_CHILDREN, &cgrp->flags);
+
+	// On Android, the bg_non_interactive cgroup is used for background tasks
+	if(strcmp("bg_non_interactive", dentry->d_name.name) == 0) {
+		set_bit(CGRP_IS_BG_TASK, &cgrp->flags);
+		printk(KERN_INFO "Setting bg_non_interactive bit\n");
+	}
 
 	for_each_subsys(root, ss) {
 		struct cgroup_subsys_state *css = ss->create(cgrp);

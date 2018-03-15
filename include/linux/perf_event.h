@@ -130,8 +130,15 @@ enum perf_event_sample_format {
 	PERF_SAMPLE_STREAM_ID			= 1U << 9,
 	PERF_SAMPLE_RAW				= 1U << 10,
 	PERF_SAMPLE_BRANCH_STACK		= 1U << 11,
+	PERF_SAMPLE_REGS_USER		   = 1U << 12,
+	PERF_SAMPLE_STACK_USER		  = 1U << 13,
+	PERF_SAMPLE_WEIGHT		      = 1U << 14,
+	PERF_SAMPLE_DATA_SRC		    = 1U << 15,
+	PERF_SAMPLE_IDENTIFIER		  = 1U << 16,
+	PERF_SAMPLE_TRANSACTION		 = 1U << 17,
+	PERF_SAMPLE_REGS_INTR		   = 1U << 18,
 
-	PERF_SAMPLE_MAX = 1U << 12,		/* non-ABI */
+	PERF_SAMPLE_MAX = 1U << 19,	     /* non-ABI */
 };
 
 /*
@@ -254,6 +261,11 @@ struct perf_event_attr {
 
 				exclude_host   :  1, /* don't count in host   */
 				exclude_guest  :  1, /* don't count in guest  */
+				exclude_callchain_kernel : 1, /* exclude kernel callchains */
+				exclude_callchain_user   : 1, /* exclude user callchains */
+				mmap2	  :  1, /* include mmap with inode data     */
+				comm_exec      :  1, /* flag comm events that are due to an exec */
+
 				constraint_duplicate : 1,
 
 				__reserved_1   : 42;

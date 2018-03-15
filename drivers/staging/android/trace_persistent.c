@@ -42,8 +42,6 @@ static struct ftrace_ops trace_ops;
 static int persistent_tracer_init(struct trace_array *tr)
 {
 	persistent_trace_array = tr;
-	tr->cpu = get_cpu();
-	put_cpu();
 
 	tracing_start_cmdline_record();
 
@@ -70,10 +68,11 @@ static void persistent_trace_reset(struct trace_array *tr)
 
 static void persistent_trace_start(struct trace_array *tr)
 {
-	tracing_reset_online_cpus(tr);
+	tracing_reset_online_cpus(&tr->trace_buffer);
 }
 
-static void persistent_trace_call(unsigned long ip, unsigned long parent_ip)
+static void persistent_trace_call(unsigned long ip, unsigned long parent_ip,
+				struct ftrace_ops *op, struct pt_regs *regs)
 {
 	struct trace_array *tr = persistent_trace_array;
 	struct trace_array_cpu *data;
@@ -95,7 +94,7 @@ static void persistent_trace_call(unsigned long ip, unsigned long parent_ip)
 	 */
 	local_irq_save(flags);
 	cpu = raw_smp_processor_id();
-	data = tr->data[cpu];
+	data = &tr->trace_buffer.data[cpu];
 	disabled = atomic_inc_return(&data->disabled);
 
 	if (likely(disabled == 1)) {
@@ -111,7 +110,7 @@ static void persistent_trace_call(unsigned long ip, unsigned long parent_ip)
 
 static struct ftrace_ops trace_ops __read_mostly = {
 	.func = persistent_trace_call,
-	.flags = FTRACE_OPS_FL_GLOBAL,
+	.flags = 0,
 };
 
 static struct tracer persistent_tracer __read_mostly = {
@@ -119,7 +118,6 @@ static struct tracer persistent_tracer __read_mostly = {
 	.init		= persistent_tracer_init,
 	.reset		= persistent_trace_reset,
 	.start		= persistent_trace_start,
-	.wait_pipe	= poll_wait_pipe,
 };
 
 struct persistent_trace_seq_data {

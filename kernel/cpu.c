@@ -18,6 +18,9 @@
 #include <linux/suspend.h>
 
 #include <trace/events/sched.h>
+#ifdef CONFIG_PHONELAB
+#include <trace/events/phonelab.h>
+#endif
 
 #ifdef CONFIG_SMP
 /* Serializes the updates to cpu_online_mask, cpu_present_mask */
@@ -141,6 +144,12 @@ int __ref register_cpu_notifier(struct notifier_block *nb)
 	return ret;
 }
 
+int __ref __register_cpu_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_register(&cpu_chain, nb);
+}
+
+
 static int __cpu_notify(unsigned long val, void *v, int nr_to_call,
 			int *nr_calls)
 {
@@ -172,6 +181,12 @@ void __ref unregister_cpu_notifier(struct notifier_block *nb)
 	cpu_maps_update_done();
 }
 EXPORT_SYMBOL(unregister_cpu_notifier);
+
+void __ref __unregister_cpu_notifier(struct notifier_block *nb)
+{
+	raw_notifier_chain_unregister(&cpu_chain, nb);
+}
+EXPORT_SYMBOL(__unregister_cpu_notifier);
 
 static inline void check_for_tasks(int cpu)
 {
@@ -213,6 +228,9 @@ static int __ref take_cpu_down(void *_param)
 static int __ref _cpu_down(unsigned int cpu, int tasks_frozen)
 {
 	int err, nr_calls = 0;
+#ifdef CONFIG_PHONELAB
+	int cpu_count = 0;
+#endif
 	void *hcpu = (void *)(long)cpu;
 	unsigned long mod = tasks_frozen ? CPU_TASKS_FROZEN : 0;
 	struct take_cpu_down_param tcd_param = {
@@ -269,6 +287,12 @@ out_release:
 	trace_sched_cpu_hotplug(cpu, err, 0);
 	if (!err)
 		cpu_notify_nofail(CPU_POST_DEAD | mod, hcpu);
+#ifdef CONFIG_PHONELAB
+	for_each_online_cpu(cpu) {
+		cpu_count++;
+	}
+	trace_phonelab_num_online_cpus(cpu_count);
+#endif
 	return err;
 }
 
@@ -296,6 +320,9 @@ EXPORT_SYMBOL(cpu_down);
 static int __cpuinit _cpu_up(unsigned int cpu, int tasks_frozen)
 {
 	int ret, nr_calls = 0;
+#ifdef CONFIG_PHONELAB
+	int cpu_count = 0;
+#endif
 	void *hcpu = (void *)(long)cpu;
 	unsigned long mod = tasks_frozen ? CPU_TASKS_FROZEN : 0;
 
@@ -325,7 +352,12 @@ out_notify:
 		__cpu_notify(CPU_UP_CANCELED | mod, hcpu, nr_calls, NULL);
 	cpu_hotplug_done();
 	trace_sched_cpu_hotplug(cpu, ret, 1);
-
+#ifdef CONFIG_PHONELAB
+	for_each_online_cpu(cpu) {
+		cpu_count++;
+	}
+	trace_phonelab_num_online_cpus(cpu_count);
+#endif
 	return ret;
 }
 

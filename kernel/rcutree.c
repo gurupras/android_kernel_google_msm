@@ -578,6 +578,37 @@ void rcu_nmi_exit(void)
 	WARN_ON_ONCE(atomic_read(&rdtp->dynticks) & 0x1);
 }
 
+/**
+ * __rcu_is_watching - are RCU read-side critical sections safe?
+ *
+ * Return true if RCU is watching the running CPU, which means that
+ * this CPU can safely enter RCU read-side critical sections.  Unlike
+ * rcu_is_watching(), the caller of __rcu_is_watching() must have at
+ * least disabled preemption.
+ */
+bool notrace __rcu_is_watching(void)
+{
+	return atomic_read(this_cpu_ptr(&rcu_dynticks.dynticks)) & 0x1;
+}
+
+/**
+ * rcu_is_watching - see if RCU thinks that the current CPU is idle
+ *
+ * If the current CPU is in its idle loop and is neither in an interrupt
+ * or NMI handler, return true.
+ */
+bool notrace rcu_is_watching(void)
+{
+	bool ret;
+
+	preempt_disable();
+	ret = __rcu_is_watching();
+	preempt_enable();
+	return ret;
+}
+EXPORT_SYMBOL_GPL(rcu_is_watching);
+
+
 #ifdef CONFIG_PROVE_RCU
 
 /**

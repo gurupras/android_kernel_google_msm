@@ -1633,6 +1633,7 @@ static int voltage_based_capacity(struct pm8921_chg_chip *chip)
 		return -EIO;
 	}
 
+	/*
 	if (current_voltage_mv <= low_voltage)
 		return 0;
 	else if (current_voltage_mv >= high_voltage)
@@ -1640,6 +1641,8 @@ static int voltage_based_capacity(struct pm8921_chg_chip *chip)
 	else
 		return (current_voltage_mv - low_voltage) * 100
 		    / (high_voltage - low_voltage);
+	*/
+	return 100;
 }
 
 static int get_prop_batt_present(struct pm8921_chg_chip *chip)

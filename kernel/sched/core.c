@@ -86,6 +86,7 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
+#include <trace/events/phonelab.h>
 
 #ifdef CONFIG_THERMAPLAN
 #include <linux/thermaplan.h>
@@ -2069,10 +2070,36 @@ static inline void
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next)
 {
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
+	int lim;
+#endif
+	int cpu;
 	struct mm_struct *mm, *oldmm;
 
 	prepare_task_switch(rq, prev, next);
+	cpu = smp_processor_id();
 
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING
+	if(likely(periodic_ctx_switch_info_ready)) {
+		if(atomic_read(&per_cpu(test_field, cpu))) {
+			trace_phonelab_periodic_warning_cpu("context switch happening during local_irq_disabled()", cpu);
+			goto end;
+		}
+#ifdef CONFIG_PERIODIC_CTX_SWITCH_TRACING_ORIG
+		lim = per_cpu(ctx_switch_info_idx, cpu);
+
+		if(lim < CTX_SWITCH_INFO_LIM) {
+			per_cpu(ctx_switch_info[lim], cpu) = prev;
+			per_cpu(ctx_switch_info_idx, cpu) = lim + 1;
+		}
+		else {
+			trace_phonelab_periodic_lim_exceeded(cpu);
+			per_cpu(ctx_switch_info_idx, cpu) = 0;
+		}
+#endif
+	}
+end:
+#endif
 	mm = next->mm;
 	oldmm = prev->active_mm;
 	/*
@@ -2107,6 +2134,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	switch_to(prev, next, prev);
 
 	barrier();
+
 	/*
 	 * this_rq must be evaluated again because prev may have moved
 	 * CPUs since it called schedule(), thus the 'rq' on its stack
@@ -3042,7 +3070,6 @@ void scheduler_tick(void)
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
 	struct task_struct *curr = rq->curr;
-
 	sched_clock_tick();
 
 	raw_spin_lock(&rq->lock);

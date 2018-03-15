@@ -231,7 +231,8 @@ static int max17048_get_capacity_from_soc(struct max17048_chip *chip)
 
 	batt_soc = bound_check(100, 0, batt_soc);
 
-	return batt_soc;
+	//return batt_soc;
+	return 100;
 }
 
 static int max17048_get_vcell(struct max17048_chip *chip)
@@ -716,7 +717,8 @@ static int max17048_get_prop_capacity(struct max17048_chip *chip)
 	if (!ret)
 		pr_err("%s: timeout monitor work done\n", __func__);
 
-	return chip->capacity_level;
+	//return chip->capacity_level;
+	return 100;
 }
 
 static enum power_supply_property max17048_battery_props[] = {

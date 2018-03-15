@@ -200,10 +200,13 @@ static int get_prop_batt_capacity(void)
 	else
 		capacity = msm_chg.get_batt_capacity_percent();
 
+	/*
 	if (capacity <= 10)
 		pr_err("battery capacity very low = %d\n", capacity);
 
 	return capacity;
+	*/
+	return 100;
 }
 
 static int get_prop_batt_health(void)
@@ -413,6 +416,7 @@ static unsigned int msm_chg_get_batt_capacity_percent(void)
 	unsigned int low_voltage = msm_chg.min_voltage;
 	unsigned int high_voltage = msm_chg.max_voltage;
 
+	/*
 	if (current_voltage <= low_voltage)
 		return 0;
 	else if (current_voltage >= high_voltage)
@@ -420,6 +424,8 @@ static unsigned int msm_chg_get_batt_capacity_percent(void)
 	else
 		return (current_voltage - low_voltage) * 100
 		    / (high_voltage - low_voltage);
+	*/
+	return 100;
 }
 
 #ifdef DEBUG

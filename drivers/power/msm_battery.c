@@ -351,6 +351,7 @@ static int msm_batt_power_get_property(struct power_supply *psy,
 		val->intval = msm_batt_info.battery_voltage;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
+		val->intval = 100;
 		val->intval = msm_batt_info.batt_capacity;
 		break;
 	default:
@@ -636,10 +637,10 @@ static void msm_batt_update_psy_status(void)
 
 	if (msm_batt_info.battery_voltage != battery_voltage) {
 		msm_batt_info.battery_voltage  	= battery_voltage;
-		msm_batt_info.batt_capacity =
-			msm_batt_info.calculate_capacity(battery_voltage);
+		msm_batt_info.batt_capacity = 100;
+			/*msm_batt_info.calculate_capacity(battery_voltage);*/
 		DBG_LIMIT("BATT: voltage = %u mV [capacity = %d%%]\n",
-			 battery_voltage, msm_batt_info.batt_capacity);
+			 battery_voltage, /*msm_batt_info.batt_capacity*/ 100);
 
 		if (!supp)
 			supp = msm_batt_info.current_ps;
@@ -1182,6 +1183,7 @@ static u32 msm_batt_capacity(u32 current_voltage)
 	u32 low_voltage = msm_batt_info.voltage_min_design;
 	u32 high_voltage = msm_batt_info.voltage_max_design;
 
+	/*
 	if (current_voltage <= low_voltage)
 		return 0;
 	else if (current_voltage >= high_voltage)
@@ -1189,6 +1191,8 @@ static u32 msm_batt_capacity(u32 current_voltage)
 	else
 		return (current_voltage - low_voltage) * 100
 			/ (high_voltage - low_voltage);
+	*/
+	return 100;
 }
 
 #ifndef CONFIG_BATTERY_MSM_FAKE

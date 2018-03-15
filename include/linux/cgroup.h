@@ -150,6 +150,8 @@ enum {
 	 * Clone cgroup values when creating a new child cgroup
 	 */
 	CGRP_CLONE_CHILDREN,
+	/* Android BG task*/
+	CGRP_IS_BG_TASK,
 };
 
 struct cgroup {
@@ -598,6 +600,10 @@ unsigned short css_id(struct cgroup_subsys_state *css);
 unsigned short css_depth(struct cgroup_subsys_state *css);
 struct cgroup_subsys_state *cgroup_css_from_dir(struct file *f, int id);
 
+static inline int cgroup_is_bg_task(struct cgroup *cgp) {
+	return test_bit(CGRP_IS_BG_TASK, &cgp->flags);
+}
+
 #else /* !CONFIG_CGROUPS */
 
 static inline int cgroup_init_early(void) { return 0; }
@@ -619,6 +625,10 @@ static inline int cgroupstats_build(struct cgroupstats *stats,
 static inline int cgroup_attach_task_all(struct task_struct *from,
 					 struct task_struct *t)
 {
+	return 0;
+}
+
+static inline int cgroup_is_bg_task(struct cgroup *cgp) {
 	return 0;
 }
 

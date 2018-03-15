@@ -32,6 +32,7 @@
 
 #include <trace/events/power.h>
 
+
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
  * level driver of CPUFreq support, and its spinlock. This lock
@@ -444,7 +445,8 @@ static ssize_t store_##file_name					\
 									\
 	policy->user_policy.min = new_policy.min;			\
 	policy->user_policy.max = new_policy.max;			\
-									\
+	trace_cpufreq_scaling(new_policy.min, new_policy.max,		\
+			policy->cpu);					\
 	ret = __cpufreq_set_policy(policy, &new_policy);		\
 									\
 	return ret ? ret : count;					\
